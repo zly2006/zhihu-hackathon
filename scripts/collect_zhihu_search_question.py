@@ -9,6 +9,7 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import re
 import subprocess
 import sys
 from collections.abc import Callable
@@ -19,6 +20,12 @@ from urllib.parse import urlencode
 
 from decision_knowledge.contracts.source_record import SourceRecordV1
 from decision_knowledge.ingest.html_text import html_fragment_to_text
+from decision_knowledge.ingest.quality import (
+    QualityAssessment,
+    assess_answer_quality,
+    extract_keyword_candidates,
+    suggest_queries,
+)
 
 ADAPTER_CODE = "zhihu_search_question_api"
 ADAPTER_VERSION = "1.0.0"
@@ -88,6 +95,9 @@ def _question_id(search_result: dict[str, Any]) -> str | None:
     question = _object(result_object.get("question"))
     if question and question.get("id") is not None:
         return str(question["id"])
+    match = re.search(r"/question/(?P<question_id>[0-9]+)", str(result_object.get("url", "")))
+    if match:
+        return match.group("question_id")
     return None
 
 
@@ -130,6 +140,8 @@ def _build_record(
     search_result: dict[str, Any],
     question_feed_item: dict[str, Any],
     answer_detail: dict[str, Any],
+    quality: QualityAssessment,
+    discovery_round: int,
 ) -> SourceRecordV1:
     answer_id = str(answer_detail.get("id", "")).strip()
     question = _object(answer_detail.get("question"))
@@ -155,6 +167,9 @@ def _build_record(
     raw_payload = {
         "capture_method": ADAPTER_CODE,
         "query": query,
+        "discovery_round": discovery_round,
+        "quality": quality.as_dict(),
+        "keyword_candidates": list(extract_keyword_candidates(answer_detail)),
         "endpoints": {
             "search": search_url,
             "question_feed": question_feed_url,
@@ -210,6 +225,107 @@ def _build_record(
     )
 
 
+def _collect_question_answers(
+    question_id: str,
+    *,
+    query: str,
+    authorization_ref: str,
+    fetched_at: datetime,
+    max_answers_per_question: int,
+    max_candidates_per_question: int,
+    fetch_json: FetchJson,
+    search_url: str,
+    search_payload: dict[str, Any],
+    search_result: dict[str, Any],
+    discovery_round: int,
+) -> tuple[SourceRecordV1, ...]:
+    feed_url = _question_feeds_url(
+        question_id,
+        limit=max_candidates_per_question,
+    )
+    feed_payload = fetch_json(feed_url)
+    records: list[SourceRecordV1] = []
+    seen_answers: set[str] = set()
+    accepted = 0
+    inspected = 0
+    for feed_item in _items(feed_payload):
+        answer_id = _answer_id(feed_item)
+        if not answer_id or answer_id in seen_answers:
+            continue
+        seen_answers.add(answer_id)
+        inspected += 1
+        answer_url = _answer_url(answer_id)
+        answer_detail = fetch_json(answer_url)
+        quality = assess_answer_quality(answer_detail)
+        if not quality.accepted:
+            if inspected >= max_candidates_per_question:
+                break
+            continue
+        records.append(
+            _build_record(
+                query=query,
+                authorization_ref=authorization_ref,
+                fetched_at=fetched_at,
+                search_url=search_url,
+                question_feed_url=feed_url,
+                answer_url=answer_url,
+                search_payload=search_payload,
+                question_feed_payload=feed_payload,
+                search_result=search_result,
+                question_feed_item=feed_item,
+                answer_detail=answer_detail,
+                quality=quality,
+                discovery_round=discovery_round,
+            )
+        )
+        accepted += 1
+        if accepted >= max_answers_per_question:
+            break
+        if inspected >= max_candidates_per_question:
+            break
+    return tuple(records)
+
+
+def collect_question(
+    question_id: str,
+    *,
+    authorization_ref: str,
+    fetched_at: datetime,
+    max_answers_per_question: int,
+    max_candidates_per_question: int | None = None,
+    fetch_json: FetchJson,
+    discovery_round: int = 0,
+) -> tuple[SourceRecordV1, ...]:
+    """Start from one question ID and collect its highest-ranked answers."""
+
+    normalized_id = question_id.strip()
+    if not normalized_id:
+        raise ValueError("问题 ID 不能为空")
+    if not normalized_id.isdecimal():
+        raise ValueError("问题 ID 必须是数字")
+    if max_answers_per_question < 1:
+        raise ValueError("每题回答数必须大于零")
+    candidate_limit = max_candidates_per_question or max_answers_per_question * 3
+    if candidate_limit < 1:
+        raise ValueError("候选回答数必须大于零")
+    return _collect_question_answers(
+        normalized_id,
+        query=f"question:{normalized_id}",
+        authorization_ref=authorization_ref,
+        fetched_at=fetched_at,
+        max_answers_per_question=max_answers_per_question,
+        max_candidates_per_question=candidate_limit,
+        fetch_json=fetch_json,
+        search_url=f"https://www.zhihu.com/question/{normalized_id}",
+        search_payload={"seed_question_id": normalized_id},
+        search_result={
+            "type": "seed_question",
+            "object": {"type": "question", "id": normalized_id},
+        },
+        discovery_round=discovery_round,
+    )
+
+
 def collect_query(
     query: str,
     *,
@@ -217,16 +333,22 @@ def collect_query(
     fetched_at: datetime,
     max_questions: int,
     max_answers_per_question: int,
+    max_candidates_per_question: int | None = None,
     fetch_json: FetchJson,
+    discovery_round: int = 0,
 ) -> tuple[SourceRecordV1, ...]:
     """Run a bounded search → question feed → answer detail collection."""
 
-    if not query.strip():
+    normalized_query = query.strip()
+    if not normalized_query:
         raise ValueError("搜索词不能为空")
     if max_questions < 1 or max_answers_per_question < 1:
         raise ValueError("问题数和每题回答数必须大于零")
+    candidate_limit = max_candidates_per_question or max_answers_per_question * 3
+    if candidate_limit < 1:
+        raise ValueError("候选回答数必须大于零")
 
-    search_url = _search_url(query.strip(), limit=max(20, max_questions))
+    search_url = _search_url(normalized_query, limit=max(20, max_questions))
     search_payload = fetch_json(search_url)
     questions: dict[str, dict[str, Any]] = {}
     for search_result in _items(search_payload):
@@ -235,36 +357,22 @@ def collect_query(
             questions[question_id] = search_result
 
     records: list[SourceRecordV1] = []
-    seen_answers: set[str] = set()
     for question_id, search_result in tuple(questions.items())[:max_questions]:
-        feed_url = _question_feeds_url(question_id, limit=max_answers_per_question)
-        feed_payload = fetch_json(feed_url)
-        accepted = 0
-        for feed_item in _items(feed_payload):
-            answer_id = _answer_id(feed_item)
-            if not answer_id or answer_id in seen_answers:
-                continue
-            answer_url = _answer_url(answer_id)
-            answer_detail = fetch_json(answer_url)
-            records.append(
-                _build_record(
-                    query=query.strip(),
-                    authorization_ref=authorization_ref,
-                    fetched_at=fetched_at,
-                    search_url=search_url,
-                    question_feed_url=feed_url,
-                    answer_url=answer_url,
-                    search_payload=search_payload,
-                    question_feed_payload=feed_payload,
-                    search_result=search_result,
-                    question_feed_item=feed_item,
-                    answer_detail=answer_detail,
-                )
+        records.extend(
+            _collect_question_answers(
+                question_id,
+                query=normalized_query,
+                authorization_ref=authorization_ref,
+                fetched_at=fetched_at,
+                max_answers_per_question=max_answers_per_question,
+                max_candidates_per_question=candidate_limit,
+                fetch_json=fetch_json,
+                search_url=search_url,
+                search_payload=search_payload,
+                search_result=search_result,
+                discovery_round=discovery_round,
             )
-            seen_answers.add(answer_id)
-            accepted += 1
-            if accepted >= max_answers_per_question:
-                break
+        )
     return tuple(records)
 
 
@@ -297,43 +405,94 @@ def _positive_int(value: str) -> int:
     return number
 
 
+def _round_count(value: str) -> int:
+    number = _positive_int(value)
+    if number > 3:
+        raise argparse.ArgumentTypeError("滚雪球轮次最多为 3")
+    return number
+
+
 def _arguments() -> argparse.Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--query", action="append", required=True, help="搜索词，可重复")
+    parser.add_argument("--query", action="append", default=[], help="搜索词，可重复")
+    parser.add_argument("--question-id", action="append", default=[], help="问题 ID，可重复")
     parser.add_argument("--authorization-ref", required=True, help="数据库中的有效授权引用")
     parser.add_argument("--output", type=Path, required=True, help="SourceRecord JSONL 输出路径")
     parser.add_argument("--max-questions", type=_positive_int, default=5)
     parser.add_argument("--max-answers-per-question", type=_positive_int, default=10)
+    parser.add_argument("--max-candidates-per-question", type=_positive_int)
+    parser.add_argument("--snowball-rounds", type=_round_count, default=1)
+    parser.add_argument("--max-snowball-queries", type=_positive_int, default=5)
     parser.add_argument("--zhurl", default="zhurl", help="zhurl 可执行文件路径")
     return parser.parse_args()
 
 
 def main() -> int:
     args = _arguments()
+    if not any(query.strip() for query in args.query) and not any(
+        question_id.strip() for question_id in args.question_id
+    ):
+        print("ERROR: 至少提供一个 --query 或 --question-id", file=sys.stderr)
+        return 2
     fetched_at = datetime.now(UTC)
-    records_by_id: dict[str, SourceRecordV1] = {}
+    records_by_key: dict[tuple[str, str], SourceRecordV1] = {}
     fetch_json = lambda url: _run_zhurl(args.zhurl, url)  # noqa: E731
+    frontier = tuple(dict.fromkeys(query.strip() for query in args.query if query.strip()))
+    seen_queries = set(frontier)
+    question_seed_records: list[SourceRecordV1] = []
     try:
-        for query in args.query:
-            for record in collect_query(
-                query,
+        for question_id in tuple(dict.fromkeys(args.question_id)):
+            records = collect_question(
+                question_id,
                 authorization_ref=args.authorization_ref,
                 fetched_at=fetched_at,
-                max_questions=args.max_questions,
                 max_answers_per_question=args.max_answers_per_question,
+                max_candidates_per_question=args.max_candidates_per_question,
                 fetch_json=fetch_json,
-            ):
-                records_by_id.setdefault(record.external_ref.id, record)
+            )
+            question_seed_records.extend(records)
+            for record in records:
+                records_by_key.setdefault((record.external_ref.id, record.raw.sha256), record)
+        for discovery_round in range(args.snowball_rounds):
+            round_records: list[SourceRecordV1] = (
+                list(question_seed_records) if discovery_round == 0 else []
+            )
+            for query in frontier:
+                records = collect_query(
+                    query,
+                    authorization_ref=args.authorization_ref,
+                    fetched_at=fetched_at,
+                    max_questions=args.max_questions,
+                    max_answers_per_question=args.max_answers_per_question,
+                    max_candidates_per_question=args.max_candidates_per_question,
+                    fetch_json=fetch_json,
+                    discovery_round=discovery_round,
+                )
+                round_records.extend(records)
+                for record in records:
+                    records_by_key.setdefault(
+                        (record.external_ref.id, record.raw.sha256), record
+                    )
+            if discovery_round + 1 >= args.snowball_rounds:
+                break
+            frontier = suggest_queries(
+                round_records,
+                seed_queries=tuple(seen_queries),
+                max_queries=args.max_snowball_queries,
+            )
+            seen_queries.update(frontier)
+            if not frontier:
+                break
     except (RuntimeError, ValueError, KeyError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
     args.output.write_text(
-        "".join(record.model_dump_json() + "\n" for record in records_by_id.values()),
+        "".join(record.model_dump_json() + "\n" for record in records_by_key.values()),
         encoding="utf-8",
     )
-    print(f"WROTE records={len(records_by_id)} path={args.output}")
+    print(f"WROTE records={len(records_by_key)} path={args.output}")
     return 0
 
 

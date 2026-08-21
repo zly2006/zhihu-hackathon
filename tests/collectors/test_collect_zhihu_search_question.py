@@ -3,7 +3,8 @@ import json
 from datetime import UTC, datetime
 from typing import Any
 
-from scripts.collect_zhihu_search_question import collect_query
+from decision_knowledge.ingest.quality import assess_answer_quality, suggest_queries
+from scripts.collect_zhihu_search_question import collect_query, collect_question
 
 
 def test_search_question_and_answer_responses_become_traceable_records() -> None:
@@ -22,7 +23,11 @@ def test_search_question_and_answer_responses_become_traceable_records() -> None
     answer_detail = {
         "id": 7001,
         "type": "answer",
-        "content": "<p>先验证方向，再离职。</p>",
+        "content": (
+            "<p>我先盘点了自己的能力、储蓄和行业机会，再决定是否离职。</p>"
+            "<p>当时的关键不是要不要转行，而是先验证目标方向，降低裸辞和试错成本。</p>"
+            "<p>我用三个月做了两个小项目，找从业者反馈，后来才决定离开原岗位。</p>"
+        ),
         "created_time": 1_700_000_000,
         "updated_time": 1_700_000_100,
         "voteup_count": 18,
@@ -63,8 +68,11 @@ def test_search_question_and_answer_responses_become_traceable_records() -> None
     assert record.external_ref.parent is not None
     assert record.external_ref.parent.id == "4201"
     assert record.content.title == "转行前要准备什么？"
-    assert record.content.body == "先验证方向，再离职。"
-    assert record.content.raw_html == "<p>先验证方向，再离职。</p>"
+    assert "先盘点了自己的能力" in record.content.body
+    assert "验证目标方向" in record.content.body
+    assert "后来才决定" in record.content.body
+    assert record.content.raw_html.startswith("<p>")
+    assert "</p><p>" in record.content.raw_html
     assert record.topics[0].name == "职业规划"
     assert record.raw.payload["capture_method"] == "zhihu_search_question_api"
     assert record.raw.payload["api_responses"] == {
@@ -88,6 +96,8 @@ def test_search_question_and_answer_responses_become_traceable_records() -> None
         "/questions/4201/feeds" in calls[1],
         "/answers/7001" in calls[2],
     ] == [True, True, True]
+    assert record.raw.payload["quality"]["accepted"] is True
+    assert record.raw.payload["discovery_round"] == 0
 
 
 def test_collection_is_bounded_and_deduplicates_answers() -> None:
@@ -112,7 +122,12 @@ def test_collection_is_bounded_and_deduplicates_answers() -> None:
         if "/answers/9" in url:
             return {
                 "id": 9,
-                "content": "<p>answer</p>",
+                "content": (
+                    "<p>我先确认目标，再比较成本和风险。</p>"
+                    "<p>当时我有明确的储蓄和时间安排，所以先做小项目验证方向。</p>"
+                    "<p>后来结果符合预期，我才正式做出决定。</p>"
+                    "<p>我还核对了岗位要求、试错时间和收入变化，记录了反馈，避免只凭情绪做决定。</p>"
+                ),
                 "question": {"id": 1, "title": "question"},
             }
         raise AssertionError(f"collection exceeded its bounds: {url}")
@@ -123,9 +138,143 @@ def test_collection_is_bounded_and_deduplicates_answers() -> None:
         fetched_at=datetime(2026, 8, 21, tzinfo=UTC),
         max_questions=1,
         max_answers_per_question=1,
+        max_candidates_per_question=1,
         fetch_json=fetch_json,
     )
 
     assert [record.external_ref.id for record in records] == ["9"]
     assert len(calls) == 3
     assert json.loads(records[0].model_dump_json())["raw"]["payload"]["query"] == "bounded"
+
+
+def test_quality_gate_rejects_thin_answers_and_accepts_decision_evidence() -> None:
+    thin = assess_answer_quality({"content": "<p>看情况。</p>"})
+    substantial = assess_answer_quality(
+        {
+            "content": (
+                "<p>我当时需要在稳定工作和转行之间选择。</p>"
+                "<p>因为家庭储蓄只够一年，所以先用下班时间做项目，比较机会成本和风险。</p>"
+                "<p>三个月后拿到反馈，最终决定转行；这个结果依赖时间和资源条件。</p>"
+            ),
+            "voteup_count": 20,
+        }
+    )
+
+    assert thin.accepted is False
+    assert "正文过短" in thin.reasons
+    assert substantial.accepted is True
+    assert substantial.score >= 45
+
+
+def test_collect_query_skips_rejected_candidate_and_keeps_next_answer() -> None:
+    calls: list[str] = []
+
+    def fetch_json(url: str) -> dict[str, Any]:
+        calls.append(url)
+        if "search_v3" in url:
+            return {"data": [{"object": {"type": "question", "id": 1}}]}
+        if "/questions/1/feeds" in url:
+            return {
+                "data": [
+                    {"target": {"type": "answer", "id": 8}},
+                    {"target": {"type": "answer", "id": 9}},
+                ]
+            }
+        if "/answers/8" in url:
+            return {"id": 8, "content": "<p>看情况。</p>", "question": {"id": 1, "title": "问题"}}
+        return {
+            "id": 9,
+            "content": (
+                "<p>我先确认目标，再比较成本和风险。</p>"
+                "<p>当时我有明确的储蓄和时间安排，所以先做小项目验证方向。</p>"
+                "<p>后来结果符合预期，我才正式做出决定。</p>"
+                "<p>我还核对了岗位要求、试错时间和收入变化，记录了反馈，避免只凭情绪做决定。</p>"
+            ),
+            "question": {"id": 1, "title": "问题标题"},
+        }
+
+    records = collect_query(
+        "质量",
+        authorization_ref="auth",
+        fetched_at=datetime(2026, 8, 21, tzinfo=UTC),
+        max_questions=1,
+        max_answers_per_question=1,
+        max_candidates_per_question=2,
+        fetch_json=fetch_json,
+    )
+
+    assert [record.external_ref.id for record in records] == ["9"]
+    assert len(calls) == 4
+
+
+def test_snowball_only_uses_quality_passed_record_keywords() -> None:
+    calls: list[str] = []
+
+    def fetch_json(url: str) -> dict[str, Any]:
+        calls.append(url)
+        if "search_v3" in url:
+            return {"data": [{"object": {"type": "question", "id": 1}}]}
+        if "/questions/1/feeds" in url:
+            return {"data": [{"target": {"type": "answer", "id": 9}}]}
+        return {
+            "id": 9,
+            "content": (
+                "<p>我先确认目标，再比较成本和风险。</p>"
+                "<p>当时我有明确的储蓄和时间安排，所以先做小项目验证方向。</p>"
+                "<p>后来结果符合预期，我才正式做出决定。</p>"
+                "<p>我还核对了岗位要求、试错时间和收入变化，记录了反馈，避免只凭情绪做决定。</p>"
+            ),
+            "question": {
+                "id": 1,
+                "title": "转行项目怎么验证？",
+                "topics": [{"id": "career", "name": "职业转型"}],
+            },
+        }
+
+    records = collect_query(
+        "转行",
+        authorization_ref="auth",
+        fetched_at=datetime(2026, 8, 21, tzinfo=UTC),
+        max_questions=1,
+        max_answers_per_question=1,
+        max_candidates_per_question=1,
+        fetch_json=fetch_json,
+    )
+    next_queries = suggest_queries(records, seed_queries=("转行",), max_queries=3)
+
+    assert next_queries == ("职业转型", "转行项目怎么验证")
+    assert len(calls) == 3
+
+
+def test_question_seed_starts_at_question_feeds_without_search() -> None:
+    calls: list[str] = []
+
+    def fetch_json(url: str) -> dict[str, Any]:
+        calls.append(url)
+        if "/questions/42/feeds" in url:
+            return {"data": [{"target": {"type": "answer", "id": 99}}]}
+        if "/answers/99" in url:
+            return {
+                "id": 99,
+                "content": (
+                    "<p>我先明确目标，再比较成本和风险。</p>"
+                    "<p>当时有家庭和时间约束，所以先做小项目验证。</p>"
+                    "<p>后来结果符合预期，最终才做出决定。</p>"
+                    "<p>我还核对了岗位要求、试错时间和收入变化，记录了反馈，避免只凭情绪做决定。</p>"
+                ),
+                "question": {"id": 42, "title": "问题标题"},
+            }
+        raise AssertionError(f"unexpected URL: {url}")
+
+    records = collect_question(
+        "42",
+        authorization_ref="auth",
+        fetched_at=datetime(2026, 8, 21, tzinfo=UTC),
+        max_answers_per_question=1,
+        fetch_json=fetch_json,
+    )
+
+    assert len(records) == 1
+    assert records[0].raw.payload["query"] == "question:42"
+    assert "search_v3" not in calls[0]
+    assert "/questions/42/feeds" in calls[0]

@@ -62,14 +62,21 @@ URL、抓取响应校验值和原始 HTML 片段。它们属于历史“回答�
 uv run python scripts/collect_zhihu_search_question.py `
   --query 转行 `
   --query "读研还是工作" `
+  --question-id 329687018 `
   --authorization-ref auth-zhihu-search `
   --max-questions 5 `
   --max-answers-per-question 10 `
+  --max-candidates-per-question 30 `
+  --snowball-rounds 2 `
+  --max-snowball-queries 5 `
   --output data/zhihu/search_question_answers.jsonl
 ```
 
 每条输出都在 `raw.payload` 中保留命中的搜索项、问题回答列表项、回答详情和
 三个请求端点；回答 HTML 同时进入 `content.raw_html`，可直接导入权威证据库。
+采集器只从通过质量门的回答生成下一轮关键词：正文至少 80 个非空白字符，且必须
+包含决策信息；正文结构、背景、结果、互动量和营销信号共同形成可解释分数。
+轮次、问题数、候选回答数和下一轮关键词数均有上限。
 
 ```powershell
 uv run python scripts/collect_zhihu_public.py `
