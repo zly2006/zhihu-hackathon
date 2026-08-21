@@ -296,6 +296,15 @@
 - 情景/分叉先用关系表承载，不提前接 Graphiti：`decision_scenario` 表示可审核的情景抽屉，`decision_branch` 表示情景内的行动分叉，并用 `source_snapshot_id` 回指证据。
 - 管理端的“删除”先落为 `DELETED`/归档状态，不做不可恢复的硬删除；这符合原始证据可追溯不变量。
 
+## 数据库呈现复盘（2026-08-21）
+
+- 当前本地库实际是 `6 ContentItem / 6 ContentSnapshot / 6 RawEnvelope / 0 Scenario / 0 Branch`。用户端把“回答证据”放在主位、把“已审核情景”放在侧栏，导致它看起来像内容列表，而不是数据库流水线；情景为空是数据状态，界面没有把这个状态解释清楚。
+- 数据库展示必须分层，而不是把所有字段塞进回答卡：原文层（RawEnvelope）、身份层（ContentItem）、版本层（ContentSnapshot）、语义层（DecisionEpisode/Claim）、聚合层（CanonicalScenario）、比较层（BranchPoint/Branch）。
+- 管理端的默认主表应是“快照表”而不是“回答卡”：一行代表一个可审核版本，列出标题、来源、外部 ID、采集时间、版本、可用性、证据完整性和审核状态；点击后在抽屉中按“身份—正文—原始证据—语义关联”展开。
+- 用户端的默认主表应是“情景/分叉”，不是原始回答流：先呈现前置状态与决策点，再列行动分支，最后回链到证据回答。没有审核情景时，应明确显示“语义层尚未构建”，并提供进入证据库的入口。
+- 展示状态必须拆开：`availability` 表示来源是否可用，`review_status` 表示人工是否确认，未来还要有 `extraction_status`/`scenario_status` 表示语义处理进度；不能用一个状态代替三条流水线。
+- KISS 版本只需要一个数据库工作台导航：`总览 → 原文/快照 → 决策经历 → 情景 → 分叉`。表格承载事实，抽屉承载详情，小型分支树承载关系，不先做全图谱画布。
+
 ## 资源
 
 - 用户提供的 GitHub 账号：<https://github.com/zly2006>

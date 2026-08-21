@@ -9,43 +9,43 @@
   <body class="user-shell">
     <header class="topbar">
       <a class="brand" href="/">
-        <span class="brand-mark">路</span>
-        <span><strong>人生决策知识库</strong><small>证据 · 情景 · 分叉</small></span>
+        <span class="brand-mark">库</span>
+        <span><strong>人生决策知识库</strong><small>情景 → 分叉 → 证据</small></span>
       </a>
-      <nav><a href="#scenarios">情景路口</a><a class="quiet-link" href="/admin">管理端 ↗</a></nav>
+      <nav><a href="#evidence">原文快照</a><a class="quiet-link" href="/admin">管理端 ↗</a></nav>
     </header>
 
     <main class="user-main">
-      <section class="hero-block">
-        <p class="eyebrow">LOCAL DECISION WORKSPACE</p>
-        <h1>先看别人怎么走，<em>再看路口在哪里。</em></h1>
-        <p class="hero-copy">从真实知乎回答开始，保留原文证据，再把已经审核的经历整理成可比较的情景和分叉。</p>
-        <form id="search-form" class="search-box">
-          <span class="search-icon">⌕</span>
-          <input id="search-input" name="q" placeholder="搜索职业、读研、转行、创业……" autocomplete="off" />
-          <button type="submit">搜索回答</button>
-        </form>
-        <div class="quick-searches" aria-label="快捷搜索">
-          <button data-query="转行">转行</button>
-          <button data-query="读研">读研 / 工作</button>
-          <button data-query="创业">创业</button>
-        </div>
+      <section class="hero-block database-hero">
+        <p class="eyebrow">DATABASE / USER VIEW</p>
+        <h1>先看<strong>情景和分叉，</strong><br /><em>再回到原文证据。</em></h1>
+        <p class="hero-copy">这里不把回答堆成信息流。每一条可见的分叉，都应该能回到具体的知乎 URL、快照和 raw HTML。</p>
       </section>
 
-      <section class="workspace-grid">
-        <div class="results-panel panel">
-          <div class="section-heading">
-            <div><p class="eyebrow">SOURCE CARDS</p><h2>回答证据</h2></div>
-            <span id="result-count" class="count-pill">加载中</span>
-          </div>
-          <div id="results" class="result-list"><div class="empty-state">正在读取本地数据……</div></div>
-        </div>
+      <section id="overview-strip" class="overview-strip" aria-label="数据库流水线状态"></section>
 
-        <aside id="scenarios" class="scenario-panel panel">
-          <div class="section-heading"><div><p class="eyebrow">REVIEWED PATHS</p><h2>已审核情景</h2></div></div>
-          <div id="scenario-list" class="scenario-list"><div class="empty-state">还没有审核完成的情景。</div></div>
-          <p class="muted-note">情景和分叉只显示管理端确认过的内容，避免把未经核对的推断当成建议。</p>
-        </aside>
+      <section id="scenarios" class="panel scenario-first-panel">
+        <div class="section-heading">
+          <div><p class="eyebrow">SEMANTIC LAYER</p><h2>情景与分叉</h2><p class="section-note">情景描述“从哪里出发”，分叉描述“有哪些行动”。</p></div>
+          <span id="scenario-status" class="count-pill">读取中</span>
+        </div>
+        <div id="scenario-list" class="scenario-grid"><div class="empty-state">正在读取情景层……</div></div>
+      </section>
+
+      <section id="evidence" class="panel evidence-first-panel">
+        <div class="section-heading evidence-heading">
+          <div><p class="eyebrow">SOURCE / SNAPSHOT LAYER</p><h2>原文快照</h2><p class="section-note">这是证据库，不是推荐列表。搜索后可打开正文和 raw HTML。</p></div>
+          <span id="result-count" class="count-pill">加载中</span>
+        </div>
+        <form id="search-form" class="search-box compact-search">
+          <span class="search-icon">⌕</span>
+          <input id="search-input" name="q" placeholder="搜索转行、读研、创业……" autocomplete="off" />
+          <button type="submit">检索快照</button>
+        </form>
+        <div class="quick-searches" aria-label="快捷搜索">
+          <button data-query="转行">转行</button><button data-query="读研">读研 / 工作</button><button data-query="创业">创业</button>
+        </div>
+        <div id="results" class="result-list"><div class="empty-state">正在读取快照库……</div></div>
       </section>
     </main>
 

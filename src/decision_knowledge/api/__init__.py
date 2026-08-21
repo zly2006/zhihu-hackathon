@@ -87,6 +87,19 @@ class AdminStats(BaseModel):
     confirmed_scenarios: int
 
 
+class WorkspaceOverview(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    content_items: int
+    snapshots: int
+    raw_envelopes: int
+    scenarios: int
+    branches: int
+    confirmed_scenarios: int
+    unreviewed_snapshots: int
+    semantic_status: str
+
+
 class ScenarioCreate(BaseModel):
     model_config = ConfigDict(extra="forbid", frozen=True)
 
@@ -289,6 +302,36 @@ def create_app(
     def health(session: Annotated[Session, Depends(get_session)]) -> dict[str, str]:
         session.execute(text("SELECT 1"))
         return {"status": "ok", "database": "ok"}
+
+    @app.get("/api/overview", response_model=WorkspaceOverview)
+    def overview(session: Annotated[Session, Depends(get_session)]) -> WorkspaceOverview:
+        def count(model: type[object]) -> int:
+            return session.scalar(select(func.count()).select_from(model)) or 0
+
+        scenarios_count = count(DecisionScenario)
+        confirmed_count = session.scalar(
+            select(func.count())
+            .select_from(DecisionScenario)
+            .where(DecisionScenario.review_status == "CONFIRMED")
+        ) or 0
+        unreviewed_count = session.scalar(
+            select(func.count())
+            .select_from(ContentSnapshot)
+            .where(ContentSnapshot.review_status == "UNREVIEWED")
+        ) or 0
+        semantic_status = "已建立情景" if confirmed_count else "待归类"
+        if scenarios_count and not confirmed_count:
+            semantic_status = "待审核"
+        return WorkspaceOverview(
+            content_items=count(ContentItem),
+            snapshots=count(ContentSnapshot),
+            raw_envelopes=count(RawEnvelope),
+            scenarios=scenarios_count,
+            branches=count(DecisionBranch),
+            confirmed_scenarios=confirmed_count,
+            unreviewed_snapshots=unreviewed_count,
+            semantic_status=semantic_status,
+        )
 
     @app.post("/v1/source-records:batch", response_model=IngestBatchResult)
     def ingest_source_records(

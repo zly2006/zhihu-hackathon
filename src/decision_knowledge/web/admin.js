@@ -20,8 +20,10 @@ function toast(message) {
 
 async function loadStats() {
   const stats = await getJson('/api/admin/stats');
-  const labels = [['content_items', '内容'], ['snapshots', '快照'], ['raw_envelopes', '原始包'], ['scenarios', '情景'], ['branches', '分叉'], ['confirmed_scenarios', '已确认']];
+  const labels = [['content_items', '内容身份'], ['snapshots', '快照版本'], ['raw_envelopes', '原始证据'], ['scenarios', '情景'], ['branches', '分叉'], ['confirmed_scenarios', '已确认情景']];
   $('#stats').innerHTML = labels.map(([key, label]) => `<div class="stat-card"><span>${label}</span><strong>${stats[key]}</strong></div>`).join('');
+  const pipeline = [['raw_envelopes', '原文', 'URL / HTML'], ['snapshots', '快照', '版本'], ['scenarios', '情景', '归类'], ['branches', '分叉', '比较']];
+  $('#admin-pipeline').innerHTML = pipeline.map(([key, label, hint], index) => `${index ? '<span class="pipeline-arrow">→</span>' : ''}<div class="pipeline-node"><span>${label}</span><strong>${stats[key]}</strong><small>${hint}</small></div>`).join('');
 }
 
 function renderContent(data) {

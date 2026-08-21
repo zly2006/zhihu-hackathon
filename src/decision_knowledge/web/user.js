@@ -25,6 +25,23 @@ function renderResults(data) {
   container.querySelectorAll('[data-snapshot]').forEach((card) => card.addEventListener('click', () => openAnswer(card.dataset.snapshot)));
 }
 
+function renderOverview(data) {
+  const layers = [
+    ['raw_envelopes', '原文', 'URL / HTML'],
+    ['snapshots', '快照', '版本'],
+    ['scenarios', '情景', '归类'],
+    ['branches', '分叉', '比较'],
+  ];
+  $('#overview-strip').innerHTML = layers.map(([key, label, hint]) => `
+    <div class="overview-step"><span>${escapeHtml(label)}</span><strong>${data[key]}</strong><small>${escapeHtml(hint)}</small></div>`).join('<span class="overview-arrow">→</span>') + `
+    <div class="overview-state"><span>语义层状态</span><strong>${escapeHtml(data.semantic_status)}</strong><small>${data.unreviewed_snapshots} 条快照待审核</small></div>`;
+}
+
+async function loadOverview() {
+  try { renderOverview(await getJson('/api/overview')); }
+  catch (error) { $('#overview-strip').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`; }
+}
+
 async function search(query = '') {
   $('#result-count').textContent = '检索中';
   try {
@@ -57,15 +74,18 @@ async function openAnswer(snapshotId) {
 
 function renderScenarios(data) {
   const container = $('#scenario-list');
+  $('#scenario-status').textContent = data.items.length ? `${data.items.length} 个情景` : '尚未建立';
   if (!data.items.length) {
-    container.innerHTML = '<div class="empty-state">管理端确认情景后，它们会出现在这里。</div>';
+    container.innerHTML = '<div class="pipeline-empty"><div class="empty-icon">◎</div><h3>情景层还没有数据</h3><p>当前已有原文和快照，但还没有完成“决策经历 → 情景 → 分叉”的整理。</p><button data-scroll-evidence>先查看原文快照</button></div>';
+    container.querySelector('[data-scroll-evidence]').addEventListener('click', () => $('#evidence').scrollIntoView({ behavior: 'smooth' }));
     return;
   }
   container.innerHTML = data.items.map((scenario) => `
     <article class="scenario-card">
+      <div class="scenario-card-head"><span class="status-pill">${escapeHtml(scenario.domain || '未分类')}</span><span class="meta-line">${scenario.branches.length} 个分叉</span></div>
       <h3>${escapeHtml(scenario.name)}</h3>
       <p>${escapeHtml(scenario.summary || '暂无摘要')}</p>
-      ${scenario.branches.map((branch) => `<div class="branch-line"><strong>${escapeHtml(branch.label)}</strong><p>${escapeHtml(branch.action || branch.outcome || '暂无说明')}</p>${branch.evidence ? `<div class="meta-line">证据：${escapeHtml(branch.evidence.title)}</div>` : ''}</div>`).join('')}
+      <div class="branch-tree">${scenario.branches.map((branch) => `<div class="branch-line"><strong>${escapeHtml(branch.label)}</strong><p>${escapeHtml(branch.action || branch.outcome || '暂无说明')}</p>${branch.evidence ? `<div class="meta-line">↳ ${escapeHtml(branch.evidence.title)}</div>` : '<div class="meta-line">↳ 尚未关联证据</div>'}</div>`).join('')}</div>
     </article>`).join('');
 }
 
@@ -84,5 +104,6 @@ document.querySelectorAll('[data-query]').forEach((button) => button.addEventLis
 }));
 $('[data-close-dialog]').addEventListener('click', () => $('#answer-dialog').close());
 $('#answer-dialog').addEventListener('click', (event) => { if (event.target === $('#answer-dialog')) $('#answer-dialog').close(); });
-search();
+loadOverview();
 loadScenarios();
+search();

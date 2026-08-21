@@ -139,8 +139,12 @@ def test_local_dual_end_pages_are_served_by_the_same_app(tmp_path: Path) -> None
     assets = client.get("/assets/styles.css")
     assert user.status_code == 200
     assert "人生决策知识库" in user.text
+    assert "情景与分叉" in user.text
+    assert "原文快照" in user.text
     assert admin.status_code == 200
     assert "知识库管理端" in admin.text
+    assert "快照库" in admin.text
+    assert "数据库层级导航" in admin.text
     assert assets.status_code == 200
     assert "--teal" in assets.text
     database.dispose()
@@ -158,4 +162,25 @@ def test_admin_jsonl_import_reuses_idempotent_ingestion(tmp_path: Path) -> None:
     assert first.json()["created"] == 1
     assert replay.json()["unchanged"] == 1
     assert client.get("/api/admin/stats").json()["snapshots"] == 1
+    database.dispose()
+
+
+def test_public_overview_explains_the_database_pipeline(tmp_path: Path) -> None:
+    database = Database(f"sqlite+pysqlite:///{tmp_path / 'workspace.db'}")
+    database.create_schema()
+    client = TestClient(create_app(database=database))
+
+    overview = client.get("/api/overview")
+
+    assert overview.status_code == 200
+    assert overview.json() == {
+        "content_items": 0,
+        "snapshots": 0,
+        "raw_envelopes": 0,
+        "scenarios": 0,
+        "branches": 0,
+        "confirmed_scenarios": 0,
+        "unreviewed_snapshots": 0,
+        "semantic_status": "待归类",
+    }
     database.dispose()

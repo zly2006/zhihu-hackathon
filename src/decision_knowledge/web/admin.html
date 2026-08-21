@@ -17,28 +17,30 @@
 
     <main class="admin-main">
       <section class="admin-intro">
-        <div><p class="eyebrow">LOCAL ADMIN</p><h1>把原文整理成可审核的路口。</h1><p class="hero-copy">这里可以看数据库、导入 JSONL、标记证据状态，并手工维护情景与分叉。原始 URL 和 HTML 只读保留。</p></div>
+        <div><p class="eyebrow">DATABASE / ADMIN VIEW</p><h1>先管好数据层，<br /><em>再生成路口。</em></h1><p class="hero-copy">这是数据库工作台：原文和快照承载事实，情景和分叉承载整理。原始 URL、HTML 和抓取哈希只读保留。</p></div>
         <label class="import-button">导入 JSONL<input id="jsonl-input" type="file" accept=".jsonl,.json,application/json" /></label>
       </section>
 
-      <section id="stats" class="stats-grid"></section>
+      <nav class="layer-nav" aria-label="数据库层级导航"><a href="#admin-overview">总览</a><a href="#snapshot-library">快照库</a><a href="#semantic-library">情景</a><a href="#branch-library">分叉</a></nav>
 
-      <section class="admin-grid">
+      <section id="admin-overview" class="admin-overview"><div id="stats" class="stats-grid"></div><div id="admin-pipeline" class="admin-pipeline"></div></section>
+
+      <section id="snapshot-library" class="admin-grid">
         <div class="panel table-panel">
           <div class="section-heading">
-            <div><p class="eyebrow">DATABASE</p><h2>原始回答与快照</h2></div>
+            <div><p class="eyebrow">CONTENT SNAPSHOT</p><h2>快照库</h2><p class="section-note">一行代表一个可审核版本，原始证据在右侧抽屉。</p></div>
             <form id="admin-search-form" class="small-search"><input id="admin-search" placeholder="按标题 / 正文 / ID 搜索" /><button>查找</button></form>
           </div>
           <div id="admin-content-list" class="admin-content-list"><div class="empty-state">正在读取数据库……</div></div>
         </div>
 
         <aside class="panel admin-detail-panel">
-          <div class="section-heading"><div><p class="eyebrow">EVIDENCE DRAWER</p><h2>证据抽屉</h2></div></div>
+          <div class="section-heading"><div><p class="eyebrow">EVIDENCE DRAWER</p><h2>快照证据抽屉</h2></div></div>
           <div id="admin-detail" class="empty-state">选择一条回答查看原文、HTML 和审核状态。</div>
         </aside>
       </section>
 
-      <section class="admin-grid lower-grid">
+      <section id="semantic-library" class="admin-grid lower-grid">
         <div class="panel scenario-editor">
           <div class="section-heading"><div><p class="eyebrow">SCENARIO EDITOR</p><h2>情景与分叉</h2></div><button id="refresh-scenarios" class="ghost-button">刷新</button></div>
           <form id="scenario-form" class="stack-form">
@@ -49,7 +51,7 @@
           </form>
           <div id="admin-scenario-list" class="admin-scenario-list"></div>
         </div>
-        <aside class="panel operation-note">
+        <aside id="branch-library" class="panel operation-note">
           <p class="eyebrow">KISS RULES</p><h2>管理边界</h2>
           <ul><li>原始 URL、raw HTML、抓取哈希只读。</li><li>回答只能标记审核或归档，不直接覆盖原文。</li><li>分叉必须关联一个来源快照。</li><li>用户端只看 CONFIRMED 情景。</li></ul>
           <div id="toast" class="toast" role="status"></div>
