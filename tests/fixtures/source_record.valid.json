@@ -1,0 +1,49 @@
+{
+  "schema_version": "source_record.v1",
+  "source": {
+    "code": "manual",
+    "adapter_code": "manual_upload",
+    "adapter_version": "1.0.0",
+    "authorization_ref": null
+  },
+  "external_ref": {
+    "type": "answer",
+    "id": "answer-001",
+    "parent": {
+      "type": "question",
+      "id": "question-001"
+    }
+  },
+  "canonical_url": "https://example.test/questions/question-001/answers/answer-001",
+  "fetched_at": "2026-08-20T08:00:00Z",
+  "source_created_at": null,
+  "source_updated_at": null,
+  "availability": "AVAILABLE",
+  "content": {
+    "title": "本科毕业后应该工作还是读研？",
+    "body_format": "HTML",
+    "body": "<p>毕业时我选择了读研。</p>",
+    "language": "zh-CN"
+  },
+  "topics": [
+    {
+      "external_id": "topic-001",
+      "name": "职业选择"
+    }
+  ],
+  "engagement": {
+    "observed_at": "2026-08-20T08:00:00Z",
+    "voteup_count": 12,
+    "comment_count": 2,
+    "thanks_count": 1
+  },
+  "restricted_author": {
+    "external_id": "source-user-id"
+  },
+  "raw": {
+    "sha256": "AAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA",
+    "payload": {
+      "id": "answer-001"
+    }
+  }
+}

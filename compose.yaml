@@ -1,0 +1,59 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_DB: ${POSTGRES_DB:-decision_knowledge}
+      POSTGRES_USER: ${POSTGRES_USER:-decision}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-decision-local-only}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U $${POSTGRES_USER} -d $${POSTGRES_DB}"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+
+  neo4j:
+    image: neo4j:5.26-community
+    environment:
+      NEO4J_AUTH: ${NEO4J_AUTH:-neo4j/decision-local-only}
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "cypher-shell -u neo4j -p $${NEO4J_AUTH#*/} 'RETURN 1' >/dev/null 2>&1",
+        ]
+      interval: 10s
+      timeout: 10s
+      retries: 15
+    ports:
+      - "7474:7474"
+      - "7687:7687"
+    volumes:
+      - neo4j_data:/data
+
+  api:
+    build: .
+    command:
+      [
+        "sh",
+        "-c",
+        "uv run alembic upgrade head && uv run uvicorn decision_knowledge.main:app --host 0.0.0.0 --port 8000",
+      ]
+    environment:
+      DK_DATABASE_URL: ${DK_DATABASE_URL:-postgresql+psycopg://decision:decision-local-only@postgres:5432/decision_knowledge}
+      DK_GRAPH_ENABLED: ${DK_GRAPH_ENABLED:-false}
+      DK_NEO4J_URI: ${DK_NEO4J_URI:-bolt://neo4j:7687}
+      DK_NEO4J_USER: ${DK_NEO4J_USER:-neo4j}
+      DK_NEO4J_PASSWORD: ${DK_NEO4J_PASSWORD:-decision-local-only}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"
+
+volumes:
+  postgres_data:
+  neo4j_data:

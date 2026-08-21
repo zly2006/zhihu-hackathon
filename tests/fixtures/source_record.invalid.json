@@ -1,0 +1,26 @@
+{
+  "schema_version": "source_record.v0",
+  "source": {
+    "code": "manual",
+    "adapter_code": "manual_upload",
+    "adapter_version": "1.0.0"
+  },
+  "external_ref": {
+    "type": "answer",
+    "id": ""
+  },
+  "canonical_url": "not-a-url",
+  "fetched_at": "not-a-time",
+  "availability": "AVAILABLE",
+  "content": {
+    "title": "",
+    "body_format": "HTML",
+    "body": "",
+    "language": "zh-CN"
+  },
+  "topics": [],
+  "raw": {
+    "sha256": "not-a-hash",
+    "payload": {}
+  }
+}

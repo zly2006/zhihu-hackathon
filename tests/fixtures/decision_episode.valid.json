@@ -1,0 +1,63 @@
+{
+  "schema_version": "decision_episode.v1",
+  "episode_id": "episode-001",
+  "snapshot_id": "snapshot-001",
+  "analysis_run_id": "analysis-001",
+  "episode_order": 0,
+  "claim_scope": "SELF_REPORTED",
+  "actor_scope": "SELF",
+  "time": {
+    "raw": "本科毕业时",
+    "start": null,
+    "end": null,
+    "precision": "LIFE_STAGE"
+  },
+  "claims": [
+    {
+      "claim_id": "claim-context",
+      "kind": "CONTEXT",
+      "dimension": "education_stage",
+      "concept_code": "undergraduate_graduation",
+      "normalized_value": "本科毕业",
+      "explicitness": "EXPLICIT",
+      "confidence": 0.97,
+      "evidence_span_ids": ["evidence-001"]
+    },
+    {
+      "claim_id": "claim-decision",
+      "kind": "DECISION_POINT",
+      "concept_code": "work_or_postgraduate_study",
+      "normalized_value": "工作还是继续读研",
+      "explicitness": "EXPLICIT",
+      "confidence": 0.94,
+      "evidence_span_ids": ["evidence-002"]
+    },
+    {
+      "claim_id": "claim-action",
+      "kind": "ACTION",
+      "role": "CHOSEN",
+      "action_archetype": "continue_postgraduate_study",
+      "normalized_value": "继续读研",
+      "explicitness": "EXPLICIT",
+      "confidence": 0.96,
+      "evidence_span_ids": ["evidence-003"]
+    },
+    {
+      "claim_id": "claim-outcome",
+      "kind": "OUTCOME",
+      "dimension": "career_direction",
+      "horizon": "2Y",
+      "direction": "CHANGED",
+      "normalized_value": "进入新的职业方向",
+      "explicitness": "EXPLICIT",
+      "causal_language_present": false,
+      "confidence": 0.86,
+      "evidence_span_ids": ["evidence-004"]
+    }
+  ],
+  "quality": {
+    "all_claims_have_evidence": true,
+    "temporal_order_explicit": true,
+    "review_status": "UNREVIEWED"
+  }
+}

@@ -1,0 +1,56 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>短课：用 KISS 理解决策情景知识库</title>
+  <link rel="stylesheet" href="../assets/teaching.css">
+</head>
+<body>
+<main>
+  <h1>我们不是在存回答</h1>
+  <p class="lede">我们在把长回答变成可比较的决策卡片，然后从一叠卡片里找出人生路口。</p>
+
+  <p class="thesis"><strong>一句话设计：</strong>保存原文做证据；从原文抽卡片；按情景放抽屉；在抽屉里按选择分叉。</p>
+
+  <h2>四个东西就够了</h2>
+  <div class="grid">
+    <section class="card"><strong>1. 原文</strong>回答只是证据仓。它可能很长，也可能包含多个决定。</section>
+    <section class="card"><strong>2. 卡片</strong>一张卡只写一次决策：当时什么处境、面对什么选择、做了什么、后来怎样。</section>
+    <section class="card"><strong>3. 抽屉</strong>前置处境和决策问题相近的卡片进入同一个情景抽屉。</section>
+    <section class="card"><strong>4. 路口</strong>同一抽屉里有人选 A、有人选 B，而且都有后续证据，这就是候选分叉。</section>
+  </div>
+
+  <h2>一个例子</h2>
+  <div class="example">
+    <p><strong>原始回答：</strong>“本科毕业时，我拿到工作 offer，但也在准备考研。我最后选择读研。两年后，我进入了新的行业。”</p>
+    <p><strong>抽成卡片：</strong>本科毕业 → 工作还是读研 → 选择读研 → 两年后进入新行业。</p>
+    <p><strong>归入抽屉：</strong>“本科毕业后的去向选择”。</p>
+    <p><strong>形成路口：</strong>如果同一抽屉还有足够多“直接工作”的卡片及后续，就出现“工作 / 读研”的分叉。</p>
+  </div>
+
+  <h2>数据库为什么分层</h2>
+  <div class="flow"><span>原文层</span><b>→</b><span>卡片层</span><b>→</b><span>情景层</span><b>→</b><span>路径层</span></div>
+  <p>因为四层变化速度不同：知乎字段会变，抽取模型会变，情景定义会变，分叉统计也会变。分开以后，某一层改了，不需要推翻全部系统。</p>
+
+  <h2>为什么不用复杂图数据库起步</h2>
+  <p>当前只有三个主要关系：经历属于哪个情景、情景下选择了什么、选择后去了哪里。普通关系库足够表达。等多跳路径查询真的成为性能瓶颈，再把这些关系投影到图数据库。</p>
+
+  <h2>一分钟自测</h2>
+  <details>
+    <summary>一篇回答里写了三次人生选择，它应该存成几条核心数据？</summary>
+    <p>最多三张决策卡片，外加一份回答原文。实际数量以主体、时间和决策点边界为准。</p>
+  </details>
+  <details>
+    <summary>两个人都选择读研，就一定属于同一路口吗？</summary>
+    <p>不一定。只有选择前的处境和决策问题可比，才属于同一个情景。行动相同不能代替情景相同。</p>
+  </details>
+  <details>
+    <summary>读研的人后来收入更高，能否说读研导致高收入？</summary>
+    <p>不能。知识库只保存“来源这样自述”的结果观察，不直接做因果结论。</p>
+  </details>
+
+  <p class="foot">主读物：<a href="../知乎决策路径数据库落地方案.md">完整设计方案</a> · <a href="../reference/kiss-knowledge-base.html">一页速查</a>。有任何一处不清楚，继续问我，我们可以只拆那一小块。</p>
+</main>
+</body>
+</html>
