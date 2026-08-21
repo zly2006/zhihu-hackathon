@@ -13,3 +13,8 @@ htmlcov/
 dist/
 build/
 *.egg-info/
+
+# Local source payloads may contain original third-party content; keep them
+# available for replay without accidentally committing them.
+data/zhihu/search_question_answers*.jsonl
+.tmp/

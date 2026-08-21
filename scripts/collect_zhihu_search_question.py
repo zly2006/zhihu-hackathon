@@ -2,7 +2,8 @@
 
 The command delegates requests to ``zhurl`` by default. A user-provided local
 Netscape Cookie file can be selected explicitly for the same three API calls;
-the file is passed to curl and never enters a SourceRecord, log, or database.
+the unsigned mode passes it to curl, while the signed mode creates a temporary
+zhurl account. In both modes it never enters a SourceRecord, log, or database.
 """
 
 from __future__ import annotations
@@ -15,6 +16,7 @@ import re
 import subprocess
 import sys
 import tempfile
+import time
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -256,7 +258,10 @@ def _collect_question_answers(
         question_id,
         limit=max_candidates_per_question,
     )
-    feed_payload = fetch_json(feed_url)
+    try:
+        feed_payload = fetch_json(feed_url)
+    except RuntimeError:
+        return ()
     records: list[SourceRecordV1] = []
     seen_answers: set[str] = set()
     accepted = 0
@@ -268,7 +273,10 @@ def _collect_question_answers(
         seen_answers.add(answer_id)
         inspected += 1
         answer_url = _answer_url(answer_id)
-        answer_detail = fetch_json(answer_url)
+        try:
+            answer_detail = fetch_json(answer_url)
+        except RuntimeError:
+            continue
         quality = assess_answer_quality(answer_detail)
         if not quality.accepted:
             if inspected >= max_candidates_per_question:
@@ -416,16 +424,113 @@ def _run_zhurl(executable: str, url: str) -> dict[str, Any]:
     return payload
 
 
+def _netscape_cookies(cookie_file: Path) -> dict[str, str]:
+    """Read a Netscape cookie jar into the account shape expected by zhurl."""
+
+    if not cookie_file.is_file():
+        raise RuntimeError(f"Cookie 文件不存在：{cookie_file}")
+    cookies: dict[str, str] = {}
+    try:
+        lines = cookie_file.read_text(encoding="utf-8", errors="strict").splitlines()
+    except (OSError, UnicodeError) as exc:
+        raise RuntimeError("Cookie 文件无法读取") from exc
+    for line in lines:
+        if not line or line.startswith("#"):
+            continue
+        fields = line.split("\t")
+        if len(fields) != 7:
+            continue
+        domain, _include_subdomains, path, _secure, _expires, name, value = fields
+        if "zhihu.com" not in domain.lower() or not name:
+            continue
+        cookies[name] = value
+    if not cookies.get("z_c0") or not cookies.get("d_c0"):
+        raise RuntimeError("Cookie 文件缺少 zhurl 所需的 z_c0 或 d_c0")
+    return cookies
+
+
+def _run_signed_cookie_request(
+    executable: str,
+    cookie_file: Path,
+    url: str,
+    *,
+    timeout: float = 15.0,
+) -> dict[str, Any]:
+    """Run zhurl with a temporary account generated from a local cookie jar."""
+
+    if timeout <= 0:
+        raise ValueError("请求超时必须大于零")
+    cookies = _netscape_cookies(cookie_file)
+    account = {
+        "login": True,
+        "userAgent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+        "cookies": cookies,
+    }
+    try:
+        with tempfile.TemporaryDirectory(prefix="decision-knowledge-zhurl-") as home:
+            account_dir = Path(home) / ".zhihu-plus-plus"
+            account_dir.mkdir(parents=True, exist_ok=True)
+            (account_dir / "account.json").write_text(
+                json.dumps(account, ensure_ascii=False),
+                encoding="utf-8",
+            )
+            environment = os.environ.copy()
+            environment["HOME"] = home
+            environment["USERPROFILE"] = home
+            result = subprocess.run(
+                [executable, "--web", url],
+                capture_output=True,
+                check=False,
+                text=True,
+                encoding="utf-8",
+                timeout=max(5.0, timeout + 5.0),
+                env=environment,
+            )
+    except FileNotFoundError as exc:
+        raise RuntimeError(f"找不到 zhurl：{executable}") from exc
+    except subprocess.TimeoutExpired as exc:
+        raise RuntimeError(
+            f"zhurl 请求超时（>{timeout:g}s，endpoint={url.split('?', 1)[0]}）"
+        ) from exc
+    if result.returncode != 0:
+        raise RuntimeError(
+            f"zhurl 请求失败（exit {result.returncode}，endpoint={url.split('?', 1)[0]}）"
+        )
+    try:
+        payload = json.loads(result.stdout)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError(
+            f"zhurl 没有返回有效 JSON（endpoint={url.split('?', 1)[0]}）"
+        ) from exc
+    if not isinstance(payload, dict):
+        raise RuntimeError("zhurl 返回的顶层数据不是 JSON object")
+    error = payload.get("error")
+    if isinstance(error, dict):
+        error_code = error.get("code") or error.get("status") or "unknown"
+        raise RuntimeError(
+            f"zhurl API 返回 error code={error_code}（endpoint={url.split('?', 1)[0]}）"
+        )
+    return payload
+
+
 def _run_cookie_request(
     cookie_file: Path,
     url: str,
     *,
-    timeout: float = 30.0,
+    timeout: float = 15.0,
+    retries: int = 1,
+    delay: float = 0.0,
 ) -> dict[str, Any]:
     """Fetch one JSON API response using a local Cookie file without persisting it."""
 
     if not cookie_file.is_file():
         raise RuntimeError(f"Cookie 文件不存在：{cookie_file}")
+    if timeout <= 0:
+        raise ValueError("请求超时必须大于零")
+    if retries < 0:
+        raise ValueError("重试次数不能小于零")
+    if delay < 0:
+        raise ValueError("请求间隔不能小于零")
     curl = "curl.exe" if os.name == "nt" else "curl"
     with tempfile.NamedTemporaryFile(
         prefix="decision-knowledge-zhihu-api-",
@@ -434,45 +539,80 @@ def _run_cookie_request(
     ) as temporary:
         response_path = Path(temporary.name)
     try:
-        result = subprocess.run(
-            [
-                curl,
-                "--fail",
-                "--location",
-                "--compressed",
-                "--silent",
-                "--show-error",
-                "--max-time",
-                str(max(1, int(timeout))),
-                "--cookie",
-                str(cookie_file),
-                "--user-agent",
-                "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
-                "--header",
-                "Accept: application/json",
-                "--header",
-                "Accept-Language: zh-CN,zh;q=0.9,en;q=0.5",
-                "--output",
-                str(response_path),
-                "--write-out",
-                "%{http_code}",
-                url,
-            ],
-            capture_output=True,
-            check=False,
-        )
-        if result.returncode != 0:
-            raise RuntimeError(f"Cookie 请求失败（curl exit {result.returncode}）")
-        status = result.stdout.decode("ascii", errors="ignore").strip()
-        if not status.startswith("2"):
-            raise RuntimeError(f"Cookie 请求返回 HTTP {status or 'unknown'}")
-        try:
-            payload = json.loads(response_path.read_text(encoding="utf-8"))
-        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-            raise RuntimeError("Cookie 请求没有返回有效 JSON") from exc
-        if not isinstance(payload, dict):
-            raise RuntimeError("Cookie 请求返回的顶层数据不是 JSON object")
-        return payload
+        max_attempts = retries + 1
+        for attempt in range(max_attempts):
+            response_path.unlink(missing_ok=True)
+            if delay:
+                time.sleep(delay)
+            try:
+                result = subprocess.run(
+                    [
+                        curl,
+                        "--location",
+                        "--compressed",
+                        "--silent",
+                        "--show-error",
+                        "--max-time",
+                        str(max(1, int(timeout))),
+                        "--cookie",
+                        str(cookie_file),
+                        "--user-agent",
+                        "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                        "--header",
+                        "Accept: application/json",
+                        "--header",
+                        "Accept-Language: zh-CN,zh;q=0.9,en;q=0.5",
+                        "--output",
+                        str(response_path),
+                        "--write-out",
+                        "%{http_code}",
+                        url,
+                    ],
+                    capture_output=True,
+                    check=False,
+                    timeout=max(5.0, timeout + 5.0),
+                )
+            except subprocess.TimeoutExpired as exc:
+                if attempt + 1 < max_attempts:
+                    time.sleep(min(5.0, 1.0 + attempt))
+                    continue
+                raise RuntimeError(
+                    f"Cookie 请求超时（>{timeout:g}s，endpoint={url.split('?', 1)[0]}）"
+                ) from exc
+            raw_status = result.stdout.decode("ascii", errors="ignore").strip()
+            # Some Windows curl builds can append the response body to stdout
+            # when a redirect or transient transport error occurs.  The
+            # write-out status is the final three digits; never put the raw
+            # stdout (which may contain the full API response) in an error.
+            status_match = re.search(r"(\d{3})$", raw_status)
+            status = status_match.group(1) if status_match else "unknown"
+            retryable = result.returncode == 28 or status in {
+                "429",
+                "500",
+                "502",
+                "503",
+                "504",
+            }
+            if retryable and attempt + 1 < max_attempts:
+                time.sleep(min(5.0, 1.0 + attempt))
+                continue
+            if result.returncode != 0:
+                raise RuntimeError(
+                    f"Cookie 请求失败（curl exit {result.returncode}，HTTP {status or 'unknown'}，"
+                    f"endpoint={url.split('?', 1)[0]}）"
+                )
+            if not status.startswith("2"):
+                raise RuntimeError(
+                    f"Cookie 请求返回 HTTP {status or 'unknown'}，endpoint={url.split('?', 1)[0]}"
+                )
+            try:
+                payload = json.loads(response_path.read_text(encoding="utf-8"))
+            except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+                raise RuntimeError("Cookie 请求没有返回有效 JSON") from exc
+            if not isinstance(payload, dict):
+                raise RuntimeError("Cookie 请求返回的顶层数据不是 JSON object")
+            return payload
+        raise RuntimeError(f"Cookie 请求失败，endpoint={url.split('?', 1)[0]}")
     finally:
         response_path.unlink(missing_ok=True)
 
@@ -481,6 +621,27 @@ def _positive_int(value: str) -> int:
     number = int(value)
     if number < 1:
         raise argparse.ArgumentTypeError("必须大于零")
+    return number
+
+
+def _nonnegative_int(value: str) -> int:
+    number = int(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("不能小于零")
+    return number
+
+
+def _positive_float(value: str) -> float:
+    number = float(value)
+    if number <= 0:
+        raise argparse.ArgumentTypeError("必须大于零")
+    return number
+
+
+def _nonnegative_float(value: str) -> float:
+    number = float(value)
+    if number < 0:
+        raise argparse.ArgumentTypeError("不能小于零")
     return number
 
 
@@ -504,9 +665,32 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--max-snowball-queries", type=_positive_int, default=5)
     parser.add_argument("--zhurl", default="zhurl", help="zhurl 可执行文件路径")
     parser.add_argument(
+        "--request-timeout",
+        type=_positive_float,
+        default=15.0,
+        help="单次 Cookie API 请求超时秒数（默认 15）",
+    )
+    parser.add_argument(
+        "--request-retries",
+        type=_nonnegative_int,
+        default=1,
+        help="对超时、429 和 5xx 的额外重试次数（默认 1）",
+    )
+    parser.add_argument(
+        "--request-delay",
+        type=_nonnegative_float,
+        default=0.2,
+        help="Cookie API 请求之间的间隔秒数（默认 0.2）",
+    )
+    parser.add_argument(
         "--cookie-file",
         type=Path,
         help="本机 Netscape Cookie 文件；仅用于三段式 API 请求，不会写入输出",
+    )
+    parser.add_argument(
+        "--signed-cookie-file",
+        type=Path,
+        help="本机 Netscape Cookie 文件；通过 zhurl 临时账号生成 web API 签名",
     )
     return parser.parse_args()
 
@@ -518,27 +702,49 @@ def main() -> int:
     ):
         print("ERROR: 至少提供一个 --query 或 --question-id", file=sys.stderr)
         return 2
+    if args.cookie_file is not None and args.signed_cookie_file is not None:
+        print("ERROR: --cookie-file 和 --signed-cookie-file 只能选一个", file=sys.stderr)
+        return 2
     fetched_at = datetime.now(UTC)
     discovery_run_id = str(uuid4())
     records_by_key: dict[tuple[str, str], SourceRecordV1] = {}
-    if args.cookie_file is not None:
-        fetch_json = lambda url: _run_cookie_request(args.cookie_file, url)  # noqa: E731
+    if args.signed_cookie_file is not None:
+        fetch_json = lambda url: _run_signed_cookie_request(  # noqa: E731
+            args.zhurl,
+            args.signed_cookie_file,
+            url,
+            timeout=args.request_timeout,
+        )
+    elif args.cookie_file is not None:
+        fetch_json = lambda url: _run_cookie_request(  # noqa: E731
+            args.cookie_file,
+            url,
+            timeout=args.request_timeout,
+            retries=args.request_retries,
+            delay=args.request_delay,
+        )
     else:
         fetch_json = lambda url: _run_zhurl(args.zhurl, url)  # noqa: E731
     frontier = tuple(dict.fromkeys(query.strip() for query in args.query if query.strip()))
     seen_queries = set(frontier)
     question_seed_records: list[SourceRecordV1] = []
+    failed_seeds = 0
     try:
         for question_id in tuple(dict.fromkeys(args.question_id)):
-            records = collect_question(
-                question_id,
-                authorization_ref=args.authorization_ref,
-                fetched_at=fetched_at,
-                max_answers_per_question=args.max_answers_per_question,
-                max_candidates_per_question=args.max_candidates_per_question,
-                fetch_json=fetch_json,
-                discovery_run_id=discovery_run_id,
-            )
+            try:
+                records = collect_question(
+                    question_id,
+                    authorization_ref=args.authorization_ref,
+                    fetched_at=fetched_at,
+                    max_answers_per_question=args.max_answers_per_question,
+                    max_candidates_per_question=args.max_candidates_per_question,
+                    fetch_json=fetch_json,
+                    discovery_run_id=discovery_run_id,
+                )
+            except RuntimeError as exc:
+                failed_seeds += 1
+                print(f"WARNING: question seed skipped: {exc}", file=sys.stderr)
+                continue
             question_seed_records.extend(records)
             for record in records:
                 records_by_key.setdefault((record.external_ref.id, record.raw.sha256), record)
@@ -547,17 +753,22 @@ def main() -> int:
                 list(question_seed_records) if discovery_round == 0 else []
             )
             for query in frontier:
-                records = collect_query(
-                    query,
-                    authorization_ref=args.authorization_ref,
-                    fetched_at=fetched_at,
-                    max_questions=args.max_questions,
-                    max_answers_per_question=args.max_answers_per_question,
-                    max_candidates_per_question=args.max_candidates_per_question,
-                    fetch_json=fetch_json,
-                    discovery_round=discovery_round,
-                    discovery_run_id=discovery_run_id,
-                )
+                try:
+                    records = collect_query(
+                        query,
+                        authorization_ref=args.authorization_ref,
+                        fetched_at=fetched_at,
+                        max_questions=args.max_questions,
+                        max_answers_per_question=args.max_answers_per_question,
+                        max_candidates_per_question=args.max_candidates_per_question,
+                        fetch_json=fetch_json,
+                        discovery_round=discovery_round,
+                        discovery_run_id=discovery_run_id,
+                    )
+                except RuntimeError as exc:
+                    failed_seeds += 1
+                    print(f"WARNING: query skipped ({query}): {exc}", file=sys.stderr)
+                    continue
                 round_records.extend(records)
                 for record in records:
                     records_by_key.setdefault(
@@ -573,7 +784,7 @@ def main() -> int:
             seen_queries.update(frontier)
             if not frontier:
                 break
-    except (RuntimeError, ValueError, KeyError) as exc:
+    except (ValueError, KeyError) as exc:
         print(f"ERROR: {exc}", file=sys.stderr)
         return 1
 
@@ -582,8 +793,10 @@ def main() -> int:
         "".join(record.model_dump_json() + "\n" for record in records_by_key.values()),
         encoding="utf-8",
     )
+    if failed_seeds:
+        print(f"WARNING: skipped seeds={failed_seeds}", file=sys.stderr)
     print(f"WROTE records={len(records_by_key)} path={args.output}")
-    return 0
+    return 1 if failed_seeds and not records_by_key else 0
 
 
 if __name__ == "__main__":

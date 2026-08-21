@@ -8,6 +8,7 @@ from typing import Any
 from decision_knowledge.ingest.quality import assess_answer_quality, suggest_queries
 from scripts.collect_zhihu_search_question import (
     _run_cookie_request,
+    _run_signed_cookie_request,
     collect_query,
     collect_question,
 )
@@ -327,6 +328,13 @@ def test_cookie_transport_reads_json_and_does_not_return_cookie_material(
     cookie_file.write_text("session-secret", encoding="utf-8")
 
     def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[bytes]:
+        headers = [
+            args[index + 1]
+            for index, value in enumerate(args[:-1])
+            if value == "--header"
+        ]
+        assert "Accept: application/json" in headers
+        assert "Accept-Language: zh-CN,zh;q=0.9,en;q=0.5" in headers
         output_path = Path(args[args.index("--output") + 1])
         output_path.write_text('{"data": [], "paging": {"is_end": true}}', encoding="utf-8")
         return subprocess.CompletedProcess(args, 0, stdout=b"200", stderr=b"")
@@ -337,3 +345,38 @@ def test_cookie_transport_reads_json_and_does_not_return_cookie_material(
 
     assert payload == {"data": [], "paging": {"is_end": True}}
     assert "session-secret" not in json.dumps(payload)
+
+
+def test_signed_cookie_transport_builds_ephemeral_zhurl_account(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    cookie_file = tmp_path / "cookies.txt"
+    cookie_file.write_text(
+        "\n".join(
+            (
+                "# Netscape HTTP Cookie File",
+                ".zhihu.com\tTRUE\t/\tTRUE\t0\tz_c0\tlogin-secret",
+                ".zhihu.com\tTRUE\t/\tTRUE\t0\td_c0\tsigning-secret",
+            )
+        ),
+        encoding="utf-8",
+    )
+
+    def fake_run(args: list[str], **kwargs: Any) -> subprocess.CompletedProcess[str]:
+        account_path = Path(kwargs["env"]["HOME"]) / ".zhihu-plus-plus" / "account.json"
+        account = json.loads(account_path.read_text(encoding="utf-8"))
+        assert account["login"] is True
+        assert set(account["cookies"]) == {"z_c0", "d_c0"}
+        assert args[:2] == ["zhurl", "--web"]
+        return subprocess.CompletedProcess(args, 0, stdout='{"data": []}', stderr="")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    payload = _run_signed_cookie_request(
+        "zhurl",
+        cookie_file,
+        "https://www.zhihu.com/api/v4/search_v3",
+    )
+
+    assert payload == {"data": []}

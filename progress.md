@@ -243,3 +243,20 @@
 - **真实验证：** 用用户 Cookie 对 `search_v3` 实测 HTTP 200；按 `转行` 运行受限两轮采集，得到 11 条 `zhihu_search_question_api` 记录，导入本地 SQLite 后为 1 个 run、45 个关键词候选、7 个决策经历候选；无拒收记录，无演示数据。
 - **保留边界：** `zhurl` 仍是默认可替换传输；Cookie 只是本机请求凭据，不改变授权门禁、质量门和人工审核边界。
 - **验证：** 全量 43 项测试、Ruff、mypy strict、两个前端 JS 语法检查和 `git diff --check` 通过。
+
+### 阶段 24：真实回答初始数据集（已完成）
+
+- **目标：** 用用户提供的本机 Cookie，按决策主题分批执行“搜索 → 问题回答列表 → 回答详情”，
+  导入本地 SQLite，先建立 1000 条可追溯回答数据。
+- **执行：** 完成 18 个主题批次；每批都先落 JSONL，再经同一 `SourceIngestion` 导入，自动执行授权门、质量门、
+  原文 HTML 保存、回答 ID/正文 hash 幂等和关键词/决策候选派生。采集器增加 15 秒请求超时、429/5xx 有限重试、
+  请求间隔和单 seed 跳过，避免一次大任务卡死。
+- **真实结果：** 数据库 `content_item=1000`、`content_snapshot=1000`、`raw_envelope=1034`、
+  `keyword_candidate=4278`、`decision_candidate=671`、`discovery_run=18`；1000 个回答 ID 唯一，
+  1000/1000 快照带非空 `raw_html`，URL 全部为知乎回答规范 URL，所有快照仍为 `UNREVIEWED`。
+- **风控处理：** 连续采集后知乎 API 返回 40352（网络环境异常/需要网页验证）。没有绕过验证，也没有把错误响应入库；
+  用已保存的搜索响应中 34 条质量通过且包含 HTML 的真实回答做恢复导入，raw 中标记
+  `capture_method=zhihu_search_result_promotion` 与 `promotion_stage=search_result_only`。这 34 条后续应在 API 恢复后补抓详情，
+  不应在管理端伪装成完整三段式详情。
+- **安全检查：** Cookie 文件只作为本机进程输入；数据库、JSONL 记录和日志中未发现 Cookie 路径或测试凭据标记。
+- **验证：** 43 项既有测试加 Cookie/签名传输和恢复脚本回归均通过；Ruff 通过；本地服务统计 API 与数据库计数一致。

@@ -88,8 +88,26 @@ uv run python scripts/collect_zhihu_search_question.py `
   --output data/zhihu/search_question_answers.jsonl
 ```
 
-Cookie 模式已经在本机完成受限真实采集：11 条回答、2 个发现轮次、1 个
-`discovery_run`，并已导入本地 SQLite；采集 JSONL 未提交到 Git。
+Cookie 模式先完成了 11 条回答的链路验证，随后按 18 个主题批次扩充初始数据集。
+当前本地 SQLite 已有 1000 条唯一回答快照、1034 个原始证据包、18 个
+`discovery_run`；所有批次 JSONL 仅保留在本机，未提交到 Git。
+
+如果知乎 API 临时返回 40352（要求网页验证），不要绕过验证。可在 API 恢复后使用
+`--signed-cookie-file` 让 `zhurl` 从一次性临时账号目录读取本机 Netscape Cookie，
+生成 web 请求签名；临时目录在单次请求后删除，不写入项目或数据库：
+
+```powershell
+uv run python scripts/collect_zhihu_search_question.py `
+  --signed-cookie-file C:\Users\13081\Downloads\www.zhihu.com_cookies.txt `
+  --authorization-ref local-cookie-20260821 `
+  --zhurl zhurl `
+  --query 转行 `
+  --output data/zhihu/search_question_answers_signed.jsonl
+```
+
+为达到初始 1000 条，数据库中有 34 条明确标记为
+`capture_method=zhihu_search_result_promotion` 的搜索结果恢复记录：它们已经包含真实知乎回答
+HTML 和 URL，但尚未拿到 `answers/{id}` 详情；API 恢复后优先补抓，不将其误报为完整详情。
 
 每条输出都在 `raw.payload` 中保留命中的搜索项、问题回答列表项、回答详情和
 三个请求端点；回答 HTML 同时进入 `content.raw_html`，可直接导入权威证据库。
