@@ -6,9 +6,9 @@
 
 `SourceRecordV1 → 授权门禁 → RawEnvelope → ContentItem → ContentSnapshot`
 
-- `RawEnvelope` 保存每次输入，保证可追溯；
+- `RawEnvelope` 保存每次输入、来源 URL 和原始 HTML 片段，保证可追溯；
 - `ContentItem` 表示同一篇回答的稳定身份；
-- `ContentSnapshot` 只在正文变化时新增版本；
+- `ContentSnapshot` 同时保存规范化正文和原始 HTML 片段，只在正文变化时新增版本；
 - 标记为人工/JSONL 导入的标准记录可直接写入，自动来源必须命中有效授权记录；
 - PostgreSQL 是权威库，Neo4j 已预留但当前不写入，避免过早实现错误的图谱。
 

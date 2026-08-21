@@ -66,8 +66,10 @@ class RawEnvelope(Base):
     authorization_ref: Mapped[str | None] = mapped_column(String(128))
     external_type: Mapped[str] = mapped_column(String(64), nullable=False)
     external_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    canonical_url: Mapped[str] = mapped_column(Text, nullable=False)
     fetched_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
     payload_hash: Mapped[str] = mapped_column(String(64), nullable=False)
+    raw_html: Mapped[str | None] = mapped_column(Text)
     payload: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False)
 
 
@@ -92,6 +94,7 @@ class ContentSnapshot(Base):
     title: Mapped[str] = mapped_column(Text, nullable=False)
     body_format: Mapped[str] = mapped_column(String(32), nullable=False)
     body: Mapped[str] = mapped_column(Text, nullable=False)
+    raw_html: Mapped[str | None] = mapped_column(Text)
     language: Mapped[str] = mapped_column(String(32), nullable=False)
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     source_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

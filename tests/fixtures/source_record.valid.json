@@ -22,7 +22,8 @@
   "content": {
     "title": "本科毕业后应该工作还是读研？",
     "body_format": "HTML",
-    "body": "<p>毕业时我选择了读研。</p>",
+    "body": "毕业时我选择了读研。",
+    "raw_html": "<p>毕业时我选择了读研。</p>",
     "language": "zh-CN"
   },
   "topics": [

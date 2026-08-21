@@ -24,3 +24,11 @@ def test_valid_source_record_is_parsed_and_normalizes_sha256() -> None:
 def test_invalid_source_record_is_rejected() -> None:
     with pytest.raises(ValidationError):
         SourceRecordV1.model_validate(load_fixture("source_record.invalid.json"))
+
+
+def test_html_source_record_requires_raw_html_fragment() -> None:
+    record = load_fixture("source_record.valid.json")
+    del record["content"]["raw_html"]
+
+    with pytest.raises(ValidationError, match="raw_html"):
+        SourceRecordV1.model_validate(record)

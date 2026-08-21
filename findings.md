@@ -263,6 +263,7 @@
 - 实现中发现“只要求 `authorization_ref` 非空”可被任意字符串绕过；门禁已改为查询本地授权记录，并校验来源、Adapter、ACTIVE 状态和当前有效期。
 - raw hash 与正文版本 hash 必须分开：同一正文的点赞/评论变化应新增原始输入记录，但不能新增 `ContentSnapshot`。当前实现分别使用 `raw.sha256` 和规范化正文 hash。
 - 按 KISS 与深模块原则，暂不创建只有一个空实现的 GraphProjection interface；等接入首个真实 Graphiti Adapter 时，与测试替身一起形成真实 seam。
+- 原文证据不能只依赖 JSON `payload`：规范 URL 和 raw HTML 已升级为 `RawEnvelope` 的显式列，HTML 片段也进入 `ContentSnapshot`，这样证据定位不必解析不稳定的上游 JSON。
 
 ## 已验证与剩余门槛
 

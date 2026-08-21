@@ -3,7 +3,15 @@
 from enum import StrEnum
 from typing import Any, Literal
 
-from pydantic import AwareDatetime, BaseModel, ConfigDict, Field, HttpUrl, field_validator
+from pydantic import (
+    AwareDatetime,
+    BaseModel,
+    ConfigDict,
+    Field,
+    HttpUrl,
+    field_validator,
+    model_validator,
+)
 
 
 class ContractModel(BaseModel):
@@ -45,7 +53,14 @@ class SourceContentV1(ContractModel):
     title: str = Field(min_length=1, max_length=2_000)
     body_format: BodyFormat
     body: str = Field(min_length=1)
+    raw_html: str | None = None
     language: str = Field(min_length=2, max_length=32)
+
+    @model_validator(mode="after")
+    def html_sources_have_raw_fragment(self) -> "SourceContentV1":
+        if self.body_format is BodyFormat.HTML and not self.raw_html:
+            raise ValueError("raw_html is required when body_format is HTML")
+        return self
 
 
 class TopicV1(ContractModel):

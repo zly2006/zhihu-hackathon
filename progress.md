@@ -147,7 +147,9 @@
 - 已实现 `source_authorization/raw_envelope/content_item/content_snapshot` 及首个 Alembic 迁移。
 - 自动来源必须命中来源、Adapter、状态和有效期均匹配的授权记录；仅提供任意授权字符串不能绕过门禁。
 - 原始响应以 raw hash 幂等保留；正文另算稳定 hash，所以互动指标变化会保留新原始输入，但不会虚增正文版本。
-- 验证结果：Ruff、mypy strict、迁移模型一致性及 13 项测试全部通过；另以真实 Uvicorn 进程执行迁移并请求 `/health`，返回 `{"status":"ok","database":"ok"}`。
+- 已补充原始证据不变量：`ContentItem` 保留规范 URL，`RawEnvelope` 保留每次输入的 URL/HTML，`ContentSnapshot` 保留对应 HTML 片段；HTML 格式记录缺失 `raw_html` 会在契约层拒绝。
+- 新增 `20260821_0002_raw_provenance` 迁移，并验证旧 payload 可回填 URL/HTML。
+- 验证结果：Ruff、mypy strict、迁移模型一致性及 17 项测试全部通过；另以真实 Uvicorn 进程执行迁移并请求 `/health`，返回 `{"status":"ok","database":"ok"}`。
 
 ## 验证结果
 

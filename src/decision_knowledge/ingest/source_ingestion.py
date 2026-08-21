@@ -103,8 +103,10 @@ class SourceIngestion:
                 authorization_ref=record.source.authorization_ref,
                 external_type=record.external_ref.type,
                 external_id=record.external_ref.id,
+                canonical_url=str(record.canonical_url),
                 fetched_at=record.fetched_at,
                 payload_hash=record.raw.sha256,
+                raw_html=record.content.raw_html,
                 payload=record.model_dump(mode="json"),
             )
             self._session.add(envelope)
@@ -132,6 +134,7 @@ class SourceIngestion:
             title=record.content.title,
             body_format=record.content.body_format.value,
             body=record.content.body,
+            raw_html=record.content.raw_html,
             language=record.content.language,
             content_hash=content_hash,
             source_created_at=record.source_created_at,

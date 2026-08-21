@@ -8,6 +8,7 @@ from sqlalchemy import func, select
 from decision_knowledge.api import create_app
 from decision_knowledge.db import Database
 from decision_knowledge.ingest.models import (
+    ContentItem,
     ContentSnapshot,
     RawEnvelope,
     SourceAuthorization,
@@ -35,6 +36,38 @@ def test_manual_source_record_creates_content_snapshot(tmp_path: Path) -> None:
     assert body["items"][0]["status"] == "CREATED"
     assert body["items"][0]["content_item_id"]
     assert body["items"][0]["snapshot_id"]
+
+    database.dispose()
+
+
+def test_ingest_persists_source_url_and_raw_html_at_each_provenance_layer(
+    tmp_path: Path,
+) -> None:
+    database = Database(f"sqlite+pysqlite:///{tmp_path / 'ingest.db'}")
+    database.create_schema()
+    client = TestClient(create_app(database=database))
+    source_record = load_source_record()
+
+    response = client.post(
+        "/v1/source-records:batch", json={"records": [source_record]}
+    )
+
+    assert response.status_code == 200
+    result = response.json()["items"][0]
+    with database.session() as session:
+        item = session.get(ContentItem, result["content_item_id"])
+        snapshot = session.get(ContentSnapshot, result["snapshot_id"])
+        assert item is not None
+        assert snapshot is not None
+        envelope = session.get(RawEnvelope, snapshot.raw_envelope_id)
+        assert envelope is not None
+
+        expected_url = source_record["canonical_url"]
+        expected_html = source_record["content"]["raw_html"]
+        assert item.canonical_url == expected_url
+        assert envelope.canonical_url == expected_url
+        assert envelope.raw_html == expected_html
+        assert snapshot.raw_html == expected_html
 
     database.dispose()
 
