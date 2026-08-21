@@ -21,6 +21,8 @@ def test_migrations_build_authoritative_ingest_tables(tmp_path: Path) -> None:
         "content_snapshot",
         "raw_envelope",
         "source_authorization",
+        "decision_scenario",
+        "decision_branch",
     }
     raw_envelope_columns = {
         column["name"] for column in inspect(engine).get_columns("raw_envelope")
@@ -30,6 +32,7 @@ def test_migrations_build_authoritative_ingest_tables(tmp_path: Path) -> None:
     }
     assert {"canonical_url", "raw_html"} <= raw_envelope_columns
     assert "raw_html" in snapshot_columns
+    assert {"review_status", "review_note"} <= snapshot_columns
     engine.dispose()
 
 

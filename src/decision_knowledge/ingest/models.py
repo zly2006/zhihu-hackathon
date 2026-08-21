@@ -1,8 +1,8 @@
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, ForeignKey, String, Text, UniqueConstraint
+from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from decision_knowledge.db import Base
@@ -99,5 +99,66 @@ class ContentSnapshot(Base):
     content_hash: Mapped[str] = mapped_column(String(64), nullable=False)
     source_created_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
     source_updated_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))
+    review_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="UNREVIEWED", server_default="UNREVIEWED"
+    )
+    review_note: Mapped[str | None] = mapped_column(Text)
 
     content_item: Mapped[ContentItem] = relationship(back_populates="snapshots")
+
+
+class DecisionScenario(Base):
+    __tablename__ = "decision_scenario"
+    __table_args__ = (
+        UniqueConstraint("slug", name="uq_decision_scenario_slug"),
+        Index("ix_decision_scenario_review_status", "review_status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    slug: Mapped[str] = mapped_column(String(160), nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    summary: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    domain: Mapped[str] = mapped_column(String(128), nullable=False, default="")
+    review_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="UNREVIEWED", server_default="UNREVIEWED"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+    branches: Mapped[list["DecisionBranch"]] = relationship(
+        back_populates="scenario", cascade="all, delete-orphan", order_by="DecisionBranch.position"
+    )
+
+
+class DecisionBranch(Base):
+    __tablename__ = "decision_branch"
+    __table_args__ = (
+        Index("ix_decision_branch_scenario_position", "scenario_id", "position"),
+        Index("ix_decision_branch_review_status", "review_status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    scenario_id: Mapped[str] = mapped_column(
+        ForeignKey("decision_scenario.id", ondelete="CASCADE"), nullable=False
+    )
+    label: Mapped[str] = mapped_column(String(256), nullable=False)
+    trigger: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    action: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    outcome: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    position: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    review_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="UNREVIEWED", server_default="UNREVIEWED"
+    )
+    source_snapshot_id: Mapped[str | None] = mapped_column(
+        ForeignKey("content_snapshot.id", ondelete="SET NULL")
+    )
+
+    scenario: Mapped[DecisionScenario] = relationship(back_populates="branches")
+    source_snapshot: Mapped[ContentSnapshot | None] = relationship()

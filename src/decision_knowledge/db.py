@@ -11,9 +11,14 @@ class Base(DeclarativeBase):
 
 class Database:
     def __init__(self, url: str) -> None:
+        self.url = url
         connect_args = {"check_same_thread": False} if url.startswith("sqlite") else {}
         self.engine = create_engine(url, connect_args=connect_args)
         self._sessions = sessionmaker(bind=self.engine, expire_on_commit=False)
+
+    @property
+    def is_sqlite(self) -> bool:
+        return self.url.startswith("sqlite")
 
     @contextmanager
     def session(self) -> Iterator[Session]:

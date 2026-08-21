@@ -287,6 +287,15 @@
 - 未满足证据/可比性门槛的只能叫 `Branch Candidate`（候选分叉）；审核后才是 `Branch Point`（分叉路口）。
 - `Outcome Observation`（结果观察）只表示来源的后续陈述，不承诺行动导致结果。
 
+## 本地双端工作台设计发现（2026-08-21）
+
+- 用户端与管理端先做成同一个 FastAPI 进程下的两个静态入口：`/` 是用户端，`/admin` 是管理端；不引入 React/Vite/Node 构建链，降低本地启动成本。
+- 用户端第一版只承诺三件事：按关键词检索真实回答、查看原文/HTML 证据、浏览已经审核的情景与分叉。未审核数据不伪装成结论。
+- 管理端第一版承诺四件事：总览统计、原始回答与快照查看、JSONL 幂等导入、情景/分叉的人工创建与审核；原始 URL 与 raw HTML 只读展示，避免误改证据。
+- PostgreSQL 继续是 Compose 的权威库；本地无 Docker 时默认 SQLite，启动时只做建表和真实 JSONL 幂等种子导入。两者共用 SQLAlchemy 模型和 API。
+- 情景/分叉先用关系表承载，不提前接 Graphiti：`decision_scenario` 表示可审核的情景抽屉，`decision_branch` 表示情景内的行动分叉，并用 `source_snapshot_id` 回指证据。
+- 管理端的“删除”先落为 `DELETED`/归档状态，不做不可恢复的硬删除；这符合原始证据可追溯不变量。
+
 ## 资源
 
 - 用户提供的 GitHub 账号：<https://github.com/zly2006>

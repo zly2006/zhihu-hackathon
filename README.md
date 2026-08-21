@@ -14,16 +14,27 @@
 
 ## 本机启动
 
-要求 Python 3.12 和 [uv](https://docs.astral.sh/uv/)。没有 PostgreSQL 时可先用 SQLite：
+要求 Python 3.12 和 [uv](https://docs.astral.sh/uv/)。本地双端默认使用 SQLite，启动时会自动建表，并幂等导入仓库里的 6 条真实知乎回答：
 
 ```powershell
 uv sync --group dev
 $env:DK_DATABASE_URL = "sqlite+pysqlite:///./local.db"
-uv run alembic upgrade head
 uv run uvicorn decision_knowledge.main:app --reload
 ```
 
-打开 `http://127.0.0.1:8000/docs` 调用
+然后打开：
+
+- 用户端：<http://127.0.0.1:8000/>
+- 管理端：<http://127.0.0.1:8000/admin>
+- API 文档：<http://127.0.0.1:8000/docs>
+
+用户端负责检索回答、阅读原文和查看已确认情景；管理端负责看数据库、导入 JSONL、审核快照、归档内容，以及创建情景和分叉。管理端不覆盖 `canonical_url`、raw HTML 和抓取哈希等原始证据字段。
+
+这是本机工作台，当前没有登录和多用户权限，不要直接暴露到公网。
+
+如果要从空库重新初始化，停止服务后删除本地生成的 `local.db`，再重新启动即可；导入是幂等的，重复启动不会复制回答。
+
+仍可打开 `http://127.0.0.1:8000/docs` 调用
 `POST /v1/source-records:batch`。请求体格式见
 [source_record.valid.json](./tests/fixtures/source_record.valid.json)，外层再包一层
 `{"records": [...]}`。
