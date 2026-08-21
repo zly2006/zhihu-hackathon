@@ -21,3 +21,18 @@ uv run python scripts/collect_zhihu_public.py \
   --url https://www.zhihu.com/answer/717484672 \
   --output data/zhihu/public_answers.jsonl
 ```
+
+正式的搜索—问题—回答采集使用：
+
+```text
+uv run python scripts/collect_zhihu_search_question.py \
+  --cookie-file C:\\path\\to\\www.zhihu.com_cookies.txt \
+  --authorization-ref local-cookie-20260821 \
+  --query 转行 \
+  --snowball-rounds 2 \
+  --output data/zhihu/search_question_answers.jsonl
+```
+
+该 JSONL 会保留搜索、问题回答列表和回答详情的完整原始响应，文件可能较大且含来源内容，
+默认只作为本机导入材料，不自动提交 Git；真正的权威副本是本地数据库中的
+`RawEnvelope`/`ContentSnapshot`。

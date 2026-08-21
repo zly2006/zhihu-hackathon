@@ -235,3 +235,11 @@
 - **设计决定：** 采集运行、关键词候选和决策经历候选都持久化；候选始终和原始快照、raw envelope、查询词、轮次及算法版本相连；不自动晋级为正式情景/分叉。
 - **实现：** 新增 `discovery_run`、`keyword_candidate`、`decision_episode_candidate` 三张表；导入时对通过质量门的记录幂等写入关键词候选，并用 `heuristic-v1` 生成处境/决策/行动/结果草稿；新增管理端查询建议、候选列表和审核 API/面板。
 - **验证：** 新增候选提取、血缘幂等、候选审核和迁移测试；全量 42 项测试、Ruff、mypy strict、显式 SQLite `alembic upgrade head`/`alembic check`、两个前端 JS 语法检查和 `git diff --check` 全部通过。
+
+### 阶段 23：本机 Cookie 搜索采集通道（已完成）
+
+- **触发原因：** 用户已提供本机 Cookie，但原正式采集器只接 `zhurl`，导致可用凭据没有进入搜索—问题—回答链路。
+- **实现：** `collect_zhihu_search_question.py` 新增显式 `--cookie-file`；curl 只读取本机 Cookie 并将 JSON 写入一次性临时文件，响应解析后立即删除；Cookie 不进入 SourceRecord、数据库、日志或 Git。
+- **真实验证：** 用用户 Cookie 对 `search_v3` 实测 HTTP 200；按 `转行` 运行受限两轮采集，得到 11 条 `zhihu_search_question_api` 记录，导入本地 SQLite 后为 1 个 run、45 个关键词候选、7 个决策经历候选；无拒收记录，无演示数据。
+- **保留边界：** `zhurl` 仍是默认可替换传输；Cookie 只是本机请求凭据，不改变授权门禁、质量门和人工审核边界。
+- **验证：** 全量 43 项测试、Ruff、mypy strict、两个前端 JS 语法检查和 `git diff --check` 通过。

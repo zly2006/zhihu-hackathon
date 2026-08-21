@@ -1,7 +1,8 @@
 """Collect bounded Zhihu answers through search, question feeds, and answer APIs.
 
-The command delegates signed web requests to ``zhurl``. It requires an explicit
-authorization reference and never reads, writes, or prints Cookie material.
+The command delegates requests to ``zhurl`` by default. A user-provided local
+Netscape Cookie file can be selected explicitly for the same three API calls;
+the file is passed to curl and never enters a SourceRecord, log, or database.
 """
 
 from __future__ import annotations
@@ -9,9 +10,11 @@ from __future__ import annotations
 import argparse
 import hashlib
 import json
+import os
 import re
 import subprocess
 import sys
+import tempfile
 from collections.abc import Callable
 from datetime import UTC, datetime
 from pathlib import Path
@@ -413,6 +416,67 @@ def _run_zhurl(executable: str, url: str) -> dict[str, Any]:
     return payload
 
 
+def _run_cookie_request(
+    cookie_file: Path,
+    url: str,
+    *,
+    timeout: float = 30.0,
+) -> dict[str, Any]:
+    """Fetch one JSON API response using a local Cookie file without persisting it."""
+
+    if not cookie_file.is_file():
+        raise RuntimeError(f"Cookie 文件不存在：{cookie_file}")
+    curl = "curl.exe" if os.name == "nt" else "curl"
+    with tempfile.NamedTemporaryFile(
+        prefix="decision-knowledge-zhihu-api-",
+        suffix=".json",
+        delete=False,
+    ) as temporary:
+        response_path = Path(temporary.name)
+    try:
+        result = subprocess.run(
+            [
+                curl,
+                "--fail",
+                "--location",
+                "--compressed",
+                "--silent",
+                "--show-error",
+                "--max-time",
+                str(max(1, int(timeout))),
+                "--cookie",
+                str(cookie_file),
+                "--user-agent",
+                "Mozilla/5.0 (Windows NT 10.0; Win64; x64)",
+                "--header",
+                "Accept: application/json",
+                "--header",
+                "Accept-Language: zh-CN,zh;q=0.9,en;q=0.5",
+                "--output",
+                str(response_path),
+                "--write-out",
+                "%{http_code}",
+                url,
+            ],
+            capture_output=True,
+            check=False,
+        )
+        if result.returncode != 0:
+            raise RuntimeError(f"Cookie 请求失败（curl exit {result.returncode}）")
+        status = result.stdout.decode("ascii", errors="ignore").strip()
+        if not status.startswith("2"):
+            raise RuntimeError(f"Cookie 请求返回 HTTP {status or 'unknown'}")
+        try:
+            payload = json.loads(response_path.read_text(encoding="utf-8"))
+        except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
+            raise RuntimeError("Cookie 请求没有返回有效 JSON") from exc
+        if not isinstance(payload, dict):
+            raise RuntimeError("Cookie 请求返回的顶层数据不是 JSON object")
+        return payload
+    finally:
+        response_path.unlink(missing_ok=True)
+
+
 def _positive_int(value: str) -> int:
     number = int(value)
     if number < 1:
@@ -439,6 +503,11 @@ def _arguments() -> argparse.Namespace:
     parser.add_argument("--snowball-rounds", type=_round_count, default=1)
     parser.add_argument("--max-snowball-queries", type=_positive_int, default=5)
     parser.add_argument("--zhurl", default="zhurl", help="zhurl 可执行文件路径")
+    parser.add_argument(
+        "--cookie-file",
+        type=Path,
+        help="本机 Netscape Cookie 文件；仅用于三段式 API 请求，不会写入输出",
+    )
     return parser.parse_args()
 
 
@@ -452,7 +521,10 @@ def main() -> int:
     fetched_at = datetime.now(UTC)
     discovery_run_id = str(uuid4())
     records_by_key: dict[tuple[str, str], SourceRecordV1] = {}
-    fetch_json = lambda url: _run_zhurl(args.zhurl, url)  # noqa: E731
+    if args.cookie_file is not None:
+        fetch_json = lambda url: _run_cookie_request(args.cookie_file, url)  # noqa: E731
+    else:
+        fetch_json = lambda url: _run_zhurl(args.zhurl, url)  # noqa: E731
     frontier = tuple(dict.fromkeys(query.strip() for query in args.query if query.strip()))
     seen_queries = set(frontier)
     question_seed_records: list[SourceRecordV1] = []

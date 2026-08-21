@@ -123,6 +123,9 @@ LLM 和 embedding 通过接口注入，不把领域代码绑定到单一供应�
 `decision_episode_candidate` 保留 `analysis_version=heuristic-v1`、字段和证据句索引。
 两者都不是正式知识，重复导入只更新已有血缘，不制造重复候选。
 
+请求传输可选 `zhurl` 或用户明确提供的本机 `--cookie-file`；Cookie 只在请求进程中使用，
+不进入原始记录和数据库。
+
 ## 6. 里程碑与依赖
 
 ```mermaid

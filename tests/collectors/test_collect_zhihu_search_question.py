@@ -1,10 +1,16 @@
 import hashlib
 import json
+import subprocess
 from datetime import UTC, datetime
+from pathlib import Path
 from typing import Any
 
 from decision_knowledge.ingest.quality import assess_answer_quality, suggest_queries
-from scripts.collect_zhihu_search_question import collect_query, collect_question
+from scripts.collect_zhihu_search_question import (
+    _run_cookie_request,
+    collect_query,
+    collect_question,
+)
 
 
 def test_search_question_and_answer_responses_become_traceable_records() -> None:
@@ -311,3 +317,23 @@ def test_question_seed_starts_at_question_feeds_without_search() -> None:
     assert records[0].raw.payload["query"] == "question:42"
     assert "search_v3" not in calls[0]
     assert "/questions/42/feeds" in calls[0]
+
+
+def test_cookie_transport_reads_json_and_does_not_return_cookie_material(
+    tmp_path: Path,
+    monkeypatch: Any,
+) -> None:
+    cookie_file = tmp_path / "cookies.txt"
+    cookie_file.write_text("session-secret", encoding="utf-8")
+
+    def fake_run(args: list[str], **_: object) -> subprocess.CompletedProcess[bytes]:
+        output_path = Path(args[args.index("--output") + 1])
+        output_path.write_text('{"data": [], "paging": {"is_end": true}}', encoding="utf-8")
+        return subprocess.CompletedProcess(args, 0, stdout=b"200", stderr=b"")
+
+    monkeypatch.setattr(subprocess, "run", fake_run)
+
+    payload = _run_cookie_request(cookie_file, "https://www.zhihu.com/api/v4/search_v3")
+
+    assert payload == {"data": [], "paging": {"is_end": True}}
+    assert "session-secret" not in json.dumps(payload)

@@ -54,9 +54,10 @@ URL、抓取响应校验值和原始 HTML 片段。它们属于历史“回答�
 三层响应均需保留来源引用，入库记录使用独立的
 `adapter_code=zhihu_search_question_api`，不能沿用 `manual_url_capture`。
 
-正式适配器通过 [`zhurl`](https://github.com/zly2006/zhurl) 发起签名请求。
-运行前需要安装并由 `zhurl` 自己配置账号文件，同时在数据库中创建匹配
-`zhihu_search_question_api` 的有效授权记录；脚本不接收 Cookie 文件，也不会输出凭据。
+正式适配器默认通过 [`zhurl`](https://github.com/zly2006/zhurl) 发起请求；如果本机已有用户明确提供的 Netscape Cookie 文件，也可以显式使用
+`--cookie-file` 走同一套搜索—问题—回答接口。Cookie 只在本机请求时使用，永不写入
+SourceRecord、数据库、日志或 Git。两种模式都需要数据库中匹配
+`zhihu_search_question_api` 的有效授权记录。
 
 ```powershell
 uv run python scripts/collect_zhihu_search_question.py `
@@ -71,6 +72,24 @@ uv run python scripts/collect_zhihu_search_question.py `
   --max-snowball-queries 5 `
   --output data/zhihu/search_question_answers.jsonl
 ```
+
+本机 Cookie 模式只需替换请求传输参数：
+
+```powershell
+uv run python scripts/collect_zhihu_search_question.py `
+  --cookie-file C:\Users\13081\Downloads\www.zhihu.com_cookies.txt `
+  --authorization-ref local-cookie-20260821 `
+  --query 转行 `
+  --max-questions 2 `
+  --max-answers-per-question 2 `
+  --max-candidates-per-question 5 `
+  --snowball-rounds 2 `
+  --max-snowball-queries 2 `
+  --output data/zhihu/search_question_answers.jsonl
+```
+
+Cookie 模式已经在本机完成受限真实采集：11 条回答、2 个发现轮次、1 个
+`discovery_run`，并已导入本地 SQLite；采集 JSONL 未提交到 Git。
 
 每条输出都在 `raw.payload` 中保留命中的搜索项、问题回答列表项、回答详情和
 三个请求端点；回答 HTML 同时进入 `content.raw_html`，可直接导入权威证据库。

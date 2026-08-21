@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-Phase 22：滚雪球血缘与决策候选
+Phase 23：本机 Cookie 搜索采集通道
 
 ## 阶段
 
@@ -181,6 +181,15 @@ Phase 22：滚雪球血缘与决策候选
 - [x] 更新迁移、文档和回归测试
 - **Status:** complete
 
+### Phase 23：本机 Cookie 搜索采集通道
+
+- [x] 在不改变搜索 → 问题 → 回答链路的前提下增加 `--cookie-file` 请求传输
+- [x] Cookie 只由 curl 进程读取，不写入记录、数据库、日志或仓库
+- [x] 为 Cookie 请求、HTTP 错误和 JSON 解析补充可测试的边界行为
+- [x] 使用用户提供的本机 Cookie 做小规模真实采集验证，不注入演示数据
+- [x] 更新运行说明并保留 `zhurl` 作为默认可替换传输方式
+- **Status:** complete
+
 ## 关键问题
 
 1. `zly2006` 的哪个仓库与知乎采集直接相关，其输出数据结构是什么？
@@ -227,3 +236,4 @@ Phase 22：滚雪球血缘与决策候选
 | 新采集脚本直接执行时无法导入另一个 `scripts` 模块 | 1 | 将 HTML 清洗下沉为 `decision_knowledge.ingest.html_text`，两个采集器共用同一实现 |
 | 质量采集回归命令引用不存在的测试文件名 | 1 | 读取 `tests/collectors` 后改用实际的 `test_collect_zhihu_public.py` 文件名 |
 | 未设置 SQLite URL 时直接运行 `alembic check` 等待本机 PostgreSQL | 1 | 改用显式临时 SQLite URL 完成 `upgrade head` 与 `alembic check`，并删除临时库 |
+| 用单行 Python 语句注册本地授权时 `with` 语句语法无效 | 1 | 改用显式 session 生命周期写入授权引用，未写入 Cookie 内容 |
