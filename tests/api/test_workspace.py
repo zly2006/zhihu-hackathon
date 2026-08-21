@@ -256,6 +256,20 @@ def test_import_persists_snowball_lineage_and_decision_candidate(tmp_path: Path)
     assert candidate["review_status"] == "UNREVIEWED"
     assert "家庭储蓄" in candidate["context"]
 
+    scene_view = client.get("/api/scene-view")
+    assert scene_view.status_code == 200
+    assert scene_view.json()["candidate_total"] == 1
+    assert scene_view.json()["items"][0]["name"] == "转行前如何验证方向？"
+    assert scene_view.json()["items"][0]["paths"][0]["candidate_id"] == candidate["id"]
+
+    decision_view = client.get("/api/decisions", params={"q": "家庭储蓄"})
+    assert decision_view.status_code == 200
+    assert decision_view.json()["total"] == 1
+    assert decision_view.json()["items"][0]["canonical_url"] == payload["canonical_url"]
+    detail = client.get(f"/api/decisions/{candidate['id']}")
+    assert detail.status_code == 200
+    assert detail.json()["source"]["raw_html"] == payload["content"]["raw_html"]
+
     replay = client.post("/api/admin/import", json={"records": [payload]})
     assert replay.status_code == 200
     assert replay.json()["unchanged"] == 1

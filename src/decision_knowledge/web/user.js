@@ -1,11 +1,24 @@
 const $ = (selector) => document.querySelector(selector);
+const $$ = (selector) => [...document.querySelectorAll(selector)];
+const state = {
+  perspective: 'scenes',
+  sceneQuery: '',
+  sceneDomain: '全部',
+  decisionQuery: '',
+  decisionsLoaded: false,
+};
+
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (char) => ({
   '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;'
 }[char]));
 
 async function getJson(url, options) {
   const response = await fetch(url, options);
-  if (!response.ok) throw new Error((await response.json()).detail || '请求失败');
+  if (!response.ok) {
+    let message = '请求失败';
+    try { message = (await response.json()).detail || message; } catch (_) { /* no-op */ }
+    throw new Error(message);
+  }
   return response.json();
 }
 
@@ -22,110 +35,195 @@ function adapterLabel(value) {
   return ({
     manual_url_capture: '回答页直取（旧）',
     zhihu_search_question_api: '搜索 → 问题 → 回答',
-  })[value] || value;
+  })[value] || value || '未知来源';
 }
 
-function renderResults(data) {
-  $('#result-count').textContent = `${data.total} 条`;
-  const container = $('#results');
-  if (!data.items.length) {
-    container.innerHTML = '<div class="empty-state">没有匹配快照。换一个关键词。</div>';
-    return;
-  }
-  container.innerHTML = data.items.map((item) => `
-    <button class="data-row result-row" type="button" role="row" data-snapshot="${escapeHtml(item.snapshot_id)}">
-      <span class="cell-primary" role="cell"><strong>${escapeHtml(item.title)}</strong><small>${escapeHtml(item.body_preview)}</small></span>
-      <span class="cell-source" role="cell"><small class="mobile-label">来源</small><strong>${escapeHtml(item.source_code)} · ${escapeHtml(item.external_id)}</strong><small>${escapeHtml(adapterLabel(item.adapter_code))}</small></span>
-      <span role="cell"><small class="mobile-label">采集时间</small>${escapeHtml(formatDate(item.captured_at))}</span>
-      <span role="cell"><small class="mobile-label">证据</small><i class="status-dot ${item.has_raw_html ? 'complete' : ''}"></i>${item.has_raw_html ? 'HTML' : '文本'}</span>
-      <span class="row-arrow" aria-hidden="true">›</span>
-    </button>`).join('');
-  container.querySelectorAll('[data-snapshot]').forEach((row) => row.addEventListener('click', () => openAnswer(row.dataset.snapshot)));
+function reviewLabel(value) {
+  return ({ UNREVIEWED: '待审核', CONFIRMED: '已确认', REJECTED: '已排除' })[value] || value || '未标注';
 }
 
 function renderOverview(data) {
   const metrics = [
-    ['原文', data.raw_envelopes],
-    ['快照', data.snapshots],
-    ['情景', data.scenarios],
-    ['分叉', data.branches],
+    ['回答快照', data.snapshots],
+    ['决策候选', data.decision_candidates],
+    ['正式情景', data.confirmed_scenarios],
+    ['原始包', data.raw_envelopes],
   ];
   $('#overview-strip').innerHTML = `
-    <div class="summary-metrics">${metrics.map(([label, value]) => `<span><strong>${value}</strong>${label}</span>`).join('')}</div>
-    <div class="summary-state"><i></i><span><strong>${escapeHtml(data.semantic_status)}</strong><small>${data.unreviewed_snapshots} 条快照待整理</small></span></div>`;
+    <div class="summary-metrics">${metrics.map(([label, value]) => `<span><strong>${escapeHtml(value)}</strong>${escapeHtml(label)}</span>`).join('')}</div>
+    <div class="summary-state"><i></i><span><strong>${escapeHtml(data.semantic_status)}</strong><small>${escapeHtml(data.unreviewed_snapshots)} 条快照待整理</small></span></div>`;
 }
 
 async function loadOverview() {
-  try { renderOverview(await getJson('/api/overview')); }
-  catch (error) { $('#overview-strip').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`; }
-}
-
-async function search(query = '') {
-  $('#result-count').textContent = '检索中';
   try {
-    renderResults(await getJson(`/api/search?q=${encodeURIComponent(query)}`));
+    renderOverview(await getJson('/api/overview'));
   } catch (error) {
-    $('#result-count').textContent = '错误';
-    $('#results').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+    $('#overview-strip').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
   }
 }
 
-async function openAnswer(snapshotId) {
+function renderSceneFilters() {
+  const domains = ['全部', '职业与工作', '教育与学习', '财务与住房', '关系与家庭', '成长与生活', '其他'];
+  $('#scene-filters').innerHTML = domains.map((domain) => `
+    <button type="button" class="filter-tab ${domain === state.sceneDomain ? 'is-active' : ''}" data-domain="${escapeHtml(domain)}">${escapeHtml(domain)}</button>`).join('');
+  $$('#scene-filters [data-domain]').forEach((button) => button.addEventListener('click', () => {
+    state.sceneDomain = button.dataset.domain;
+    renderSceneFilters();
+    loadScenes(state.sceneQuery, state.sceneDomain === '全部' ? '' : state.sceneDomain);
+  }));
+}
+
+function renderSceneItems() {
+  const container = $('#scenario-list');
+  const items = (state.sceneItems || []).filter((item) => state.sceneDomain === '全部' || item.domain === state.sceneDomain);
+  const countLabel = state.sceneDomain === '全部' ? (state.sceneTotal || items.length) : items.length;
+  $('#scenario-status').textContent = `${countLabel} 个场景候选`;
+  if (!items.length) {
+    container.innerHTML = '<div class="empty-state">没有匹配的场景候选。换一个关键词或领域。</div>';
+    return;
+  }
+  container.innerHTML = items.map((scene) => `
+    <article class="scene-card">
+      <header class="scene-card-heading">
+        <div>
+          <span class="scene-kicker">场景候选 · ${escapeHtml(scene.domain || '其他')}</span>
+          <h3>${escapeHtml(scene.name)}</h3>
+        </div>
+        <div class="scene-count"><strong>${escapeHtml(scene.answer_count)}</strong><span>条回答</span></div>
+      </header>
+      <div class="scene-meta"><span>${escapeHtml(scene.decision_count)} 条决策候选</span><span>平均置信度 ${escapeHtml(scene.avg_confidence)}%</span><span class="review-chip">${escapeHtml(scene.status)}</span></div>
+      <div class="path-list">
+        ${(scene.paths || []).map((path, index) => `
+          <button class="path-row" type="button" data-open-decision="${escapeHtml(path.candidate_id)}">
+            <span class="path-index">${index + 1}</span>
+            <span class="path-copy"><strong>${escapeHtml(path.decision || '未提取决定')}</strong><span>${escapeHtml(path.action || '未提取行动')}</span><small>${escapeHtml(path.outcome || '未提取结果')} · ${escapeHtml(path.confidence)}%</small></span>
+            <span class="path-arrow" aria-hidden="true">↗</span>
+          </button>`).join('')}
+      </div>
+      <footer class="scene-card-footer"><span>展示置信度最高的 ${Math.min((scene.paths || []).length, 8)} 条路径</span><button type="button" data-open-scene="${escapeHtml(scene.name)}">查看全部决策</button></footer>
+    </article>`).join('');
+  container.querySelectorAll('[data-open-decision]').forEach((button) => button.addEventListener('click', () => openDecision(button.dataset.openDecision)));
+  container.querySelectorAll('[data-open-scene]').forEach((button) => button.addEventListener('click', () => {
+    state.decisionQuery = button.dataset.openScene;
+    $('#decision-search-input').value = state.decisionQuery;
+    setPerspective('decisions');
+    loadDecisions(state.decisionQuery);
+  }));
+}
+
+function renderScenes(data) {
+  state.sceneItems = data.items || [];
+  state.sceneTotal = data.total || state.sceneItems.length;
+  $('#formal-status').textContent = `正式情景：${data.formal_scenarios || 0}`;
+  renderSceneItems();
+}
+
+async function loadScenes(query = '', domain = '') {
+  $('#scenario-status').textContent = '读取中';
+  try {
+    renderScenes(await getJson(`/api/scene-view?q=${encodeURIComponent(query)}&domain=${encodeURIComponent(domain)}&limit=48`));
+  } catch (error) {
+    $('#scenario-status').textContent = '错误';
+    $('#scenario-list').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function renderDecisions(data) {
+  const container = $('#decision-list');
+  $('#decision-status').textContent = `${data.total || 0} 条候选`;
+  if (!data.items || !data.items.length) {
+    container.innerHTML = '<div class="empty-state">没有匹配的单一决策候选。换一个关键词。</div>';
+    return;
+  }
+  container.innerHTML = data.items.map((item) => `
+    <article class="decision-card">
+      <header class="decision-card-heading">
+        <span class="decision-kicker">单一决策 · ${escapeHtml(reviewLabel(item.review_status))}</span>
+        <span class="confidence-badge">置信度 ${escapeHtml(item.confidence)}%</span>
+      </header>
+      <h3>${escapeHtml(item.title || '未命名问题')}</h3>
+      <div class="decision-grid">
+        <div><span>处境</span><p>${escapeHtml(item.context || '未提取')}</p></div>
+        <div><span>决定</span><p>${escapeHtml(item.decision || '未提取')}</p></div>
+        <div><span>行动</span><p>${escapeHtml(item.action || '未提取')}</p></div>
+        <div><span>结果</span><p>${escapeHtml(item.outcome || '未提取')}</p></div>
+      </div>
+      <footer class="decision-card-footer"><span>${escapeHtml(formatDate(item.captured_at))} · ${escapeHtml(adapterLabel(item.adapter_code))}</span><button type="button" data-open-decision="${escapeHtml(item.id)}">打开完整证据 ↗</button></footer>
+    </article>`).join('');
+  container.querySelectorAll('[data-open-decision]').forEach((button) => button.addEventListener('click', () => openDecision(button.dataset.openDecision)));
+}
+
+async function loadDecisions(query = '') {
+  $('#decision-status').textContent = '读取中';
+  try {
+    renderDecisions(await getJson(`/api/decisions?q=${encodeURIComponent(query)}&limit=60`));
+    state.decisionsLoaded = true;
+  } catch (error) {
+    $('#decision-status').textContent = '错误';
+    $('#decision-list').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
+  }
+}
+
+function setPerspective(name) {
+  state.perspective = name;
+  $$('[data-perspective]').forEach((button) => {
+    const active = button.dataset.perspective === name;
+    button.classList.toggle('is-active', active);
+    button.setAttribute('aria-selected', String(active));
+  });
+  $$('[data-panel]').forEach((panel) => {
+    const active = panel.dataset.panel === name;
+    panel.classList.toggle('is-active', active);
+    panel.hidden = !active;
+  });
+  if (name === 'decisions' && !state.decisionsLoaded) loadDecisions(state.decisionQuery);
+}
+
+async function openDecision(candidateId) {
   const dialog = $('#answer-dialog');
   const detail = $('#answer-detail');
-  detail.innerHTML = '<div class="empty-state">正在读取证据……</div>';
-  dialog.showModal();
+  detail.innerHTML = '<div class="empty-state">正在读取单一决策和原文……</div>';
+  if (!dialog.open) dialog.showModal();
   try {
-    const item = await getJson(`/api/snapshots/${encodeURIComponent(snapshotId)}`);
+    const payload = await getJson(`/api/decisions/${encodeURIComponent(candidateId)}`);
+    const decision = payload.decision;
+    const source = payload.source;
     detail.innerHTML = `
       <article class="dialog-content">
-        <p class="eyebrow">原文快照</p>
-        <h2>${escapeHtml(item.title)}</h2>
-        <div class="detail-meta"><span>${escapeHtml(item.source_code)} · ${escapeHtml(item.external_id)}</span><span>采集：${escapeHtml(adapterLabel(item.adapter_code))}</span><span>${escapeHtml(formatDate(item.captured_at))}</span><span>${escapeHtml(item.review_status)}</span></div>
-        <div class="detail-section"><p class="body-copy">${escapeHtml(item.body)}</p></div>
-        <a class="source-link" href="${escapeHtml(item.canonical_url)}" target="_blank" rel="noreferrer">打开知乎原文 ↗</a>
-        <details class="evidence-box"><summary>raw HTML 原始片段</summary><pre class="raw-html">${escapeHtml(item.raw_html || '没有保存 raw HTML')}</pre></details>
+        <p class="eyebrow">单一决策 · ${escapeHtml(reviewLabel(decision.review_status))}</p>
+        <h2>${escapeHtml(decision.title || '未命名问题')}</h2>
+        <div class="detail-meta"><span>置信度 ${escapeHtml(decision.confidence)}%</span><span>分析 ${escapeHtml(decision.analysis_version)}</span><span>采集 ${escapeHtml(formatDate(decision.captured_at))}</span></div>
+        <div class="decision-detail-grid">
+          <div><span>处境</span><p>${escapeHtml(decision.context || '未提取')}</p></div>
+          <div><span>决定</span><p>${escapeHtml(decision.decision || '未提取')}</p></div>
+          <div><span>行动</span><p>${escapeHtml(decision.action || '未提取')}</p></div>
+          <div><span>结果</span><p>${escapeHtml(decision.outcome || '未提取')}</p></div>
+        </div>
+        <section class="detail-section"><p class="detail-label">用户原文</p><p class="body-copy">${escapeHtml(source.body)}</p></section>
+        <a class="source-link" href="${escapeHtml(source.canonical_url)}" target="_blank" rel="noreferrer">打开知乎原文 ↗</a>
+        <details class="evidence-box"><summary>raw HTML 原始片段${source.has_raw_html ? '' : '（未保存）'}</summary><pre class="raw-html">${escapeHtml(source.raw_html || '没有保存 raw HTML')}</pre></details>
       </article>`;
   } catch (error) {
     detail.innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`;
   }
 }
 
-function renderScenarios(data) {
-  const container = $('#scenario-list');
-  $('#scenario-status').textContent = data.items.length ? `${data.items.length} 个` : '0 个';
-  if (!data.items.length) {
-    container.innerHTML = `<div class="semantic-empty">
-      <i class="status-dot"></i>
-      <div><strong>语义层尚未建立</strong><p>已有原文与快照，尚未归类为可比较的情景和分叉。</p></div>
-      <button data-scroll-evidence>查看 ${$('#overview-strip .summary-metrics span:nth-child(2) strong')?.textContent || ''} 条快照 ↓</button>
-    </div>`;
-    container.querySelector('[data-scroll-evidence]').addEventListener('click', () => $('#evidence').scrollIntoView({ behavior: 'smooth' }));
-    return;
-  }
-  container.innerHTML = data.items.map((scenario) => `
-    <article class="scenario-row">
-      <header><div><span class="scenario-domain">${escapeHtml(scenario.domain || '未分类')}</span><h3>${escapeHtml(scenario.name)}</h3><p>${escapeHtml(scenario.summary || '暂无摘要')}</p></div><span class="section-count">${scenario.branches.length} 个分叉</span></header>
-      <div class="branch-tree">${scenario.branches.map((branch) => `<div class="branch-line"><i></i><div><strong>${escapeHtml(branch.label)}</strong><p>${escapeHtml(branch.action || branch.outcome || '暂无说明')}</p><small>${branch.evidence ? `证据 · ${escapeHtml(branch.evidence.title)}` : '尚未关联证据'}</small></div></div>`).join('')}</div>
-    </article>`).join('');
-}
-
-async function loadScenarios() {
-  try { renderScenarios(await getJson('/api/scenarios')); }
-  catch (error) { $('#scenario-list').innerHTML = `<div class="empty-state">${escapeHtml(error.message)}</div>`; }
-}
-
-$('#search-form').addEventListener('submit', (event) => {
+$('#scene-search-form').addEventListener('submit', (event) => {
   event.preventDefault();
-  search($('#search-input').value.trim());
+  state.sceneQuery = $('#scene-search-input').value.trim();
+  loadScenes(state.sceneQuery, state.sceneDomain === '全部' ? '' : state.sceneDomain);
 });
-document.querySelectorAll('[data-query]').forEach((button) => button.addEventListener('click', () => {
-  $('#search-input').value = button.dataset.query;
-  search(button.dataset.query);
-}));
+$('#decision-search-form').addEventListener('submit', (event) => {
+  event.preventDefault();
+  state.decisionQuery = $('#decision-search-input').value.trim();
+  loadDecisions(state.decisionQuery);
+});
+$$('[data-perspective]').forEach((button) => button.addEventListener('click', () => setPerspective(button.dataset.perspective)));
 $('[data-close-dialog]').addEventListener('click', () => $('#answer-dialog').close());
-$('#answer-dialog').addEventListener('click', (event) => { if (event.target === $('#answer-dialog')) $('#answer-dialog').close(); });
+$('#answer-dialog').addEventListener('click', (event) => {
+  if (event.target === $('#answer-dialog')) $('#answer-dialog').close();
+});
 
-loadOverview();
-loadScenarios();
-search();
+renderSceneFilters();
+loadOverview().catch(() => {});
+loadScenes();
