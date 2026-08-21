@@ -54,6 +54,23 @@ URL、抓取响应校验值和原始 HTML 片段。它们属于历史“回答�
 三层响应均需保留来源引用，入库记录使用独立的
 `adapter_code=zhihu_search_question_api`，不能沿用 `manual_url_capture`。
 
+正式适配器通过 [`zhurl`](https://github.com/zly2006/zhurl) 发起签名请求。
+运行前需要安装并由 `zhurl` 自己配置账号文件，同时在数据库中创建匹配
+`zhihu_search_question_api` 的有效授权记录；脚本不接收 Cookie 文件，也不会输出凭据。
+
+```powershell
+uv run python scripts/collect_zhihu_search_question.py `
+  --query 转行 `
+  --query "读研还是工作" `
+  --authorization-ref auth-zhihu-search `
+  --max-questions 5 `
+  --max-answers-per-question 10 `
+  --output data/zhihu/search_question_answers.jsonl
+```
+
+每条输出都在 `raw.payload` 中保留命中的搜索项、问题回答列表项、回答详情和
+三个请求端点；回答 HTML 同时进入 `content.raw_html`，可直接导入权威证据库。
+
 ```powershell
 uv run python scripts/collect_zhihu_public.py `
   --cookie-file C:\path\to\www.zhihu.com_cookies.txt `

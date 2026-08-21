@@ -19,7 +19,6 @@ import subprocess
 import sys
 import tempfile
 from datetime import UTC, datetime
-from html.parser import HTMLParser
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -27,6 +26,7 @@ from urllib.parse import urlparse
 from urllib.request import Request, build_opener
 
 from decision_knowledge.contracts.source_record import SourceRecordV1
+from decision_knowledge.ingest.html_text import html_fragment_to_text
 
 USER_AGENT = (
     "DecisionKnowledge/0.1 (user-directed public capture; "
@@ -39,36 +39,8 @@ INITIAL_DATA_SCRIPT = re.compile(
 )
 
 
-class _FragmentTextParser(HTMLParser):
-    """Turn an HTML fragment into readable text without losing the fragment."""
-
-    _line_break_tags = frozenset({"br", "div", "li", "p", "section", "tr"})
-
-    def __init__(self) -> None:
-        super().__init__(convert_charrefs=True)
-        self._parts: list[str] = []
-
-    def handle_data(self, data: str) -> None:
-        self._parts.append(data)
-
-    def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
-        if tag in self._line_break_tags:
-            self._parts.append("\n")
-
-    def handle_endtag(self, tag: str) -> None:
-        if tag in self._line_break_tags:
-            self._parts.append("\n")
-
-    def text(self) -> str:
-        lines = (" ".join(line.split()) for line in "".join(self._parts).splitlines())
-        return "\n".join(line for line in lines if line)
-
-
 def clean_html_fragment(fragment: str) -> str:
-    parser = _FragmentTextParser()
-    parser.feed(fragment)
-    parser.close()
-    return parser.text()
+    return html_fragment_to_text(fragment)
 
 
 def _as_content_data(page_html: str) -> dict[str, Any]:
