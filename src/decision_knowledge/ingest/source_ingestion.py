@@ -42,7 +42,9 @@ class IngestBatchResult(BaseModel):
 
 
 class SourceIngestion:
-    _IMPORT_ADAPTERS = frozenset({"manual_upload", "jsonl_import"})
+    _IMPORT_ADAPTERS = frozenset(
+        {"manual_upload", "manual_url_capture", "jsonl_import"}
+    )
 
     def __init__(self, session: Session) -> None:
         self._session = session

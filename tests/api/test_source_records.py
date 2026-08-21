@@ -123,6 +123,28 @@ def test_automated_source_without_authorization_is_rejected(tmp_path: Path) -> N
     database.dispose()
 
 
+def test_manual_url_capture_does_not_require_automated_authorization(
+    tmp_path: Path,
+) -> None:
+    database = Database(f"sqlite+pysqlite:///{tmp_path / 'ingest.db'}")
+    database.create_schema()
+    client = TestClient(create_app(database=database))
+    record = load_source_record()
+    record["source"] = {
+        "code": "zhihu",
+        "adapter_code": "manual_url_capture",
+        "adapter_version": "1.0.0",
+        "authorization_ref": None,
+    }
+
+    response = client.post("/v1/source-records:batch", json={"records": [record]})
+
+    assert response.status_code == 200
+    assert response.json()["created"] == 1
+    assert response.json()["rejected"] == 0
+    database.dispose()
+
+
 def test_automated_source_with_unknown_authorization_is_rejected(tmp_path: Path) -> None:
     database = Database(f"sqlite+pysqlite:///{tmp_path / 'ingest.db'}")
     database.create_schema()

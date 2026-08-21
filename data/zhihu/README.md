@@ -1,0 +1,22 @@
+# 真实知乎公开回答采集
+
+`public_answers.jsonl` 是 2026-08-21 从知乎公开可访问的
+`https://www.zhihu.com/en/answer/<id>` 页面小批量采集的真实回答，不是演示数据。
+
+每条记录都保留：
+
+- `canonical_url`：知乎回答原始 URL；
+- `raw.payload.fetch_url`：实际抓取的公开页面 URL；
+- `content.raw_html`：页面 `js-initialData.globalStation.contentData.content` 返回的原始 HTML 片段；
+- `raw.sha256`：实际页面响应的 SHA-256；
+- `raw.payload.response_sha256`、`fragment_sha256`：响应和片段的校验值。
+
+本批次是用户指定的、边界明确的公开页面捕获，不是大规模爬虫，也不使用 Cookie、登录态、私有 API 或签名绕过。知乎协议和 robots.txt 的授权限制仍然有效；后续批量采集必须接入有授权的适配器。页面通过 `/en/answer/` 公开英文镜像访问，因此当前正文语言标记为 `en-US`，同时保留原始回答 URL。
+
+采集命令：
+
+```text
+uv run python scripts/collect_zhihu_public.py \
+  --url https://www.zhihu.com/en/answer/717484672 \
+  --output data/zhihu/public_answers.jsonl
+```

@@ -28,6 +28,20 @@ uv run uvicorn decision_knowledge.main:app --reload
 [source_record.valid.json](./tests/fixtures/source_record.valid.json)，外层再包一层
 `{"records": [...]}`。
 
+## 真实知乎公开数据
+
+仓库内的 [data/zhihu/public_answers.jsonl](./data/zhihu/public_answers.jsonl)
+是 6 条真实知乎公开回答页面的小批量捕获，不是合成演示数据。每条都保留
+知乎回答 URL、抓取响应校验值和原始 HTML 片段。采集器只允许
+`https://www.zhihu.com/en/answer/<id>`，不使用 Cookie、登录态、私有 API 或签名绕过；
+批量知乎采集仍必须走授权适配器。
+
+```powershell
+uv run python scripts/collect_zhihu_public.py `
+  --url https://www.zhihu.com/en/answer/717484672 `
+  --output data/zhihu/public_answers.jsonl
+```
+
 健康检查：`GET http://127.0.0.1:8000/health`。
 
 ## Docker Compose

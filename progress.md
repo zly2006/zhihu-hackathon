@@ -1,5 +1,12 @@
 # 进度日志
 
+## 会话：2026-08-21（真实知乎公开数据）
+
+- 已删除“用合成演示数据代表真实采集”的做法，新增 `manual_url_capture` 受限导入适配器。
+- 新增公开页面采集器 `scripts/collect_zhihu_public.py`：只接受知乎 `/en/answer/<id>` 页面，保留真实回答 URL、响应哈希和 `content.raw_html`。
+- 采集并校验 6 条真实公开回答到 `data/zhihu/public_answers.jsonl`，不使用 Cookie、登录态、私有 API 或签名绕过。
+- 采集器、契约、导入和数据集测试通过；后续批量采集仍需知乎授权。
+
 ## 会话：2026-08-20
 
 ### 阶段 1：需求与外部调研
