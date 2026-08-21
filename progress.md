@@ -267,8 +267,17 @@
 - **处理：** 知乎 API 仍返回 40352，未绕过网页验证；从本机已保存搜索响应中继续筛选质量通过、带真实回答 HTML 的新回答，
   用 `scripts/promote_zhihu_search_results.py` 生成同一 `SourceRecordV1`，并保留
   `capture_method=zhihu_search_result_promotion`/`promotion_stage=search_result_only`。
-- **结果：** 新增 500 条，数据库当前为 `content_item=1500`、`content_snapshot=1500`、
-  `raw_envelope=1534`、`decision_candidate=1045`。回答 ID 唯一，1500/1500 快照有知乎 URL 与非空 `raw_html`；
-  恢复记录总数为 534 条（原 34 条加本次 500 条）。
-- **后续：** API 风控解除后，优先把 534 条恢复记录补抓 `questions/{id}/feeds` 和 `answers/{id}` 详情，
+- **结果：** 在 500 条基础上又导入本机缓存中剩余的 85 条，数据库当前为 `content_item=1585`、
+  `content_snapshot=1585`、`raw_envelope=1619`、`decision_candidate=1070`。回答 ID 唯一，1585/1585 快照有知乎 URL 与非空 `raw_html`；
+  恢复记录总数为 619 条（原 34 条加 500 条再加 85 条）。
+- **后续：** API 风控解除后，优先把 619 条恢复记录补抓 `questions/{id}/feeds` 和 `answers/{id}` 详情，
   不改变其原始搜索证据。
+
+### 阶段 26：扩充到 10000 条（等待授权恢复）
+
+- **目标：** 在当前 1585 条基础上继续扩充到 10000 条唯一回答快照。
+- **已完成：** 本机已有搜索响应已全部利用，无法再安全地产生新的唯一回答；没有使用演示数据。
+- **阻塞：** `search_v3` 与 `zhurl` 均返回知乎业务错误码 40352（网络环境异常，需要网页验证）。
+  继续请求不会增加数据，且可能延长风控窗口；不能绕过验证码。
+- **恢复后执行：** 使用刷新/已验证 Cookie，按每批 50–100 条、限速、失败跳过、导入即去重的方式继续，
+  每批检查 URL、HTML、质量门、原始响应和候选派生，直到 10000 条。

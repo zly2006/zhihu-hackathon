@@ -39,15 +39,15 @@ uv run python scripts/collect_zhihu_search_question.py \
 
 ## 初始 1000 条数据集（2026-08-21）
 
-按 18 个主题批次执行 Cookie 采集并扩容后，本地 SQLite 已有 1500 条唯一回答快照、
-1534 个原始证据包和 18 个 `discovery_run`。各批 JSONL 只作为本机回放材料，
+按 18 个主题批次执行 Cookie 采集并扩容后，本地 SQLite 已有 1585 条唯一回答快照、
+1619 个原始证据包和 18 个 `discovery_run`。各批 JSONL 只作为本机回放材料，
 不提交到 Git。
 
 知乎 API 临时返回 40352（网络环境异常，需要网页验证）时不绕过验证。API 恢复后，
 可使用 `--signed-cookie-file` 让 `zhurl` 从一次性临时账号目录读取 Netscape Cookie，
 生成 web 请求签名；临时目录在请求后删除。
 
-其中 534 条记录来自已保存搜索响应中的质量通过回答，原始字段明确标记
+其中 619 条记录来自已保存搜索响应中的质量通过回答，原始字段明确标记
 `capture_method=zhihu_search_result_promotion`、`promotion_stage=search_result_only`。
 它们均保留知乎回答 URL、非空回答 HTML 和完整搜索响应，但尚未拿到
 `questions/{id}/feeds`/`answers/{id}` 详情；API 恢复后应优先补抓详情。
