@@ -89,7 +89,7 @@ uv run python scripts/collect_zhihu_search_question.py `
 ```
 
 Cookie 模式先完成了 11 条回答的链路验证，随后按 18 个主题批次扩充初始数据集。
-当前本地 SQLite 已有 1000 条唯一回答快照、1034 个原始证据包、18 个
+当前本地 SQLite 已有 1500 条唯一回答快照、1534 个原始证据包、18 个
 `discovery_run`；所有批次 JSONL 仅保留在本机，未提交到 Git。
 
 如果知乎 API 临时返回 40352（要求网页验证），不要绕过验证。可在 API 恢复后使用
@@ -105,7 +105,7 @@ uv run python scripts/collect_zhihu_search_question.py `
   --output data/zhihu/search_question_answers_signed.jsonl
 ```
 
-为达到初始 1000 条，数据库中有 34 条明确标记为
+为达到初始 1000 条并继续扩容，数据库中有 534 条明确标记为
 `capture_method=zhihu_search_result_promotion` 的搜索结果恢复记录：它们已经包含真实知乎回答
 HTML 和 URL，但尚未拿到 `answers/{id}` 详情；API 恢复后优先补抓，不将其误报为完整详情。
 

@@ -260,3 +260,15 @@
   不应在管理端伪装成完整三段式详情。
 - **安全检查：** Cookie 文件只作为本机进程输入；数据库、JSONL 记录和日志中未发现 Cookie 路径或测试凭据标记。
 - **验证：** 43 项既有测试加 Cookie/签名传输和恢复脚本回归均通过；Ruff 通过；本地服务统计 API 与数据库计数一致。
+
+### 阶段 25：数据集扩容（已完成）
+
+- **触发：** 用户要求在 1000 条基础上继续扩大数据量。
+- **处理：** 知乎 API 仍返回 40352，未绕过网页验证；从本机已保存搜索响应中继续筛选质量通过、带真实回答 HTML 的新回答，
+  用 `scripts/promote_zhihu_search_results.py` 生成同一 `SourceRecordV1`，并保留
+  `capture_method=zhihu_search_result_promotion`/`promotion_stage=search_result_only`。
+- **结果：** 新增 500 条，数据库当前为 `content_item=1500`、`content_snapshot=1500`、
+  `raw_envelope=1534`、`decision_candidate=1045`。回答 ID 唯一，1500/1500 快照有知乎 URL 与非空 `raw_html`；
+  恢复记录总数为 534 条（原 34 条加本次 500 条）。
+- **后续：** API 风控解除后，优先把 534 条恢复记录补抓 `questions/{id}/feeds` 和 `answers/{id}` 详情，
+  不改变其原始搜索证据。
