@@ -28,8 +28,13 @@ def test_public_dataset_contains_real_zhihu_provenance() -> None:
         str(record.canonical_url).startswith("https://www.zhihu.com/answer/")
         for record in records
     )
+    assert all(record.content.language == "zh-CN" for record in records)
     assert all(record.content.raw_html for record in records)
     assert all(
-        record.raw.payload["fetch_url"].startswith("https://www.zhihu.com/en/answer/")
+        record.raw.payload["fetch_url"].startswith("https://www.zhihu.com/answer/")
+        for record in records
+    )
+    assert all(
+        record.raw.payload["capture_method"] == "cookie_authenticated_answer_page"
         for record in records
     )

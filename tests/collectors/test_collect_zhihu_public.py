@@ -71,3 +71,9 @@ def test_public_answer_page_is_converted_to_source_record() -> None:
 def test_capture_scope_rejects_non_public_answer_urls(url: str) -> None:
     with pytest.raises(ValueError):
         _validate_capture_url(url)
+
+
+def test_cookie_scope_allows_only_original_answer_page() -> None:
+    assert _validate_capture_url(
+        "https://www.zhihu.com/answer/456", allow_authenticated_original=True
+    ) == "https://www.zhihu.com/answer/456"

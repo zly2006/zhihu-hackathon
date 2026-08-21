@@ -31,14 +31,15 @@ uv run uvicorn decision_knowledge.main:app --reload
 ## 真实知乎公开数据
 
 仓库内的 [data/zhihu/public_answers.jsonl](./data/zhihu/public_answers.jsonl)
-是 6 条真实知乎公开回答页面的小批量捕获，不是合成演示数据。每条都保留
-知乎回答 URL、抓取响应校验值和原始 HTML 片段。采集器只允许
-`https://www.zhihu.com/en/answer/<id>`，不使用 Cookie、登录态、私有 API 或签名绕过；
-批量知乎采集仍必须走授权适配器。
+是 6 条真实知乎回答页面的小批量捕获，不是合成演示数据。每条都保留知乎回答
+URL、抓取响应校验值和原始 HTML 片段。采集器只在用户明确提供本机 Cookie 时访问
+`https://www.zhihu.com/answer/<id>`，Cookie 不会进入仓库或远端；不调用私有 API、
+不生成签名、不绕过验证码。批量知乎采集仍必须走授权适配器。
 
 ```powershell
 uv run python scripts/collect_zhihu_public.py `
-  --url https://www.zhihu.com/en/answer/717484672 `
+  --cookie-file C:\path\to\www.zhihu.com_cookies.txt `
+  --url https://www.zhihu.com/answer/717484672 `
   --output data/zhihu/public_answers.jsonl
 ```
 
