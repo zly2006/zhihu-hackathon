@@ -14,7 +14,7 @@
 
 ## 本机启动
 
-要求 Python 3.12 和 [uv](https://docs.astral.sh/uv/)。本地双端默认使用 SQLite；空库启动时会自动建表并幂等导入仓库里的 6 条真实知乎回答。当前工作区的 `local.db` 已扩充到下方记录的 10226 条：
+要求 Python 3.12 和 [uv](https://docs.astral.sh/uv/)。本地双端默认使用 SQLite；空库启动时会自动建表并幂等导入仓库里的 6 条真实知乎回答。当前工作区的 `local.db` 已扩充到下方记录的 10396 条：
 
 ```powershell
 uv sync --group dev
@@ -89,7 +89,7 @@ uv run python scripts/collect_zhihu_search_question.py `
 ```
 
 Cookie 模式先完成了小批量链路验证，随后按搜索发现问题、问题回答流抓取扩充数据集。
-当前本地 SQLite 已有 **10226 条唯一回答**、10227 个快照、10502 个原始证据包、72 个
+当前本地 SQLite 已有 **10396 条唯一回答**、10397 个快照、10672 个原始证据包、73 个
 `discovery_run`；所有批次 JSONL 仅保留在本机，未提交到 Git。
 
 问题流中的完整 HTML 直接保存在 `raw_html`，新增记录的 `raw.payload.answer_capture`

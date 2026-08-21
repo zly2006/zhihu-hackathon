@@ -280,8 +280,8 @@
 - **处理：** 先从 `search_v3` 扩展问题 ID，再按 40 题小批次调用问题回答接口；导入即幂等去重，批处理器记录已尝试问题，
   不会因空结果死循环。问题流已提供完整 HTML，因此新增 `--use-feed-content` 模式，仍保留搜索、问题流、回答 URL、
   原始响应和质量评分，减少无必要的逐回答重复请求。
-- **结果：** 数据库为 `content_item=10226`、`content_snapshot=10227`、`raw_envelope=10502`、
-  `keyword_candidate=13664`、`decision_candidate=7094`、`discovery_run=72`；唯一回答数超过 10000 后停止。
-- **完整性：** 10502/10502 原始信封均有知乎回答规范 URL 与非空 `raw_html`；质量字段存在的 10496 条全部通过质量门；
+- **结果：** 数据库为 `content_item=10396`、`content_snapshot=10397`、`raw_envelope=10672`、
+  `keyword_candidate=13823`、`decision_candidate=7221`、`discovery_run=73`；唯一回答数超过 10000 后停止。
+- **完整性：** 10672/10672 原始信封均有知乎回答规范 URL 与非空 `raw_html`；质量字段存在的 10666 条全部通过质量门；
   未写入演示数据，Cookie 未进入记录、数据库、日志或仓库。
 - **修复：** 采集器写 JSONL 时转义 U+2028/U+2029，避免知乎 HTML 的 Unicode 行分隔符破坏导入。
