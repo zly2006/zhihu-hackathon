@@ -96,6 +96,15 @@ Cookie 模式先完成了小批量链路验证，随后按搜索发现问题、�
 标记为 `question_feed_target`；采集器写 JSONL 时会转义 U+2028/U+2029，保证一条回答对应一行。
 达到 10000 条唯一回答后已停止继续采集。
 
+同步数据库：仓库中的 `local.db.zst` 是当前 SQLite 数据库的 Zstandard 压缩副本，
+通过 Git LFS 管理。恢复到本地数据库：
+
+```powershell
+zstd -d local.db.zst -o local.db
+```
+
+解压前请确认目标 `local.db` 不存在或已备份；压缩包本身不包含 Cookie 文件。
+
 如果知乎 API 临时返回 40352（要求网页验证），不要绕过验证。验证完成后可使用
 `--signed-cookie-file` 让 `zhurl` 从一次性临时账号目录读取本机 Netscape Cookie，
 生成 web 请求签名；临时目录在单次请求后删除，不写入项目或数据库：

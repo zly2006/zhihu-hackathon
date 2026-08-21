@@ -44,6 +44,9 @@ uv run python scripts/collect_zhihu_search_question.py \
 各批 JSONL 只作为本机回放材料，不提交到 Git；权威副本是本地数据库中的
 `RawEnvelope`/`ContentSnapshot`。
 
+仓库根目录的 `local.db.zst` 是该 SQLite 数据库的压缩同步副本，使用 Git LFS 管理；
+可用 `zstd -d local.db.zst -o local.db` 恢复。原始数据库和压缩包均不包含 Cookie 文件。
+
 新增问题流记录使用 `answer_capture=question_feed_target`，保留问题接口返回的完整 HTML、
 回答 URL、搜索响应、问题回答流和质量评分；采集器写 JSONL 时会转义 U+2028/U+2029，
 避免 HTML 中的 Unicode 行分隔符破坏导入。搜索接口偶发 403 的关键词会跳过，不绕过验证。
