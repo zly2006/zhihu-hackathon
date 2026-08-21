@@ -162,3 +162,100 @@ class DecisionBranch(Base):
 
     scenario: Mapped[DecisionScenario] = relationship(back_populates="branches")
     source_snapshot: Mapped[ContentSnapshot | None] = relationship()
+
+
+class DiscoveryRun(Base):
+    """One bounded search/question collection run and its replay identity."""
+
+    __tablename__ = "discovery_run"
+    __table_args__ = (Index("ix_discovery_run_started_at", "started_at"),)
+
+    id: Mapped[str] = mapped_column(String(64), primary_key=True, default=new_id)
+    source_code: Mapped[str] = mapped_column(String(64), nullable=False)
+    adapter_code: Mapped[str] = mapped_column(String(128), nullable=False)
+    authorization_ref: Mapped[str | None] = mapped_column(String(128))
+    seed_queries: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    last_seen_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="IMPORTED", server_default="IMPORTED"
+    )
+
+
+class KeywordCandidate(Base):
+    """A traceable term that may become the next bounded search query."""
+
+    __tablename__ = "keyword_candidate"
+    __table_args__ = (
+        UniqueConstraint(
+            "content_snapshot_id",
+            "raw_envelope_id",
+            "term",
+            "origin",
+            "source_query",
+            name="uq_keyword_candidate_snapshot_raw_term_query",
+        ),
+        Index("ix_keyword_candidate_term", "term"),
+        Index("ix_keyword_candidate_round", "discovery_round"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    content_snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("content_snapshot.id", ondelete="CASCADE"), nullable=False
+    )
+    raw_envelope_id: Mapped[str] = mapped_column(
+        ForeignKey("raw_envelope.id", ondelete="CASCADE"), nullable=False
+    )
+    discovery_run_id: Mapped[str | None] = mapped_column(
+        ForeignKey("discovery_run.id", ondelete="SET NULL")
+    )
+    term: Mapped[str] = mapped_column(String(256), nullable=False)
+    origin: Mapped[str] = mapped_column(String(32), nullable=False, default="provided")
+    source_query: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    discovery_round: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    quality_score: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="CANDIDATE", server_default="CANDIDATE"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+
+class DecisionEpisodeCandidate(Base):
+    """Heuristic draft kept separate from confirmed decision episodes."""
+
+    __tablename__ = "decision_episode_candidate"
+    __table_args__ = (
+        UniqueConstraint(
+            "content_snapshot_id",
+            "analysis_version",
+            name="uq_decision_candidate_snapshot_version",
+        ),
+        Index("ix_decision_candidate_review_status", "review_status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    content_snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("content_snapshot.id", ondelete="CASCADE"), nullable=False
+    )
+    analysis_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    context: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    decision: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    action: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    outcome: Mapped[str] = mapped_column(Text, nullable=False, default="")
+    confidence: Mapped[int] = mapped_column(Integer, nullable=False, default=0)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    review_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="UNREVIEWED", server_default="UNREVIEWED"
+    )
+    review_note: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )

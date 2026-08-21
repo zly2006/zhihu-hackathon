@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-Phase 12：初始系统纵向骨架
+Phase 22：滚雪球血缘与决策候选
 
 ## 阶段
 
@@ -172,6 +172,15 @@ Phase 12：初始系统纵向骨架
 - [x] 完成全量验证并更新运行说明
 - **Status:** complete
 
+### Phase 22：滚雪球血缘与决策候选
+
+- [x] 为每次滚雪球采集保存 `discovery_run_id`，让关键词、问题、回答和轮次可回放
+- [x] 将通过质量门的关键词候选持久化，支持按频次/质量分生成下一轮查询
+- [x] 从通过质量门的回答生成可审核的“决策经历候选”，保留上下文/决策/行动/结果证据片段
+- [x] 增加管理端 API 与低噪声候选面板，不把候选直接伪装成正式情景或分叉
+- [x] 更新迁移、文档和回归测试
+- **Status:** complete
+
 ## 关键问题
 
 1. `zly2006` 的哪个仓库与知乎采集直接相关，其输出数据结构是什么？
@@ -217,3 +226,4 @@ Phase 12：初始系统纵向骨架
 | 本地服务重启的复合 `Start-Process` 命令被执行策略拒绝 | 1 | 分离 PID 核验/停止步骤，改用可持续的前台执行会话启动 Uvicorn |
 | 新采集脚本直接执行时无法导入另一个 `scripts` 模块 | 1 | 将 HTML 清洗下沉为 `decision_knowledge.ingest.html_text`，两个采集器共用同一实现 |
 | 质量采集回归命令引用不存在的测试文件名 | 1 | 读取 `tests/collectors` 后改用实际的 `test_collect_zhihu_public.py` 文件名 |
+| 未设置 SQLite URL 时直接运行 `alembic check` 等待本机 PostgreSQL | 1 | 改用显式临时 SQLite URL 完成 `upgrade head` 与 `alembic check`，并删除临时库 |

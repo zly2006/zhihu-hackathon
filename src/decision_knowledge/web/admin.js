@@ -34,11 +34,59 @@ async function loadStats() {
   const metrics = [
     ['原文', stats.raw_envelopes],
     ['快照', stats.snapshots],
+    ['关键词', stats.keyword_candidates],
+    ['候选', stats.decision_candidates],
     ['情景', stats.scenarios],
     ['分叉', stats.branches],
   ];
   $('#stats').innerHTML = metrics.map(([label, value]) => `<span><strong>${value}</strong>${label}</span>`).join('') + `
     <span class="summary-inline-state"><i></i>${stats.confirmed_scenarios ? `${stats.confirmed_scenarios} 个情景已确认` : '语义层待建立'}</span>`;
+}
+
+function renderDiscoveryQueries(data) {
+  const container = $('#discovery-query-list');
+  $('#discovery-query-count').textContent = `${data.items.length} 个`;
+  if (!data.items.length) {
+    container.innerHTML = '<div class="empty-state compact-empty">暂无可扩展关键词。</div>';
+    return;
+  }
+  container.innerHTML = data.items.map((item) => `
+    <article class="candidate-row">
+      <div><strong>${escapeHtml(item.term)}</strong><small>${item.occurrences} 条证据 · 最佳质量分 ${item.best_quality_score} · 第 ${item.rounds.join('、')} 轮</small></div>
+      <span class="candidate-samples">${escapeHtml(item.sample_titles.join(' / '))}</span>
+    </article>`).join('');
+}
+
+function renderDecisionCandidates(data) {
+  const container = $('#decision-candidate-list');
+  $('#decision-candidate-count').textContent = `${data.items.length} 个`;
+  if (!data.items.length) {
+    container.innerHTML = '<div class="empty-state compact-empty">暂无决策经历候选。</div>';
+    return;
+  }
+  container.innerHTML = data.items.map((item) => `
+    <article class="candidate-row decision-candidate-row">
+      <header><strong>${escapeHtml(item.title)}</strong><span class="review-label">${escapeHtml(item.review_status)}</span></header>
+      <dl><div><dt>处境</dt><dd>${escapeHtml(item.context)}</dd></div><div><dt>决策</dt><dd>${escapeHtml(item.decision)}</dd></div><div><dt>行动</dt><dd>${escapeHtml(item.action)}</dd></div><div><dt>结果</dt><dd>${escapeHtml(item.outcome || '—')}</dd></div></dl>
+      <div class="candidate-actions"><small>置信度 ${item.confidence}</small><button data-candidate-review="${escapeHtml(item.id)}" data-status="CONFIRMED">确认草稿</button><button data-candidate-review="${escapeHtml(item.id)}" data-status="REJECTED">驳回</button></div>
+    </article>`).join('');
+  container.querySelectorAll('[data-candidate-review]').forEach((button) => button.addEventListener('click', async () => {
+    await getJson(`/api/admin/decision-candidates/${button.dataset.candidateReview}`, {
+      method: 'PATCH', headers: {'Content-Type': 'application/json'},
+      body: JSON.stringify({ review_status: button.dataset.status }),
+    });
+    toast('决策候选审核状态已保存');
+    await Promise.all([loadStats(), loadDiscovery()]);
+  }));
+}
+
+async function loadDiscovery() {
+  const [queries, candidates] = await Promise.all([
+    getJson('/api/admin/discovery/queries'),
+    getJson('/api/admin/decision-candidates'),
+  ]);
+  renderDiscoveryQueries(queries);
+  renderDecisionCandidates(candidates);
 }
 
 function renderContent(data) {
@@ -122,6 +170,7 @@ async function loadScenarios() { renderScenarios(await getJson('/api/admin/scena
 
 $('#admin-search-form').addEventListener('submit', (event) => { event.preventDefault(); loadContent($('#admin-search').value.trim()); });
 $('#refresh-scenarios').addEventListener('click', () => loadScenarios());
+$('#refresh-discovery').addEventListener('click', () => loadDiscovery());
 $('#scenario-form').addEventListener('submit', async (event) => {
   event.preventDefault();
   const data = Object.fromEntries(new FormData(event.target).entries());
@@ -137,9 +186,9 @@ $('#jsonl-input').addEventListener('change', async (event) => {
     const records = file.name.endsWith('.jsonl') ? (await file.text()).split(/\r?\n/).filter(Boolean).map((line) => JSON.parse(line)) : [JSON.parse(await file.text())];
     const result = await getJson('/api/admin/import', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ records }) });
     toast(`导入完成：新增 ${result.created}，未变化 ${result.unchanged}，拒绝 ${result.rejected}`);
-    await Promise.all([loadStats(), loadContent($('#admin-search').value.trim())]);
+    await Promise.all([loadStats(), loadContent($('#admin-search').value.trim()), loadDiscovery()]);
   } catch (error) { toast(`导入失败：${error.message}`); }
   event.target.value = '';
 });
 
-Promise.all([loadStats(), loadContent(), loadScenarios()]).catch((error) => toast(error.message));
+Promise.all([loadStats(), loadContent(), loadScenarios(), loadDiscovery()]).catch((error) => toast(error.message));

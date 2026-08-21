@@ -170,6 +170,24 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
 .layer-nav a.active { border-bottom: 1px solid var(--accent-hover); color: var(--ink); }
 .admin-summary { border-radius: 9px; min-height: 48px; }
 .admin-summary .summary-metrics > span { padding-bottom: 13px; padding-top: 13px; }
+.discovery-panel { margin-top: 14px; padding: 18px; }
+.discovery-grid { border-top: 1px solid var(--line); display: grid; gap: 22px; grid-template-columns: minmax(0, .9fr) minmax(0, 1.5fr); padding-top: 16px; }
+.subsection-heading { align-items: center; color: var(--muted); display: flex; font-size: 11px; justify-content: space-between; margin-bottom: 8px; }
+.subsection-heading small { color: var(--tertiary); font-size: 9px; }
+.candidate-list { display: grid; gap: 7px; }
+.candidate-row { background: var(--surface-raised); border: 1px solid var(--line); border-radius: 7px; padding: 10px; }
+.candidate-row strong { color: var(--ink); font-size: 11px; font-weight: 550; }
+.candidate-row small, .candidate-samples { color: var(--tertiary); display: block; font-size: 9px; line-height: 1.5; margin-top: 4px; }
+.candidate-samples { border-top: 1px solid var(--line); margin-top: 7px; padding-top: 6px; }
+.decision-candidate-row header { align-items: flex-start; display: flex; gap: 10px; justify-content: space-between; }
+.decision-candidate-row dl { border-top: 1px solid var(--line); margin: 8px 0 0; padding-top: 7px; }
+.decision-candidate-row dl div { display: grid; gap: 8px; grid-template-columns: 30px minmax(0, 1fr); margin-top: 4px; }
+.decision-candidate-row dt { color: var(--tertiary); font-size: 9px; }
+.decision-candidate-row dd { color: var(--muted); font-size: 10px; line-height: 1.45; margin: 0; }
+.candidate-actions { align-items: center; display: flex; gap: 6px; margin-top: 8px; }
+.candidate-actions small { margin: 0 auto 0 0; }
+.candidate-actions button { background: transparent; border: 1px solid var(--line-strong); border-radius: 5px; color: var(--muted); font-size: 9px; padding: 4px 6px; }
+.candidate-actions button:hover { border-color: var(--accent-hover); color: var(--ink); }
 .admin-workspace { align-items: start; display: grid; gap: 14px; grid-template-columns: minmax(0, 1.8fr) minmax(330px, .85fr); margin-top: 14px; }
 .table-panel { min-width: 0; padding: 18px; }
 .table-panel .section-heading { align-items: center; }
@@ -246,6 +264,8 @@ button:focus-visible, a:focus-visible, input:focus-visible, textarea:focus-visib
   .summary-metrics > span { flex: 1; justify-content: center; min-width: 74px; padding: 13px 10px; }
   .summary-state { border-top: 1px solid var(--line); justify-content: space-between; }
   .semantic-panel, .evidence-panel, .table-panel { padding: 15px; }
+  .discovery-panel { padding: 15px; }
+  .discovery-grid { grid-template-columns: 1fr; }
   .semantic-empty { align-items: flex-start; grid-template-columns: auto 1fr; padding: 14px 2px; }
   .semantic-empty button { grid-column: 2; justify-self: start; padding: 0; }
   .table-toolbar, .table-panel .section-heading { align-items: stretch; flex-direction: column; }

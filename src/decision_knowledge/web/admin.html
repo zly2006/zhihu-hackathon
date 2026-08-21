@@ -34,6 +34,26 @@
         <div id="stats" class="summary-metrics"></div>
       </section>
 
+      <section id="discovery-library" class="panel discovery-panel" aria-labelledby="discovery-title">
+        <header class="section-heading">
+          <div>
+            <h2 id="discovery-title">滚雪球与候选</h2>
+            <p class="section-note">只从质量门通过的回答生成下一轮词和决策经历草稿；草稿不会自动成为情景或分叉。</p>
+          </div>
+          <button id="refresh-discovery" class="ghost-button">刷新</button>
+        </header>
+        <div class="discovery-grid">
+          <section>
+            <div class="subsection-heading"><span>下一轮查询</span><small id="discovery-query-count">读取中</small></div>
+            <div id="discovery-query-list" class="candidate-list"><div class="empty-state compact-empty">正在读取关键词……</div></div>
+          </section>
+          <section>
+            <div class="subsection-heading"><span>决策经历候选</span><small id="decision-candidate-count">读取中</small></div>
+            <div id="decision-candidate-list" class="candidate-list"><div class="empty-state compact-empty">正在读取候选……</div></div>
+          </section>
+        </div>
+      </section>
+
       <section id="snapshot-library" class="admin-workspace">
         <div class="panel table-panel">
           <header class="section-heading">

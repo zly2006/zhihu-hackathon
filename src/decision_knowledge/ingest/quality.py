@@ -153,30 +153,38 @@ def assess_answer_quality(answer_detail: dict[str, Any]) -> QualityAssessment:
     )
 
 
-def extract_keyword_candidates(answer_detail: dict[str, Any]) -> tuple[str, ...]:
-    """Use source-provided topics/keywords plus a bounded question title."""
+def extract_keyword_candidate_sources(
+    answer_detail: dict[str, Any],
+) -> tuple[tuple[str, str], ...]:
+    """Return source-labelled terms for replayable snowball lineage."""
 
-    candidates: list[str] = []
+    candidates: list[tuple[str, str]] = []
     question = answer_detail.get("question")
     if isinstance(question, dict):
         title = str(question.get("title", "")).strip(" 。！？!?；;，,\t\n")
         if 4 <= len(title) <= 28:
-            candidates.append(title)
+            candidates.append((title, "question_title"))
         topics = question.get("topics")
         if isinstance(topics, list):
             for topic in topics:
                 if isinstance(topic, dict):
-                    candidates.append(str(topic.get("name", "")).strip())
+                    candidates.append((str(topic.get("name", "")).strip(), "topic"))
     keywords = answer_detail.get("keywords")
     if isinstance(keywords, list):
-        candidates.extend(str(keyword).strip() for keyword in keywords)
+        candidates.extend((str(keyword).strip(), "api_keyword") for keyword in keywords)
     return tuple(
         dict.fromkeys(
-            candidate
-            for candidate in candidates
+            (candidate, origin)
+            for candidate, origin in candidates
             if 2 <= len(candidate) <= 28 and candidate not in IGNORED_KEYWORDS
         )
     )
+
+
+def extract_keyword_candidates(answer_detail: dict[str, Any]) -> tuple[str, ...]:
+    """Use source-provided topics/keywords plus a bounded question title."""
+
+    return tuple(term for term, _ in extract_keyword_candidate_sources(answer_detail))
 
 
 def suggest_queries(

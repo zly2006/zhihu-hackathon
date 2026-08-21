@@ -78,6 +78,17 @@ uv run python scripts/collect_zhihu_search_question.py `
 包含决策信息；正文结构、背景、结果、互动量和营销信号共同形成可解释分数。
 轮次、问题数、候选回答数和下一轮关键词数均有上限。
 
+导入这批 JSONL 后，系统会继续做两件可回放的派生工作：
+
+- 通过质量门的 `keyword_candidates` 写入关键词候选表，按出现次数、最佳质量分和轮次生成管理端的下一轮查询建议；
+- 从同一回答生成 `DecisionEpisodeCandidate` 草稿，拆出“处境 / 决策 / 行动 / 结果”及句子证据。它仍是 `UNREVIEWED` 候选，不会自动变成正式情景或分叉。
+
+每次命令运行都有 `discovery_run_id`。管理端的“滚雪球与候选”面板，或以下接口，可以查看这条血缘：
+
+- `GET /api/admin/discovery/queries`：下一轮查询建议；
+- `GET /api/admin/decision-candidates`：可审核的决策经历草稿；
+- `PATCH /api/admin/decision-candidates/{id}`：确认或驳回草稿。
+
 ```powershell
 uv run python scripts/collect_zhihu_public.py `
   --cookie-file C:\path\to\www.zhihu.com_cookies.txt `

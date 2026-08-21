@@ -7,10 +7,15 @@ from pydantic import BaseModel, ConfigDict
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
+from decision_knowledge.analysis.candidates import build_decision_candidate
 from decision_knowledge.contracts.source_record import SourceRecordV1
+from decision_knowledge.ingest.html_text import html_fragment_to_text
 from decision_knowledge.ingest.models import (
     ContentItem,
     ContentSnapshot,
+    DecisionEpisodeCandidate,
+    DiscoveryRun,
+    KeywordCandidate,
     RawEnvelope,
     SourceAuthorization,
 )
@@ -122,6 +127,7 @@ class SourceIngestion:
             )
         )
         if existing_snapshot is not None:
+            self._persist_derivations(record, envelope, existing_snapshot)
             return IngestItemResult(
                 external_id=record.external_ref.id,
                 status=IngestStatus.UNCHANGED,
@@ -144,6 +150,7 @@ class SourceIngestion:
         )
         self._session.add(snapshot)
         self._session.flush()
+        self._persist_derivations(record, envelope, snapshot)
 
         return IngestItemResult(
             external_id=record.external_ref.id,
@@ -151,6 +158,135 @@ class SourceIngestion:
             content_item_id=item.id,
             snapshot_id=snapshot.id,
         )
+
+    def _persist_derivations(
+        self,
+        record: SourceRecordV1,
+        envelope: RawEnvelope,
+        snapshot: ContentSnapshot,
+    ) -> None:
+        """Persist only quality-passed, replayable derivatives."""
+
+        payload = record.raw.payload
+        quality = payload.get("quality")
+        if not isinstance(quality, dict) or quality.get("accepted") is not True:
+            return
+        score_value = quality.get("score")
+        quality_score = score_value if isinstance(score_value, int) else 0
+        query_value = payload.get("query")
+        source_query = query_value.strip() if isinstance(query_value, str) else ""
+        round_value = payload.get("discovery_round")
+        discovery_round = round_value if isinstance(round_value, int) and round_value >= 0 else 0
+        run_id_value = payload.get("discovery_run_id")
+        run_id = run_id_value.strip() if isinstance(run_id_value, str) else ""
+        if run_id and len(run_id) <= 64:
+            self._ensure_discovery_run(record, run_id, source_query)
+        else:
+            run_id = ""
+
+        for term, origin in self._keyword_pairs(payload):
+            existing = self._session.scalar(
+                select(KeywordCandidate).where(
+                    KeywordCandidate.content_snapshot_id == snapshot.id,
+                    KeywordCandidate.raw_envelope_id == envelope.id,
+                    KeywordCandidate.term == term,
+                    KeywordCandidate.origin == origin,
+                    KeywordCandidate.source_query == source_query,
+                )
+            )
+            if existing is not None:
+                continue
+            self._session.add(
+                KeywordCandidate(
+                    content_snapshot_id=snapshot.id,
+                    raw_envelope_id=envelope.id,
+                    discovery_run_id=run_id or None,
+                    term=term,
+                    origin=origin,
+                    source_query=source_query,
+                    discovery_round=discovery_round,
+                    quality_score=quality_score,
+                )
+            )
+
+        body = (
+            html_fragment_to_text(record.content.body)
+            if record.content.body_format.value == "HTML"
+            else record.content.body
+        )
+        draft = build_decision_candidate(body, quality_accepted=True)
+        if draft is None:
+            return
+        existing_candidate = self._session.scalar(
+            select(DecisionEpisodeCandidate).where(
+                DecisionEpisodeCandidate.content_snapshot_id == snapshot.id,
+                DecisionEpisodeCandidate.analysis_version == "heuristic-v1",
+            )
+        )
+        if existing_candidate is None:
+            self._session.add(
+                DecisionEpisodeCandidate(
+                    content_snapshot_id=snapshot.id,
+                    analysis_version="heuristic-v1",
+                    context=draft.context,
+                    decision=draft.decision,
+                    action=draft.action,
+                    outcome=draft.outcome,
+                    confidence=draft.confidence,
+                    evidence=draft.evidence,
+                    review_status=draft.review_status,
+                )
+            )
+
+    def _ensure_discovery_run(
+        self,
+        record: SourceRecordV1,
+        run_id: str,
+        source_query: str,
+    ) -> None:
+        run = self._session.get(DiscoveryRun, run_id)
+        if run is None:
+            self._session.add(
+                DiscoveryRun(
+                    id=run_id,
+                    source_code=record.source.code,
+                    adapter_code=record.source.adapter_code,
+                    authorization_ref=record.source.authorization_ref,
+                    seed_queries=[source_query] if source_query else [],
+                    started_at=record.fetched_at,
+                    last_seen_at=record.fetched_at,
+                )
+            )
+            return
+        if source_query and source_query not in run.seed_queries:
+            run.seed_queries = [*run.seed_queries, source_query]
+        if record.fetched_at.replace(tzinfo=None) > run.last_seen_at.replace(tzinfo=None):
+            run.last_seen_at = record.fetched_at
+
+    @staticmethod
+    def _keyword_pairs(payload: dict[str, object]) -> tuple[tuple[str, str], ...]:
+        raw_sources = payload.get("keyword_candidate_sources")
+        pairs: list[tuple[str, str]] = []
+        if isinstance(raw_sources, list):
+            for raw_source in raw_sources:
+                if not isinstance(raw_source, dict):
+                    continue
+                term = raw_source.get("term")
+                origin = raw_source.get("origin")
+                if isinstance(term, str) and isinstance(origin, str):
+                    normalized_term = term.strip()
+                    normalized_origin = origin.strip() or "provided"
+                    if normalized_term:
+                        pairs.append((normalized_term, normalized_origin))
+        if not pairs:
+            raw_candidates = payload.get("keyword_candidates")
+            if isinstance(raw_candidates, list):
+                pairs.extend(
+                    (term.strip(), "provided")
+                    for term in raw_candidates
+                    if isinstance(term, str) and term.strip()
+                )
+        return tuple(dict.fromkeys(pairs))
 
     def _authorization_rejection_reason(self, record: SourceRecordV1) -> str | None:
         reference = record.source.authorization_ref

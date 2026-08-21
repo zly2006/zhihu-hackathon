@@ -17,12 +17,14 @@ from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 from urllib.parse import urlencode
+from uuid import uuid4
 
 from decision_knowledge.contracts.source_record import SourceRecordV1
 from decision_knowledge.ingest.html_text import html_fragment_to_text
 from decision_knowledge.ingest.quality import (
     QualityAssessment,
     assess_answer_quality,
+    extract_keyword_candidate_sources,
     extract_keyword_candidates,
     suggest_queries,
 )
@@ -142,6 +144,7 @@ def _build_record(
     answer_detail: dict[str, Any],
     quality: QualityAssessment,
     discovery_round: int,
+    discovery_run_id: str | None,
 ) -> SourceRecordV1:
     answer_id = str(answer_detail.get("id", "")).strip()
     question = _object(answer_detail.get("question"))
@@ -170,6 +173,10 @@ def _build_record(
         "discovery_round": discovery_round,
         "quality": quality.as_dict(),
         "keyword_candidates": list(extract_keyword_candidates(answer_detail)),
+        "keyword_candidate_sources": [
+            {"term": term, "origin": origin}
+            for term, origin in extract_keyword_candidate_sources(answer_detail)
+        ],
         "endpoints": {
             "search": search_url,
             "question_feed": question_feed_url,
@@ -185,6 +192,8 @@ def _build_record(
             "question_feed_item": question_feed_item,
         },
     }
+    if discovery_run_id:
+        raw_payload["discovery_run_id"] = discovery_run_id
     response_sha256 = hashlib.sha256(_canonical_json(raw_payload)).hexdigest()
     return SourceRecordV1.model_validate(
         {
@@ -238,6 +247,7 @@ def _collect_question_answers(
     search_payload: dict[str, Any],
     search_result: dict[str, Any],
     discovery_round: int,
+    discovery_run_id: str | None,
 ) -> tuple[SourceRecordV1, ...]:
     feed_url = _question_feeds_url(
         question_id,
@@ -276,6 +286,7 @@ def _collect_question_answers(
                 answer_detail=answer_detail,
                 quality=quality,
                 discovery_round=discovery_round,
+                discovery_run_id=discovery_run_id,
             )
         )
         accepted += 1
@@ -295,6 +306,7 @@ def collect_question(
     max_candidates_per_question: int | None = None,
     fetch_json: FetchJson,
     discovery_round: int = 0,
+    discovery_run_id: str | None = None,
 ) -> tuple[SourceRecordV1, ...]:
     """Start from one question ID and collect its highest-ranked answers."""
 
@@ -323,6 +335,7 @@ def collect_question(
             "object": {"type": "question", "id": normalized_id},
         },
         discovery_round=discovery_round,
+        discovery_run_id=discovery_run_id,
     )
 
 
@@ -336,6 +349,7 @@ def collect_query(
     max_candidates_per_question: int | None = None,
     fetch_json: FetchJson,
     discovery_round: int = 0,
+    discovery_run_id: str | None = None,
 ) -> tuple[SourceRecordV1, ...]:
     """Run a bounded search → question feed → answer detail collection."""
 
@@ -371,6 +385,7 @@ def collect_query(
                 search_payload=search_payload,
                 search_result=search_result,
                 discovery_round=discovery_round,
+                discovery_run_id=discovery_run_id,
             )
         )
     return tuple(records)
@@ -435,6 +450,7 @@ def main() -> int:
         print("ERROR: 至少提供一个 --query 或 --question-id", file=sys.stderr)
         return 2
     fetched_at = datetime.now(UTC)
+    discovery_run_id = str(uuid4())
     records_by_key: dict[tuple[str, str], SourceRecordV1] = {}
     fetch_json = lambda url: _run_zhurl(args.zhurl, url)  # noqa: E731
     frontier = tuple(dict.fromkeys(query.strip() for query in args.query if query.strip()))
@@ -449,6 +465,7 @@ def main() -> int:
                 max_answers_per_question=args.max_answers_per_question,
                 max_candidates_per_question=args.max_candidates_per_question,
                 fetch_json=fetch_json,
+                discovery_run_id=discovery_run_id,
             )
             question_seed_records.extend(records)
             for record in records:
@@ -467,6 +484,7 @@ def main() -> int:
                     max_candidates_per_question=args.max_candidates_per_question,
                     fetch_json=fetch_json,
                     discovery_round=discovery_round,
+                    discovery_run_id=discovery_run_id,
                 )
                 round_records.extend(records)
                 for record in records:

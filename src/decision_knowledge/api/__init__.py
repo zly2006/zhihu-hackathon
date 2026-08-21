@@ -17,7 +17,10 @@ from decision_knowledge.ingest.models import (
     ContentItem,
     ContentSnapshot,
     DecisionBranch,
+    DecisionEpisodeCandidate,
     DecisionScenario,
+    DiscoveryRun,
+    KeywordCandidate,
     RawEnvelope,
 )
 from decision_knowledge.ingest.source_ingestion import (
@@ -86,6 +89,9 @@ class AdminStats(BaseModel):
     scenarios: int
     branches: int
     confirmed_scenarios: int
+    discovery_runs: int
+    keyword_candidates: int
+    decision_candidates: int
 
 
 class WorkspaceOverview(BaseModel):
@@ -94,6 +100,9 @@ class WorkspaceOverview(BaseModel):
     content_items: int
     snapshots: int
     raw_envelopes: int
+    discovery_runs: int
+    keyword_candidates: int
+    decision_candidates: int
     scenarios: int
     branches: int
     confirmed_scenarios: int
@@ -164,6 +173,13 @@ class SnapshotReviewUpdate(BaseModel):
     review_note: str | None = Field(default=None, max_length=8_000)
 
 
+class CandidateReviewUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    review_status: str = Field(min_length=1, max_length=32)
+    review_note: str | None = Field(default=None, max_length=8_000)
+
+
 def _body_preview(body: str, length: int = 220) -> str:
     plain = re.sub(r"<[^>]+>", " ", body)
     return " ".join(plain.split())[:length]
@@ -205,6 +221,99 @@ def _detail(
         raw_sha256=envelope.payload_hash if envelope else None,
         raw_payload=envelope.payload if include_payload and envelope else None,
     )
+
+
+def _decision_candidate_dict(
+    candidate: DecisionEpisodeCandidate,
+    session: Session,
+) -> dict[str, object]:
+    snapshot = session.get(ContentSnapshot, candidate.content_snapshot_id)
+    item = session.get(ContentItem, snapshot.content_item_id) if snapshot else None
+    return {
+        "id": candidate.id,
+        "snapshot_id": candidate.content_snapshot_id,
+        "title": snapshot.title if snapshot else "",
+        "canonical_url": item.canonical_url if item else "",
+        "analysis_version": candidate.analysis_version,
+        "context": candidate.context,
+        "decision": candidate.decision,
+        "action": candidate.action,
+        "outcome": candidate.outcome,
+        "confidence": candidate.confidence,
+        "evidence": candidate.evidence,
+        "review_status": candidate.review_status,
+        "review_note": candidate.review_note,
+    }
+
+
+def _discovery_query_dicts(session: Session, limit: int) -> list[dict[str, object]]:
+    rows = session.execute(
+        select(KeywordCandidate, ContentSnapshot)
+        .join(ContentSnapshot, ContentSnapshot.id == KeywordCandidate.content_snapshot_id)
+        .where(KeywordCandidate.status == "CANDIDATE")
+    ).all()
+    source_queries = {
+        candidate.source_query.strip()
+        for candidate, _ in rows
+        if candidate.source_query.strip()
+    }
+    grouped: dict[str, dict[str, object]] = {}
+    for candidate, snapshot in rows:
+        term = candidate.term.strip()
+        if not term or term in source_queries:
+            continue
+        entry = grouped.setdefault(
+            term,
+            {
+                "term": term,
+                "occurrences": 0,
+                "best_quality_score": 0,
+                "rounds": set(),
+                "sample_titles": [],
+                "source_queries": set(),
+                "run_ids": set(),
+            },
+        )
+        occurrences = entry["occurrences"]
+        best_quality_score = entry["best_quality_score"]
+        entry["occurrences"] = (occurrences if isinstance(occurrences, int) else 0) + 1
+        entry["best_quality_score"] = max(
+            best_quality_score if isinstance(best_quality_score, int) else 0,
+            candidate.quality_score,
+        )
+        rounds = entry["rounds"]
+        if isinstance(rounds, set):
+            rounds.add(candidate.discovery_round)
+        titles = entry["sample_titles"]
+        if isinstance(titles, list) and snapshot.title not in titles and len(titles) < 3:
+            titles.append(snapshot.title)
+        queries = entry["source_queries"]
+        if isinstance(queries, set) and candidate.source_query:
+            queries.add(candidate.source_query)
+        run_ids = entry["run_ids"]
+        if isinstance(run_ids, set) and candidate.discovery_run_id:
+            run_ids.add(candidate.discovery_run_id)
+    ranked = sorted(
+        grouped.values(),
+        key=lambda entry: (
+            -(entry["occurrences"] if isinstance(entry["occurrences"], int) else 0),
+            -(
+                entry["best_quality_score"]
+                if isinstance(entry["best_quality_score"], int)
+                else 0
+            ),
+            len(str(entry["term"])),
+            str(entry["term"]),
+        ),
+    )
+    for entry in ranked:
+        rounds = entry["rounds"]
+        entry["rounds"] = sorted(rounds) if isinstance(rounds, set) else []
+        query_values = entry["source_queries"]
+        entry["source_queries"] = sorted(query_values) if isinstance(query_values, set) else []
+        run_values = entry["run_ids"]
+        entry["run_ids"] = sorted(run_values) if isinstance(run_values, set) else []
+    return ranked[:limit]
 
 
 def _scenario_dict(
@@ -315,6 +424,9 @@ def create_app(
             return session.scalar(select(func.count()).select_from(model)) or 0
 
         scenarios_count = count(DecisionScenario)
+        discovery_runs_count = count(DiscoveryRun)
+        keyword_candidates_count = count(KeywordCandidate)
+        decision_candidates_count = count(DecisionEpisodeCandidate)
         confirmed_count = session.scalar(
             select(func.count())
             .select_from(DecisionScenario)
@@ -328,10 +440,15 @@ def create_app(
         semantic_status = "已建立情景" if confirmed_count else "待归类"
         if scenarios_count and not confirmed_count:
             semantic_status = "待审核"
+        elif decision_candidates_count:
+            semantic_status = "候选待审核"
         return WorkspaceOverview(
             content_items=count(ContentItem),
             snapshots=count(ContentSnapshot),
             raw_envelopes=count(RawEnvelope),
+            discovery_runs=discovery_runs_count,
+            keyword_candidates=keyword_candidates_count,
+            decision_candidates=decision_candidates_count,
             scenarios=scenarios_count,
             branches=count(DecisionBranch),
             confirmed_scenarios=confirmed_count,
@@ -441,7 +558,73 @@ def create_app(
             scenarios=count(DecisionScenario),
             branches=count(DecisionBranch),
             confirmed_scenarios=confirmed,
+            discovery_runs=count(DiscoveryRun),
+            keyword_candidates=count(KeywordCandidate),
+            decision_candidates=count(DecisionEpisodeCandidate),
         )
+
+    @app.get("/api/admin/discovery/queries")
+    def admin_discovery_queries(
+        session: Annotated[Session, Depends(get_session)],
+        limit: int = Query(default=20, ge=1, le=100),
+    ) -> dict[str, object]:
+        """Rank next queries from accepted answer evidence, not raw volume alone."""
+
+        return {"items": tuple(_discovery_query_dicts(session, limit))}
+
+    @app.get("/api/admin/discovery/runs")
+    def admin_discovery_runs(
+        session: Annotated[Session, Depends(get_session)],
+        limit: int = Query(default=20, ge=1, le=100),
+    ) -> dict[str, object]:
+        runs = session.scalars(
+            select(DiscoveryRun).order_by(DiscoveryRun.started_at.desc()).limit(limit)
+        ).all()
+        return {
+            "items": tuple(
+                {
+                    "id": run.id,
+                    "source_code": run.source_code,
+                    "adapter_code": run.adapter_code,
+                    "authorization_ref": run.authorization_ref,
+                    "seed_queries": run.seed_queries,
+                    "started_at": run.started_at.isoformat(),
+                    "last_seen_at": run.last_seen_at.isoformat(),
+                    "status": run.status,
+                }
+                for run in runs
+            )
+        }
+
+    @app.get("/api/admin/decision-candidates")
+    def admin_decision_candidates(
+        session: Annotated[Session, Depends(get_session)],
+        review_status: str | None = Query(default=None, max_length=32),
+        limit: int = Query(default=50, ge=1, le=200),
+    ) -> dict[str, object]:
+        stmt = select(DecisionEpisodeCandidate).order_by(
+            DecisionEpisodeCandidate.created_at.desc()
+        )
+        if review_status:
+            stmt = stmt.where(DecisionEpisodeCandidate.review_status == review_status)
+        records = session.scalars(stmt.limit(limit)).all()
+        return {
+            "items": tuple(_decision_candidate_dict(record, session) for record in records)
+        }
+
+    @app.patch("/api/admin/decision-candidates/{candidate_id}")
+    def review_decision_candidate(
+        candidate_id: str,
+        request: CandidateReviewUpdate,
+        session: Annotated[Session, Depends(get_session)],
+    ) -> dict[str, object]:
+        candidate = session.get(DecisionEpisodeCandidate, candidate_id)
+        if candidate is None:
+            raise HTTPException(status_code=404, detail="decision candidate not found")
+        candidate.review_status = request.review_status
+        candidate.review_note = request.review_note
+        session.flush()
+        return _decision_candidate_dict(candidate, session)
 
     @app.get("/api/admin/content", response_model=SearchResponse)
     def admin_content(

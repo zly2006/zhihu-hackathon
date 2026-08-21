@@ -183,10 +183,88 @@ def test_public_overview_explains_the_database_pipeline(tmp_path: Path) -> None:
         "content_items": 0,
         "snapshots": 0,
         "raw_envelopes": 0,
+        "discovery_runs": 0,
+        "keyword_candidates": 0,
+        "decision_candidates": 0,
         "scenarios": 0,
         "branches": 0,
         "confirmed_scenarios": 0,
         "unreviewed_snapshots": 0,
         "semantic_status": "待归类",
     }
+    database.dispose()
+
+
+def test_import_persists_snowball_lineage_and_decision_candidate(tmp_path: Path) -> None:
+    database = Database(f"sqlite+pysqlite:///{tmp_path / 'workspace.db'}")
+    database.create_schema()
+    client = TestClient(create_app(database=database))
+    payload = {
+        "schema_version": "source_record.v1",
+        "source": {
+            "code": "zhihu",
+            "adapter_code": "manual_upload",
+            "adapter_version": "1.0.0",
+        },
+        "external_ref": {"type": "answer", "id": "derived-001"},
+        "canonical_url": "https://www.zhihu.com/answer/derived-001",
+        "fetched_at": "2026-08-21T03:05:37Z",
+        "availability": "AVAILABLE",
+        "content": {
+            "title": "转行前如何验证方向？",
+            "body_format": "HTML",
+            "body": (
+                "我当时需要在稳定工作和转行之间选择。"
+                "因为家庭储蓄只够一年，所以先用下班时间做项目，比较机会成本和风险。"
+                "三个月后拿到反馈，最终决定转行。"
+            ),
+            "raw_html": "<p>我当时需要在稳定工作和转行之间选择。</p>",
+            "language": "zh-CN",
+        },
+        "raw": {
+            "sha256": "c" * 64,
+            "payload": {
+                "discovery_run_id": "run-derived-001",
+                "query": "转行",
+                "discovery_round": 0,
+                "quality": {"accepted": True, "score": 82},
+                "keyword_candidates": ["职业转型", "风险控制"],
+                "keyword_candidate_sources": [
+                    {"term": "职业转型", "origin": "topic"},
+                    {"term": "风险控制", "origin": "question_title"},
+                ],
+            },
+        },
+    }
+
+    first = client.post("/api/admin/import", json={"records": [payload]})
+    assert first.status_code == 200
+    stats = client.get("/api/admin/stats").json()
+    assert stats["keyword_candidates"] == 2
+    assert stats["decision_candidates"] == 1
+    assert stats["discovery_runs"] == 1
+
+    queries = client.get("/api/admin/discovery/queries")
+    assert queries.status_code == 200
+    assert [item["term"] for item in queries.json()["items"]] == ["职业转型", "风险控制"]
+    assert queries.json()["items"][0]["source_queries"] == ["转行"]
+    assert queries.json()["items"][0]["run_ids"] == ["run-derived-001"]
+    runs = client.get("/api/admin/discovery/runs")
+    assert runs.json()["items"][0]["seed_queries"] == ["转行"]
+    candidate = client.get("/api/admin/decision-candidates").json()["items"][0]
+    assert candidate["title"] == "转行前如何验证方向？"
+    assert candidate["review_status"] == "UNREVIEWED"
+    assert "家庭储蓄" in candidate["context"]
+
+    replay = client.post("/api/admin/import", json={"records": [payload]})
+    assert replay.status_code == 200
+    assert replay.json()["unchanged"] == 1
+    assert client.get("/api/admin/stats").json()["keyword_candidates"] == 2
+
+    reviewed = client.patch(
+        f"/api/admin/decision-candidates/{candidate['id']}",
+        json={"review_status": "CONFIRMED", "review_note": "已核对证据"},
+    )
+    assert reviewed.status_code == 200
+    assert reviewed.json()["review_status"] == "CONFIRMED"
     database.dispose()

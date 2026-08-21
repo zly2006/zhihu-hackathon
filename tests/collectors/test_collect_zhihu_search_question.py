@@ -98,6 +98,39 @@ def test_search_question_and_answer_responses_become_traceable_records() -> None
     ] == [True, True, True]
     assert record.raw.payload["quality"]["accepted"] is True
     assert record.raw.payload["discovery_round"] == 0
+    assert record.raw.payload["keyword_candidate_sources"] == [
+        {"term": "转行前要准备什么", "origin": "question_title"},
+        {"term": "职业规划", "origin": "topic"},
+    ]
+
+
+def test_collection_keeps_a_run_id_for_replayable_snowball_lineage() -> None:
+    def fetch_json(url: str) -> dict[str, Any]:
+        if "/questions/42/feeds" in url:
+            return {"data": [{"target": {"type": "answer", "id": 99}}]}
+        if "/answers/99" in url:
+            return {
+                "id": 99,
+                "content": (
+                    "<p>我先明确目标，再比较成本和风险。</p>"
+                    "<p>当时有家庭和时间约束，所以先做小项目验证。</p>"
+                    "<p>后来结果符合预期，最终才做出决定。</p>"
+                    "<p>我还核对了岗位要求、试错时间和收入变化，避免只凭情绪做决定。</p>"
+                ),
+                "question": {"id": 42, "title": "问题标题"},
+            }
+        raise AssertionError(f"unexpected URL: {url}")
+
+    records = collect_question(
+        "42",
+        authorization_ref="auth",
+        fetched_at=datetime(2026, 8, 21, tzinfo=UTC),
+        max_answers_per_question=1,
+        fetch_json=fetch_json,
+        discovery_run_id="run-42",
+    )
+
+    assert records[0].raw.payload["discovery_run_id"] == "run-42"
 
 
 def test_collection_is_bounded_and_deduplicates_answers() -> None:
