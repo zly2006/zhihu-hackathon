@@ -6,57 +6,95 @@
     <title>知识库管理端</title>
     <link rel="stylesheet" href="/assets/styles.css" />
   </head>
-  <body class="admin-shell">
+  <body class="admin-shell" data-ui="linear-workspace">
     <header class="topbar">
-      <a class="brand" href="/admin">
-        <span class="brand-mark admin-mark">管</span>
-        <span><strong>知识库管理端</strong><small>本机工作台 · 原文不改写</small></span>
+      <a class="brand" href="/admin" aria-label="知识库管理端首页">
+        <span class="brand-mark" aria-hidden="true">库</span>
+        <span><strong>知识库管理端</strong><small>本机工作台</small></span>
       </a>
-      <nav><a href="/">用户端 ↗</a></nav>
+      <nav aria-label="站点导航"><a class="quiet-link" href="/">用户端 ↗</a></nav>
     </header>
 
-    <main class="admin-main">
-      <section class="admin-intro">
-        <div><p class="eyebrow">DATABASE / ADMIN VIEW</p><h1>先管好数据层，<br /><em>再生成路口。</em></h1><p class="hero-copy">这是数据库工作台：原文和快照承载事实，情景和分叉承载整理。原始 URL、HTML 和抓取哈希只读保留。</p></div>
+    <main class="app-main admin-main">
+      <section class="workspace-heading admin-heading" aria-labelledby="admin-title">
+        <div>
+          <p class="eyebrow">权威数据库</p>
+          <h1 id="admin-title">快照库</h1>
+          <p>先核对原文，再整理情景与分叉。URL、HTML 和抓取哈希保持只读。</p>
+        </div>
         <label class="import-button">导入 JSONL<input id="jsonl-input" type="file" accept=".jsonl,.json,application/json" /></label>
       </section>
 
-      <nav class="layer-nav" aria-label="数据库层级导航"><a href="#admin-overview">总览</a><a href="#snapshot-library">快照库</a><a href="#semantic-library">情景</a><a href="#branch-library">分叉</a></nav>
+      <nav class="layer-nav" aria-label="数据库层级导航">
+        <a class="active" href="#snapshot-library">原文 / 快照</a>
+        <a href="#semantic-library">情景 / 分叉</a>
+      </nav>
 
-      <section id="admin-overview" class="admin-overview"><div id="stats" class="stats-grid"></div><div id="admin-pipeline" class="admin-pipeline"></div></section>
+      <section id="admin-overview" class="dataset-summary admin-summary" aria-label="数据库状态">
+        <div id="stats" class="summary-metrics"></div>
+      </section>
 
-      <section id="snapshot-library" class="admin-grid">
+      <section id="snapshot-library" class="admin-workspace">
         <div class="panel table-panel">
-          <div class="section-heading">
-            <div><p class="eyebrow">CONTENT SNAPSHOT</p><h2>快照库</h2><p class="section-note">一行代表一个可审核版本，原始证据在右侧抽屉。</p></div>
-            <form id="admin-search-form" class="small-search"><input id="admin-search" placeholder="按标题 / 正文 / ID 搜索" /><button>查找</button></form>
+          <header class="section-heading">
+            <div>
+              <h2>快照库</h2>
+              <p class="section-note">选择一行，在右侧核对正文与原始证据。</p>
+            </div>
+            <form id="admin-search-form" class="search-control compact" role="search">
+              <span class="search-icon" aria-hidden="true">⌕</span>
+              <input id="admin-search" placeholder="标题、正文或 ID" aria-label="搜索快照库" />
+              <button>搜索</button>
+            </form>
+          </header>
+
+          <div class="data-table admin-snapshot-table" role="table" aria-label="管理端快照库">
+            <div class="table-head" role="row">
+              <span>标题</span><span>回答 ID</span><span>审核</span><span>可用性</span><span>证据</span>
+            </div>
+            <div id="admin-content-list" class="table-body" role="rowgroup">
+              <div class="empty-state">正在读取数据库……</div>
+            </div>
           </div>
-          <div id="admin-content-list" class="admin-content-list"><div class="empty-state">正在读取数据库……</div></div>
         </div>
 
-        <aside class="panel admin-detail-panel">
-          <div class="section-heading"><div><p class="eyebrow">EVIDENCE DRAWER</p><h2>快照证据抽屉</h2></div></div>
-          <div id="admin-detail" class="empty-state">选择一条回答查看原文、HTML 和审核状态。</div>
+        <aside class="panel admin-detail-panel" aria-label="快照证据检查器">
+          <header class="inspector-heading">
+            <div><span class="eyebrow">检查器</span><h2>快照详情</h2></div>
+            <span class="readonly-label">只读证据</span>
+          </header>
+          <div id="admin-detail" class="inspector-empty">
+            <span class="empty-glyph">↖</span>
+            <p>选择一条快照</p>
+            <small>在这里核对正文、URL、HTML 和审核状态。</small>
+          </div>
         </aside>
       </section>
 
-      <section id="semantic-library" class="admin-grid lower-grid">
-        <div class="panel scenario-editor">
-          <div class="section-heading"><div><p class="eyebrow">SCENARIO EDITOR</p><h2>情景与分叉</h2></div><button id="refresh-scenarios" class="ghost-button">刷新</button></div>
-          <form id="scenario-form" class="stack-form">
-            <div class="form-row"><label>Slug<input name="slug" placeholder="career-switch" required /></label><label>名称<input name="name" placeholder="职业转型" required /></label></div>
-            <label>摘要<textarea name="summary" rows="2" placeholder="这个情景要解决什么决策问题？"></textarea></label>
-            <div class="form-row"><label>领域<input name="domain" placeholder="职业"></label><label>状态<select name="review_status"><option>UNREVIEWED</option><option>CONFIRMED</option><option>REJECTED</option></select></label></div>
-            <button class="primary-button" type="submit">创建情景</button>
-          </form>
-          <div id="admin-scenario-list" class="admin-scenario-list"></div>
+      <details id="semantic-library" class="panel semantic-workbench">
+        <summary>
+          <span><strong>情景与分叉管理</strong><small>语义层 · 人工审核后才对用户可见</small></span>
+          <span>展开管理</span>
+        </summary>
+        <div class="semantic-editor-grid">
+          <section class="scenario-editor">
+            <header class="section-heading"><div><h2>情景</h2><p class="section-note">把可比的决策经历归入同一情景。</p></div><button id="refresh-scenarios" class="ghost-button">刷新</button></header>
+            <form id="scenario-form" class="stack-form">
+              <div class="form-row"><label>Slug<input name="slug" placeholder="career-switch" required /></label><label>名称<input name="name" placeholder="职业转型" required /></label></div>
+              <label>摘要<textarea name="summary" rows="2" placeholder="这个情景要解决什么决策问题？"></textarea></label>
+              <div class="form-row"><label>领域<input name="domain" placeholder="职业" /></label><label>状态<select name="review_status"><option>UNREVIEWED</option><option>CONFIRMED</option><option>REJECTED</option></select></label></div>
+              <button class="primary-button" type="submit">创建情景</button>
+            </form>
+            <div id="admin-scenario-list" class="admin-scenario-list"></div>
+          </section>
+          <aside id="branch-library" class="operation-note">
+            <h2>证据边界</h2>
+            <ul><li>原始 URL、HTML、抓取哈希只读。</li><li>审核与归档不覆盖原文。</li><li>每个分叉都应关联来源快照。</li><li>用户端只展示已确认情景。</li></ul>
+          </aside>
         </div>
-        <aside id="branch-library" class="panel operation-note">
-          <p class="eyebrow">KISS RULES</p><h2>管理边界</h2>
-          <ul><li>原始 URL、raw HTML、抓取哈希只读。</li><li>回答只能标记审核或归档，不直接覆盖原文。</li><li>分叉必须关联一个来源快照。</li><li>用户端只看 CONFIRMED 情景。</li></ul>
-          <div id="toast" class="toast" role="status"></div>
-        </aside>
-      </section>
+      </details>
+
+      <div id="toast" class="toast" role="status" aria-live="polite"></div>
     </main>
     <script src="/assets/admin.js" defer></script>
   </body>

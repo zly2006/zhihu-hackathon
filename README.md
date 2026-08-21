@@ -43,9 +43,16 @@ uv run uvicorn decision_knowledge.main:app --reload
 
 仓库内的 [data/zhihu/public_answers.jsonl](./data/zhihu/public_answers.jsonl)
 是 6 条真实知乎回答页面的小批量捕获，不是合成演示数据。每条都保留知乎回答
-URL、抓取响应校验值和原始 HTML 片段。采集器只在用户明确提供本机 Cookie 时访问
+URL、抓取响应校验值和原始 HTML 片段。它们属于历史“回答页直取”样本，
+`adapter_code=manual_url_capture` 会继续如实保留，不作为正式候选发现流程。
+采集器只在用户明确提供本机 Cookie 时访问
 `https://www.zhihu.com/answer/<id>`，Cookie 不会进入仓库或远端；不调用私有 API、
 不生成签名、不绕过验证码。批量知乎采集仍必须走授权适配器。
+
+正式知乎适配器的边界是：`search_v3` 搜索发现问题，
+`questions/{id}/feeds` 取得问题回答列表，再用 `answers/{id}` 获取回答详情；
+三层响应均需保留来源引用，入库记录使用独立的
+`adapter_code=zhihu_search_question_api`，不能沿用 `manual_url_capture`。
 
 ```powershell
 uv run python scripts/collect_zhihu_public.py `

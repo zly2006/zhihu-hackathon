@@ -192,7 +192,7 @@ flowchart LR
 
 - [ ] `M1-01` 建立 `data_source/source_authorization/ingest_job/raw_envelope/content_item`。
 - [ ] `M1-02` 建立 `content_snapshot/evidence_span/source_event/engagement_observation`。
-- [ ] `M1-03` 实现 JSONL/人工导入 Adapter；已授权知乎 Adapter 只留接口和 feature flag。
+- [ ] `M1-03` 实现 JSONL/人工导入 Adapter；已授权知乎 Adapter 固定为 `search_v3 搜索 → questions/{id}/feeds 问题回答列表 → answers/{id} 回答详情`，并由 feature flag 与授权记录共同控制。
 - [x] `M1-04` 实现幂等键 `(source, type, external_id, raw_sha256)` 和重复投递处理。
 - [ ] `M1-05` 实现 HTML 清洗、正文标准化、hash 和字符偏移稳定化。
 - [ ] `M1-06` 实现敏感信息检测、脱敏文本和受限作者 HMAC；语义层看不到原作者 ID。

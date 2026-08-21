@@ -44,6 +44,7 @@ def test_user_can_search_and_open_an_ingested_answer(tmp_path: Path) -> None:
     result = search.json()["items"][0]
     assert result["title"] == "转行前应该先做什么？"
     assert result["canonical_url"] == payload["canonical_url"]
+    assert result["adapter_code"] == "manual_url_capture"
 
     detail = client.get(f"/api/snapshots/{result['snapshot_id']}")
     assert detail.status_code == 200
@@ -141,12 +142,17 @@ def test_local_dual_end_pages_are_served_by_the_same_app(tmp_path: Path) -> None
     assert "人生决策知识库" in user.text
     assert "情景与分叉" in user.text
     assert "原文快照" in user.text
+    assert 'data-ui="linear-workspace"' in user.text
+    assert 'class="data-table snapshot-table"' in user.text
     assert admin.status_code == 200
     assert "知识库管理端" in admin.text
     assert "快照库" in admin.text
     assert "数据库层级导航" in admin.text
+    assert 'data-ui="linear-workspace"' in admin.text
+    assert 'class="data-table admin-snapshot-table"' in admin.text
     assert assets.status_code == 200
-    assert "--teal" in assets.text
+    assert "--accent: #5e6ad2" in assets.text
+    assert "--shadow" not in assets.text
     database.dispose()
 
 

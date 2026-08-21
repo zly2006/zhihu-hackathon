@@ -39,6 +39,7 @@ class SnapshotSummary(BaseModel):
     item_id: str
     snapshot_id: str
     source_code: str
+    adapter_code: str
     external_id: str
     title: str
     body_preview: str
@@ -168,11 +169,16 @@ def _body_preview(body: str, length: int = 220) -> str:
     return " ".join(plain.split())[:length]
 
 
-def _summary(item: ContentItem, snapshot: ContentSnapshot) -> SnapshotSummary:
+def _summary(
+    item: ContentItem,
+    snapshot: ContentSnapshot,
+    envelope: RawEnvelope | None,
+) -> SnapshotSummary:
     return SnapshotSummary(
         item_id=item.id,
         snapshot_id=snapshot.id,
         source_code=item.source_code,
+        adapter_code=envelope.adapter_code if envelope else "unknown",
         external_id=item.external_id,
         title=snapshot.title,
         body_preview=_body_preview(snapshot.body),
@@ -193,7 +199,7 @@ def _detail(
     include_payload: bool,
 ) -> SnapshotDetail:
     return SnapshotDetail(
-        **_summary(item, snapshot).model_dump(),
+        **_summary(item, snapshot, envelope).model_dump(),
         body=snapshot.body,
         raw_html=snapshot.raw_html,
         raw_sha256=envelope.payload_hash if envelope else None,
@@ -366,8 +372,9 @@ def create_app(
             .where(*conditions)
         ) or 0
         rows = session.execute(
-            select(ContentItem, ContentSnapshot)
+            select(ContentItem, ContentSnapshot, RawEnvelope)
             .join(ContentSnapshot, ContentSnapshot.content_item_id == ContentItem.id)
+            .join(RawEnvelope, ContentSnapshot.raw_envelope_id == RawEnvelope.id)
             .where(*conditions)
             .order_by(ContentSnapshot.captured_at.desc())
             .limit(limit)
@@ -375,7 +382,7 @@ def create_app(
         return SearchResponse(
             query=q,
             total=total,
-            items=tuple(_summary(item, snapshot) for item, snapshot in rows),
+            items=tuple(_summary(item, snapshot, envelope) for item, snapshot, envelope in rows),
         )
 
     @app.get("/api/snapshots/{snapshot_id}", response_model=SnapshotDetail)
@@ -459,8 +466,9 @@ def create_app(
             .where(*conditions)
         ) or 0
         rows = session.execute(
-            select(ContentItem, ContentSnapshot)
+            select(ContentItem, ContentSnapshot, RawEnvelope)
             .join(ContentSnapshot, ContentSnapshot.content_item_id == ContentItem.id)
+            .join(RawEnvelope, ContentSnapshot.raw_envelope_id == RawEnvelope.id)
             .where(*conditions)
             .order_by(ContentSnapshot.captured_at.desc())
             .limit(limit)
@@ -468,7 +476,7 @@ def create_app(
         return SearchResponse(
             query=q,
             total=total,
-            items=tuple(_summary(item, snapshot) for item, snapshot in rows),
+            items=tuple(_summary(item, snapshot, envelope) for item, snapshot, envelope in rows),
         )
 
     @app.get("/api/admin/content/{item_id}", response_model=ContentDetail)
