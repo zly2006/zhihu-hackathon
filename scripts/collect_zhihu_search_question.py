@@ -147,6 +147,7 @@ def _build_record(
     search_result: dict[str, Any],
     question_feed_item: dict[str, Any],
     answer_detail: dict[str, Any],
+    answer_capture: str,
     quality: QualityAssessment,
     discovery_round: int,
     discovery_run_id: str | None,
@@ -187,6 +188,7 @@ def _build_record(
             "question_feed": question_feed_url,
             "answer": answer_url,
         },
+        "answer_capture": answer_capture,
         "api_responses": {
             "search": search_payload,
             "question_feed": question_feed_payload,
@@ -248,6 +250,7 @@ def _collect_question_answers(
     max_answers_per_question: int,
     max_candidates_per_question: int,
     fetch_json: FetchJson,
+    use_feed_content: bool,
     search_url: str,
     search_payload: dict[str, Any],
     search_result: dict[str, Any],
@@ -267,16 +270,24 @@ def _collect_question_answers(
     accepted = 0
     inspected = 0
     for feed_item in _items(feed_payload):
+        target = _object(feed_item.get("target"))
         answer_id = _answer_id(feed_item)
         if not answer_id or answer_id in seen_answers:
             continue
         seen_answers.add(answer_id)
         inspected += 1
         answer_url = _answer_url(answer_id)
-        try:
-            answer_detail = fetch_json(answer_url)
-        except RuntimeError:
-            continue
+        if use_feed_content:
+            if target is None:
+                continue
+            answer_detail = target
+            answer_capture = "question_feed_target"
+        else:
+            try:
+                answer_detail = fetch_json(answer_url)
+            except RuntimeError:
+                continue
+            answer_capture = "answer_detail_api"
         quality = assess_answer_quality(answer_detail)
         if not quality.accepted:
             if inspected >= max_candidates_per_question:
@@ -295,6 +306,7 @@ def _collect_question_answers(
                 search_result=search_result,
                 question_feed_item=feed_item,
                 answer_detail=answer_detail,
+                answer_capture=answer_capture,
                 quality=quality,
                 discovery_round=discovery_round,
                 discovery_run_id=discovery_run_id,
@@ -316,6 +328,7 @@ def collect_question(
     max_answers_per_question: int,
     max_candidates_per_question: int | None = None,
     fetch_json: FetchJson,
+    use_feed_content: bool = False,
     discovery_round: int = 0,
     discovery_run_id: str | None = None,
 ) -> tuple[SourceRecordV1, ...]:
@@ -339,6 +352,7 @@ def collect_question(
         max_answers_per_question=max_answers_per_question,
         max_candidates_per_question=candidate_limit,
         fetch_json=fetch_json,
+        use_feed_content=use_feed_content,
         search_url=f"https://www.zhihu.com/question/{normalized_id}",
         search_payload={"seed_question_id": normalized_id},
         search_result={
@@ -359,6 +373,7 @@ def collect_query(
     max_answers_per_question: int,
     max_candidates_per_question: int | None = None,
     fetch_json: FetchJson,
+    use_feed_content: bool = False,
     discovery_round: int = 0,
     discovery_run_id: str | None = None,
 ) -> tuple[SourceRecordV1, ...]:
@@ -392,6 +407,7 @@ def collect_query(
                 max_answers_per_question=max_answers_per_question,
                 max_candidates_per_question=candidate_limit,
                 fetch_json=fetch_json,
+                use_feed_content=use_feed_content,
                 search_url=search_url,
                 search_payload=search_payload,
                 search_result=search_result,
@@ -692,6 +708,11 @@ def _arguments() -> argparse.Namespace:
         type=Path,
         help="本机 Netscape Cookie 文件；通过 zhurl 临时账号生成 web API 签名",
     )
+    parser.add_argument(
+        "--use-feed-content",
+        action="store_true",
+        help="直接使用问题回答流中的完整 HTML，减少逐回答详情请求",
+    )
     return parser.parse_args()
 
 
@@ -739,6 +760,7 @@ def main() -> int:
                     max_answers_per_question=args.max_answers_per_question,
                     max_candidates_per_question=args.max_candidates_per_question,
                     fetch_json=fetch_json,
+                    use_feed_content=args.use_feed_content,
                     discovery_run_id=discovery_run_id,
                 )
             except RuntimeError as exc:
@@ -762,6 +784,7 @@ def main() -> int:
                         max_answers_per_question=args.max_answers_per_question,
                         max_candidates_per_question=args.max_candidates_per_question,
                         fetch_json=fetch_json,
+                        use_feed_content=args.use_feed_content,
                         discovery_round=discovery_round,
                         discovery_run_id=discovery_run_id,
                     )
@@ -789,8 +812,15 @@ def main() -> int:
         return 1
 
     args.output.parent.mkdir(parents=True, exist_ok=True)
+    # JSON Lines consumers commonly use ``str.splitlines()``; escape Unicode
+    # line/paragraph separators that may occur in Zhihu HTML so one answer
+    # always remains one physical JSONL line.
+    serialized_records = (
+        record.model_dump_json().replace("\u2028", "\\u2028").replace("\u2029", "\\u2029")
+        for record in records_by_key.values()
+    )
     args.output.write_text(
-        "".join(record.model_dump_json() + "\n" for record in records_by_key.values()),
+        "".join(serialized + "\n" for serialized in serialized_records),
         encoding="utf-8",
     )
     if failed_seeds:

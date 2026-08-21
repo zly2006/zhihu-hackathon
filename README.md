@@ -14,7 +14,7 @@
 
 ## 本机启动
 
-要求 Python 3.12 和 [uv](https://docs.astral.sh/uv/)。本地双端默认使用 SQLite，启动时会自动建表，并幂等导入仓库里的 6 条真实知乎回答：
+要求 Python 3.12 和 [uv](https://docs.astral.sh/uv/)。本地双端默认使用 SQLite；空库启动时会自动建表并幂等导入仓库里的 6 条真实知乎回答。当前工作区的 `local.db` 已扩充到下方记录的 10226 条：
 
 ```powershell
 uv sync --group dev
@@ -88,11 +88,15 @@ uv run python scripts/collect_zhihu_search_question.py `
   --output data/zhihu/search_question_answers.jsonl
 ```
 
-Cookie 模式先完成了 11 条回答的链路验证，随后按 18 个主题批次扩充初始数据集。
-当前本地 SQLite 已有 1585 条唯一回答快照、1619 个原始证据包、18 个
+Cookie 模式先完成了小批量链路验证，随后按搜索发现问题、问题回答流抓取扩充数据集。
+当前本地 SQLite 已有 **10226 条唯一回答**、10227 个快照、10502 个原始证据包、72 个
 `discovery_run`；所有批次 JSONL 仅保留在本机，未提交到 Git。
 
-如果知乎 API 临时返回 40352（要求网页验证），不要绕过验证。可在 API 恢复后使用
+问题流中的完整 HTML 直接保存在 `raw_html`，新增记录的 `raw.payload.answer_capture`
+标记为 `question_feed_target`；采集器写 JSONL 时会转义 U+2028/U+2029，保证一条回答对应一行。
+达到 10000 条唯一回答后已停止继续采集。
+
+如果知乎 API 临时返回 40352（要求网页验证），不要绕过验证。验证完成后可使用
 `--signed-cookie-file` 让 `zhurl` 从一次性临时账号目录读取本机 Netscape Cookie，
 生成 web 请求签名；临时目录在单次请求后删除，不写入项目或数据库：
 
@@ -105,7 +109,7 @@ uv run python scripts/collect_zhihu_search_question.py `
   --output data/zhihu/search_question_answers_signed.jsonl
 ```
 
-为达到初始 1000 条并继续扩容，数据库中有 619 条明确标记为
+为达到初始数据集并继续扩容，数据库中有 619 条明确标记为
 `capture_method=zhihu_search_result_promotion` 的搜索结果恢复记录：它们已经包含真实知乎回答
 HTML 和 URL，但尚未拿到 `answers/{id}` 详情；API 恢复后优先补抓，不将其误报为完整详情。
 

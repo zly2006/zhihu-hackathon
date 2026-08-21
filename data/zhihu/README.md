@@ -37,15 +37,16 @@ uv run python scripts/collect_zhihu_search_question.py \
 默认只作为本机导入材料，不自动提交 Git；真正的权威副本是本地数据库中的
 `RawEnvelope`/`ContentSnapshot`。
 
-## 初始 1000 条数据集（2026-08-21）
+## 本地真实数据集（2026-08-21）
 
-按 18 个主题批次执行 Cookie 采集并扩容后，本地 SQLite 已有 1585 条唯一回答快照、
-1619 个原始证据包和 18 个 `discovery_run`。各批 JSONL 只作为本机回放材料，
-不提交到 Git。
+按搜索发现问题、问题回答流抓取的方式扩容后，本地 SQLite 已有 **10226 条唯一回答**、
+10227 个快照、10502 个原始证据包、13664 个关键词候选和 7094 个决策经历候选。
+各批 JSONL 只作为本机回放材料，不提交到 Git；权威副本是本地数据库中的
+`RawEnvelope`/`ContentSnapshot`。
 
-知乎 API 临时返回 40352（网络环境异常，需要网页验证）时不绕过验证。API 恢复后，
-可使用 `--signed-cookie-file` 让 `zhurl` 从一次性临时账号目录读取 Netscape Cookie，
-生成 web 请求签名；临时目录在请求后删除。
+新增问题流记录使用 `answer_capture=question_feed_target`，保留问题接口返回的完整 HTML、
+回答 URL、搜索响应、问题回答流和质量评分；采集器写 JSONL 时会转义 U+2028/U+2029，
+避免 HTML 中的 Unicode 行分隔符破坏导入。搜索接口偶发 403 的关键词会跳过，不绕过验证。
 
 其中 619 条记录来自已保存搜索响应中的质量通过回答，原始字段明确标记
 `capture_method=zhihu_search_result_promotion`、`promotion_stage=search_result_only`。

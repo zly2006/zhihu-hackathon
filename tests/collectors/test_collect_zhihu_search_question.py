@@ -320,6 +320,49 @@ def test_question_seed_starts_at_question_feeds_without_search() -> None:
     assert "/questions/42/feeds" in calls[0]
 
 
+def test_feed_content_mode_keeps_html_without_answer_detail_request() -> None:
+    calls: list[str] = []
+    feed_target = {
+        "id": 99,
+        "type": "answer",
+        "content": (
+            "<p>我先明确目标，再比较成本和风险。</p>"
+            "<p>当时有家庭和时间约束，所以先做小项目验证。</p>"
+            "<p>后来结果符合预期，最终才做出决定。</p>"
+            "<p>我还核对了岗位要求、试错时间和收入变化，避免只凭情绪做决定。</p>"
+        ),
+        "question": {
+            "id": 42,
+            "title": "问题标题",
+            "topics": [{"id": "career", "name": "职业规划"}],
+        },
+        "voteup_count": 12,
+        "comment_count": 2,
+        "thanks_count": 1,
+    }
+
+    def fetch_json(url: str) -> dict[str, Any]:
+        calls.append(url)
+        if "/questions/42/feeds" in url:
+            return {"data": [{"target": feed_target}]}
+        raise AssertionError(f"feed-only mode requested an unexpected URL: {url}")
+
+    records = collect_question(
+        "42",
+        authorization_ref="auth",
+        fetched_at=datetime(2026, 8, 21, tzinfo=UTC),
+        max_answers_per_question=1,
+        fetch_json=fetch_json,
+        use_feed_content=True,
+    )
+
+    assert len(records) == 1
+    assert len(calls) == 1
+    assert records[0].content.raw_html == feed_target["content"]
+    assert records[0].raw.payload["answer_capture"] == "question_feed_target"
+    assert records[0].raw.payload["api_responses"]["answer_detail"] == feed_target
+
+
 def test_cookie_transport_reads_json_and_does_not_return_cookie_material(
     tmp_path: Path,
     monkeypatch: Any,
