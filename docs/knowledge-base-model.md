@@ -341,12 +341,13 @@ OutcomeObservation
 
 ## 当前系统为什么像列表
 
-当前实现有原文层，也有 `DecisionEpisodeCandidate`，但还没有形成正式语义层：
+当前实现有原文层、`DecisionEpisodeCandidate` 和候选情景召回层，但正式语义层仍需审核：
 
 - 场景视角按回答标题精确分组；标题相同不代表前置状态和决策点相同。
 - 单条记录只有启发式的“处境 / 决定 / 行动 / 结果”，还没有稳定的证据片段、选项、约束、目标、时间和叙述类型。
-- `DecisionScenario` 和 `DecisionBranch` 可以手工创建，但尚未与决策经历建立可审核的归属关系。
-- 因此页面展示的是“候选数据”，不是“可比较的知识”。
+- embedding 只负责把候选缩小到可比较的小集合，不直接判定同一情景。
+- `DecisionScenarioMembership` / `DecisionBranchMembership` 已保存自动归类提案，状态为 `PROPOSED`，可撤回、可审核；只有确认后才是正式知识。
+- 因此页面展示的是“待审核的情景簇”，不是最终建议。
 
 这不是再加几个卡片就能解决的问题，需要先把数据关系补齐。
 
@@ -369,7 +370,8 @@ OutcomeObservation
 每条回答都入来源库
   → 可选地生成 KnowledgeFragment
   → 只有证据足够时才组合成 DecisionEpisode
-  → 只有审核后才进入 Scenario / Branch
+  → embedding 召回 + 结构化检查生成 Scenario / Branch 提案
+  → 只有审核后才进入正式 Scenario / Branch
 ```
 
 没有可总结的回答不是失败，而是 `no_semantic_unit` 的合法状态。
@@ -576,17 +578,21 @@ erDiagram
 
 KISS 版本只需要 PostgreSQL（本地可用同结构 SQLite）作为唯一权威库。先不把 Neo4j 当成第二个事实源。
 
-### KISS 物理落地：先固定 5 张语义表
+### KISS 物理落地：先固定候选关系，再逐步正式化
 
 采集层的 `content_item`、`content_snapshot`、`raw_envelope`、`discovery_run` 和
-`keyword_candidate` 已经存在，保持不动。知识语义层第一版只新增/正式化以下五张表，全部围绕
-`decision_episode` 组织：
+`keyword_candidate` 已经存在，保持不动。当前代码先新增两张“可撤回提案关系表”，不把候选伪装成正式经历：
 
-1. `knowledge_fragment`：可定位的原文片段；
-2. `decision_episode`：一次决策事件，字段可为空；
-3. `outcome_observation`：该事件的一个时间窗口观察，可有多条；
-4. `scenario_membership`：事件为什么属于某个情景；
-5. `branch_episode`：事件如何支持某个分叉。
+1. `decision_scenario_membership`：候选为什么被归入某个提案情景；
+2. `decision_branch_membership`：候选为什么支持某个提案分叉。
+
+正式语义层仍按以下五张表逐步落地，全部围绕 `decision_episode` 组织：
+
+3. `knowledge_fragment`：可定位的原文片段；
+4. `decision_episode`：一次决策事件，字段可为空；
+5. `outcome_observation`：该事件的一个时间窗口观察，可有多条；
+6. `scenario_membership`：事件为什么属于某个情景；
+7. `branch_episode`：事件如何支持某个分叉。
 
 情景和分叉继续使用现有的 `decision_scenario` / `decision_branch`，稳定后再改名为
 `canonical_scenario` / `branch_point`。审核第一版先用每张表的 `status`、`review_note`、
@@ -715,8 +721,10 @@ branch_episode
 | `ContentSnapshot` | 保留，按需新增 `KnowledgeFragment` |
 | `RawEnvelope` | 保留为原始证据，不进入语义聚合 |
 | `DecisionEpisodeCandidate` | 先迁移为候选 `KnowledgeFragment`；能证明同一事件时再组合为 `DecisionEpisode` |
-| `DecisionScenario` | 改成有版本的 `CanonicalScenario` |
-| `DecisionBranch` | 改成 `BranchPoint`，必须通过 episode 关系取证 |
+| `DecisionScenario` | 先承载 `PROPOSED` 情景簇，确认后再作为 `CanonicalScenario` |
+| `DecisionBranch` | 先承载 `PROPOSED` 行动分叉，确认后再作为 `BranchPoint` |
+| `DecisionScenarioMembership` | 候选到提案情景的可撤回归属，带相似度、算法和 embedding 版本 |
+| `DecisionBranchMembership` | 候选到提案分叉的证据归属，带审核状态 |
 | 按标题聚合的 `scene-view` | 降级为探索用投影，不作为正式场景 |
 
 ## 七、第一版完成标准
@@ -740,8 +748,8 @@ branch_episode
 ContentSnapshot
   → KnowledgeFragment（可以没有）
   → DecisionEpisode（可以没有、字段可以缺失）
-  → ScenarioMembership（审核后）
-  → BranchEpisode（有比较证据后）
+  → DecisionScenarioMembership（先提案，审核后正式化）
+  → DecisionBranchMembership（先提案，审核后正式化）
 ```
 
 这样既不会把无法总结的回答丢掉，也不会把每个回答强行包装成一张假决策卡。场景视角和单一决策视角最终读取同一套“来源—片段—经历—关系”数据；否则只是两个不同的列表页面。

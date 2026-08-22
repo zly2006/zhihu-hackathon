@@ -19,8 +19,10 @@ from decision_knowledge.ingest.models import (
     ContentItem,
     ContentSnapshot,
     DecisionBranch,
+    DecisionBranchMembership,
     DecisionEpisodeCandidate,
     DecisionScenario,
+    DecisionScenarioMembership,
     DiscoveryRun,
     KeywordCandidate,
     RawEnvelope,
@@ -189,6 +191,12 @@ class CandidateRetrievalRequest(BaseModel):
     vector: tuple[float, ...] = Field(min_length=1, max_length=4096)
     blocking_key: str | None = Field(default=None, max_length=64)
     limit: int = Field(default=10, ge=1, le=100)
+
+
+class MembershipReviewUpdate(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    review_status: str = Field(min_length=1, max_length=32)
 
 
 def _body_preview(body: str, length: int = 220) -> str:
@@ -439,6 +447,49 @@ def _scenario_dict(
                 "position": branch.position,
                 "review_status": branch.review_status,
                 "evidence": evidence,
+                "memberships": tuple(
+                    {
+                        "id": membership.id,
+                        "candidate_id": membership.candidate_id,
+                        "similarity": round(membership.similarity, 6),
+                        "review_status": membership.review_status,
+                    }
+                    for membership in sorted(
+                        branch.memberships,
+                        key=lambda item: (-item.similarity, item.candidate_id),
+                    )
+                ),
+            }
+        )
+    memberships: list[dict[str, object]] = []
+    for membership in sorted(
+        scenario.memberships,
+        key=lambda item: (-item.similarity, item.candidate_id),
+    ):
+        candidate = membership.candidate
+        membership_source: dict[str, object] | None = None
+        if candidate is not None:
+            snapshot = session.get(ContentSnapshot, candidate.content_snapshot_id)
+            if snapshot is not None:
+                item = session.get(ContentItem, snapshot.content_item_id)
+                membership_source = {
+                    "snapshot_id": snapshot.id,
+                    "title": snapshot.title,
+                    "canonical_url": item.canonical_url if item else "",
+                }
+        memberships.append(
+            {
+                "id": membership.id,
+                "candidate_id": membership.candidate_id,
+                "similarity": round(membership.similarity, 6),
+                "review_status": membership.review_status,
+                "algorithm_version": membership.algorithm_version,
+                "embedding_version": membership.embedding_version,
+                "context": candidate.context if candidate else "",
+                "decision": candidate.decision if candidate else "",
+                "action": candidate.action if candidate else "",
+                "outcome": candidate.outcome if candidate else "",
+                "source": membership_source,
             }
         )
     return {
@@ -449,6 +500,7 @@ def _scenario_dict(
         "domain": scenario.domain,
         "review_status": scenario.review_status,
         "branches": branches,
+        "memberships": memberships,
     }
 
 
@@ -515,7 +567,16 @@ def create_app(
         def count(model: type[object]) -> int:
             return session.scalar(select(func.count()).select_from(model)) or 0
 
-        scenarios_count = count(DecisionScenario)
+        scenarios_count = session.scalar(
+            select(func.count())
+            .select_from(DecisionScenario)
+            .where(DecisionScenario.review_status != "SUPERSEDED")
+        ) or 0
+        branches_count = session.scalar(
+            select(func.count())
+            .select_from(DecisionBranch)
+            .where(DecisionBranch.review_status != "SUPERSEDED")
+        ) or 0
         discovery_runs_count = count(DiscoveryRun)
         keyword_candidates_count = count(KeywordCandidate)
         decision_candidates_count = count(DecisionEpisodeCandidate)
@@ -542,7 +603,7 @@ def create_app(
             keyword_candidates=keyword_candidates_count,
             decision_candidates=decision_candidates_count,
             scenarios=scenarios_count,
-            branches=count(DecisionBranch),
+            branches=branches_count,
             confirmed_scenarios=confirmed_count,
             unreviewed_snapshots=unreviewed_count,
             semantic_status=semantic_status,
@@ -906,12 +967,22 @@ def create_app(
             .select_from(DecisionScenario)
             .where(DecisionScenario.review_status == "CONFIRMED")
         ) or 0
+        active_scenarios = session.scalar(
+            select(func.count())
+            .select_from(DecisionScenario)
+            .where(DecisionScenario.review_status != "SUPERSEDED")
+        ) or 0
+        active_branches = session.scalar(
+            select(func.count())
+            .select_from(DecisionBranch)
+            .where(DecisionBranch.review_status != "SUPERSEDED")
+        ) or 0
         return AdminStats(
             content_items=count(ContentItem),
             snapshots=count(ContentSnapshot),
             raw_envelopes=count(RawEnvelope),
-            scenarios=count(DecisionScenario),
-            branches=count(DecisionBranch),
+            scenarios=active_scenarios,
+            branches=active_branches,
             confirmed_scenarios=confirmed,
             discovery_runs=count(DiscoveryRun),
             keyword_candidates=count(KeywordCandidate),
@@ -1081,15 +1152,63 @@ def create_app(
     @app.get("/api/admin/scenarios")
     def admin_scenarios(
         session: Annotated[Session, Depends(get_session)],
+        include_superseded: bool = Query(default=False),
     ) -> dict[str, object]:
-        records = session.scalars(
-            select(DecisionScenario).order_by(DecisionScenario.updated_at.desc())
-        ).all()
+        stmt = select(DecisionScenario)
+        if not include_superseded:
+            stmt = stmt.where(DecisionScenario.review_status != "SUPERSEDED")
+        records = session.scalars(stmt.order_by(DecisionScenario.updated_at.desc())).all()
         return {
             "items": tuple(
                 _scenario_dict(record, session, confirmed_only=False) for record in records
             )
         }
+
+    @app.get("/api/admin/scenario-proposals")
+    def admin_scenario_proposals(
+        session: Annotated[Session, Depends(get_session)],
+        limit: int = Query(default=100, ge=1, le=500),
+    ) -> dict[str, object]:
+        """List generated proposals separately from confirmed knowledge."""
+
+        records = session.scalars(
+            select(DecisionScenario)
+            .where(DecisionScenario.review_status == "PROPOSED")
+            .order_by(DecisionScenario.updated_at.desc())
+            .limit(limit)
+        ).all()
+        return {
+            "items": tuple(
+                _scenario_dict(record, session, confirmed_only=False) for record in records
+            ),
+            "total": len(records),
+        }
+
+    @app.patch("/api/admin/scenario-memberships/{membership_id}")
+    def review_scenario_membership(
+        membership_id: str,
+        request: MembershipReviewUpdate,
+        session: Annotated[Session, Depends(get_session)],
+    ) -> dict[str, object]:
+        membership = session.get(DecisionScenarioMembership, membership_id)
+        if membership is None:
+            raise HTTPException(status_code=404, detail="scenario membership not found")
+        membership.review_status = request.review_status
+        session.flush()
+        return _scenario_dict(membership.scenario, session, confirmed_only=False)
+
+    @app.patch("/api/admin/branch-memberships/{membership_id}")
+    def review_branch_membership(
+        membership_id: str,
+        request: MembershipReviewUpdate,
+        session: Annotated[Session, Depends(get_session)],
+    ) -> dict[str, object]:
+        membership = session.get(DecisionBranchMembership, membership_id)
+        if membership is None:
+            raise HTTPException(status_code=404, detail="branch membership not found")
+        membership.review_status = request.review_status
+        session.flush()
+        return _scenario_dict(membership.branch.scenario, session, confirmed_only=False)
 
     @app.post("/api/admin/scenarios")
     def create_scenario(

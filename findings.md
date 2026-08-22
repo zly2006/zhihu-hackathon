@@ -391,6 +391,14 @@
 
 成本调研后的默认路线是 L0 本地规则、L1 `GLM-4.7-Flash`、L2 `gpt-5.4-nano` 难例升级、L3 Spark/强模型复核；embedding 使用独立向量模型。GLM-4.7-Flash 当前官方标价免费，适合 10,000+ 条数据的高频结构化处理，但仍需按配额/QPS 做限流、重试和积压监控，并通过真实黄金集调整升级比例。
 
+## 候选情景归并纵向切片（2026-08-22）
+
+- 候选 embedding 不能直接成为情景归属；当前实现采用三道门：`blocking_key` 粗粒度领域阻断、决策点字符 n-gram 交集、向量与簇质心相似度阈值。
+- 同一簇只比较“决策背景 + 决策点”，不把行动和结果放进情景相似度；簇内按实际行动分组，只有观察到至少两种不同实际行动时才生成分叉提案。
+- 自动输出写入 `DecisionScenario` / `DecisionBranch`，但统一为 `PROPOSED`；`DecisionScenarioMembership` / `DecisionBranchMembership` 保存相似度、算法版本、embedding 版本和候选证据，重复执行同一 embedding 版本幂等。
+- 在当前 6,263 条清理候选上，阈值 `0.84`、决策点交集 `0.25`、最小簇大小 `2`，并增加“必须像决策点而非泛观点”的确定性门后，当前 v3 生成 18 个情景簇和 21 个分叉，覆盖 38 个候选。这个覆盖率刻意保守，绝大多数候选仍留在候选层；v1/v2 结果保留为 `SUPERSEDED` 审计记录。
+- 真实预览仍显示启发式候选中有“泛观点/长句/营销”混入；因此提案是审核队列而非知识事实。下一步优先用人工黄金集校准“决策点是否可比较”和阈值，必要时让 GLM 只处理难例，不把全量 LLM 结果直接写库。
+
 - 用户提供的 GitHub 账号：<https://github.com/zly2006>
 - `zhurl` 仓库：<https://github.com/zly2006/zhurl>
 - `zhurl` API 索引：<https://github.com/zly2006/zhurl/blob/main/docs/apis.md>

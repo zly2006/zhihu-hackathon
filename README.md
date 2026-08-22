@@ -51,7 +51,24 @@ DecisionEpisodeCandidate
   → 人工或后续结构化校验
 ```
 
-向量表是可删除、可重算的派生层，不会自动创建 `DecisionScenario` 或 `DecisionBranch`。本地工作库当前已导入 6,263 条 `bge-large-zh-v1.5:scenario-text-v2` 向量。
+向量表是可删除、可重算的派生层；单独导入向量不会创建 `DecisionScenario` 或 `DecisionBranch`。本地工作库当前已导入 6,263 条 `bge-large-zh-v1.5:scenario-text-v2` 向量。
+
+### 从候选到情景簇和分叉
+
+批处理命令把“同领域 + 决策点词面有交集 + 向量相似度达标”的候选合并为可审核的情景簇；
+再按同一情景中的实际行动拆成分叉。生成的情景、分叉和候选归属全部标记为 `PROPOSED`，
+不直接对用户端可见，也不覆盖已确认或已驳回的审核结果。
+
+```powershell
+uv run python scripts/propose_scenario_clusters.py `
+  --database-url sqlite+pysqlite:///./local.db `
+  --embedding-version "bge-large-zh-v1.5:scenario-text-v2" `
+  --report .tmp/embedding/scenario-proposals.json
+```
+
+这一步会写入 `decision_scenario_membership` 和 `decision_branch_membership`，保留相似度、算法版本、
+embedding 版本、候选 ID 和知乎快照定位；重复运行同一 embedding 版本是幂等的。先看结果而不写库时加
+`--dry-run`。当前真实库已生成 18 个情景簇提案、21 个分叉提案，覆盖 38 个候选；它们仍需管理端审核。
 
 ## 数据处理驱动
 
@@ -150,7 +167,8 @@ uv run uvicorn decision_knowledge.main:app --reload
 - 管理端：<http://127.0.0.1:8000/admin>
 - API 文档：<http://127.0.0.1:8000/docs>
 
-用户端提供“场景视角”和“单一决策视角”；管理端用于查看原文快照、审核候选、创建情景和维护分叉。当前工作台没有登录和多用户权限，不要直接暴露到公网。
+用户端提供“场景视角”和“单一决策视角”；管理端用于查看原文快照、审核候选、审核情景簇归属和维护分叉。
+当前工作台没有登录和多用户权限，不要直接暴露到公网。
 
 ## 恢复数据库快照
 

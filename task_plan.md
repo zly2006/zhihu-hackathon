@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-Phase 26：真实知乎回答数据集扩充已完成
+Phase 30：候选情景簇与分叉提案已完成
 
 ## 阶段
 
@@ -295,3 +295,14 @@ Phase 26：真实知乎回答数据集扩充已完成
 | 质量采集回归命令引用不存在的测试文件名 | 1 | 读取 `tests/collectors` 后改用实际的 `test_collect_zhihu_public.py` 文件名 |
 | 未设置 SQLite URL 时直接运行 `alembic check` 等待本机 PostgreSQL | 1 | 改用显式临时 SQLite URL 完成 `upgrade head` 与 `alembic check`，并删除临时库 |
 | 用单行 Python 语句注册本地授权时 `with` 语句语法无效 | 1 | 改用显式 session 生命周期写入授权引用，未写入 Cookie 内容 |
+| 首次给任务计划补丁使用了不存在的历史阶段标题 | 1 | 读取当前文件结构，改为在文件末尾新增 Phase 30 |
+| Windows 默认 GBK 输出无法打印中文提案报告 | 1 | 脚本显式将 stdout 切换为 UTF-8，并先写入 UTF-8 报告文件 |
+
+### Phase 30: Candidate scenario clustering and branch proposals
+
+- [x] Add reversible candidate-to-scenario membership with score, algorithm version, and review status.
+- [x] Generate repeatable scenario-cluster proposals from embedding recall plus structured decision-point checks.
+- [x] Generate branch proposals inside each cluster from observed actions, retaining candidate and Zhihu source evidence.
+- [x] Add a batch command, admin query endpoint, and a small real-database verification.
+- [x] Update docs, tests, the database snapshot, and GitHub.
+- **Status:** complete

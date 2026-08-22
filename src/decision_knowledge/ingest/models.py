@@ -5,6 +5,7 @@ from uuid import uuid4
 from sqlalchemy import (
     JSON,
     DateTime,
+    Float,
     ForeignKey,
     Index,
     Integer,
@@ -145,6 +146,9 @@ class DecisionScenario(Base):
     branches: Mapped[list["DecisionBranch"]] = relationship(
         back_populates="scenario", cascade="all, delete-orphan", order_by="DecisionBranch.position"
     )
+    memberships: Mapped[list["DecisionScenarioMembership"]] = relationship(
+        back_populates="scenario", cascade="all, delete-orphan"
+    )
 
 
 class DecisionBranch(Base):
@@ -172,6 +176,81 @@ class DecisionBranch(Base):
 
     scenario: Mapped[DecisionScenario] = relationship(back_populates="branches")
     source_snapshot: Mapped[ContentSnapshot | None] = relationship()
+    memberships: Mapped[list["DecisionBranchMembership"]] = relationship(
+        back_populates="branch", cascade="all, delete-orphan"
+    )
+
+
+class DecisionScenarioMembership(Base):
+    """Reviewable membership of one candidate in a proposed canonical scenario."""
+
+    __tablename__ = "decision_scenario_membership"
+    __table_args__ = (
+        UniqueConstraint(
+            "scenario_id",
+            "candidate_id",
+            name="uq_decision_scenario_membership_pair",
+        ),
+        Index("ix_decision_scenario_membership_scenario", "scenario_id"),
+        Index("ix_decision_scenario_membership_candidate", "candidate_id"),
+        Index("ix_decision_scenario_membership_review_status", "review_status"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    scenario_id: Mapped[str] = mapped_column(
+        ForeignKey("decision_scenario.id", ondelete="CASCADE"), nullable=False
+    )
+    candidate_id: Mapped[str] = mapped_column(
+        ForeignKey("decision_episode_candidate.id", ondelete="CASCADE"), nullable=False
+    )
+    similarity: Mapped[float] = mapped_column(Float, nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    embedding_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    review_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="PROPOSED", server_default="PROPOSED"
+    )
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    scenario: Mapped[DecisionScenario] = relationship(back_populates="memberships")
+    candidate: Mapped["DecisionEpisodeCandidate"] = relationship()
+
+
+class DecisionBranchMembership(Base):
+    """Reviewable evidence linking a candidate to one proposed branch."""
+
+    __tablename__ = "decision_branch_membership"
+    __table_args__ = (
+        UniqueConstraint(
+            "branch_id",
+            "candidate_id",
+            name="uq_decision_branch_membership_pair",
+        ),
+        Index("ix_decision_branch_membership_branch", "branch_id"),
+        Index("ix_decision_branch_membership_candidate", "candidate_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    branch_id: Mapped[str] = mapped_column(
+        ForeignKey("decision_branch.id", ondelete="CASCADE"), nullable=False
+    )
+    candidate_id: Mapped[str] = mapped_column(
+        ForeignKey("decision_episode_candidate.id", ondelete="CASCADE"), nullable=False
+    )
+    similarity: Mapped[float] = mapped_column(Float, nullable=False)
+    algorithm_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    review_status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="PROPOSED", server_default="PROPOSED"
+    )
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+
+    branch: Mapped[DecisionBranch] = relationship(back_populates="memberships")
+    candidate: Mapped["DecisionEpisodeCandidate"] = relationship()
 
 
 class DiscoveryRun(Base):
