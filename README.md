@@ -40,6 +40,36 @@
 
 不把最终行动和结果放入情景向量，否则会把同一情景的不同分叉错误拆开。向量只负责 Top-K 候选召回，关系库才是事实来源。
 
+当前已落地一条可重放的召回链路：
+
+```text
+DecisionEpisodeCandidate
+  → scenario-text-v2（背景 + 决策点）
+  → blocking_key（粗粒度结构阻断）
+  → candidate_embedding（模型/版本/hash/float32 向量）
+  → Top-K 召回
+  → 人工或后续结构化校验
+```
+
+向量表是可删除、可重算的派生层，不会自动创建 `DecisionScenario` 或 `DecisionBranch`。本地工作库当前已导入 6,263 条 `bge-large-zh-v1.5:scenario-text-v2` 向量。
+
+## 数据处理驱动
+
+语义处理由数据库任务队列驱动：
+
+```text
+processing_task
+  → CodexSparkDriver
+  → 结构化语义提案
+  → 证据/Schema 校验
+  → 审核队列
+  → 正式数据
+```
+
+GPT-5.3-Codex-Spark 负责快速拆分和归纳，不直接写数据库；所有输出都要带模型版本、输入 hash 和原文证据。Spark 不生成向量，只生成规范化 `scenario_text`，向量由独立 embedding 模型生成。驱动层保持可替换，便于无人值守任务使用 API 结构化模型。
+
+成本默认采用分层路由：本地规则先过滤，`GLM-4.7-Flash` 批量处理大多数简单抽取，`gpt-5.4-nano` 只处理低置信度难例，Spark 主要用于交互式调试和黄金集复核。GLM 的免费额度仍按配额和 QPS 运行，Worker 会记录限流、重试和升级原因。
+
 ## 从大量数据到决策支持
 
 ```text
@@ -48,18 +78,18 @@
   → 规范情景
   → 情景内分叉
   → 分叉结果汇总
-  → 匹配用户当前背景
-  → 条件化比较报告
+  → 匹配用户当前决策情景
+  → 返回相似情景、分叉和原文证据
 ```
 
-系统不会直接输出无条件的“你应该选 A”。它展示：
+知识库先展示检索证据；应用层可以基于这些证据生成回答，但回答不能脱离证据，也不能写回知识库：
 
 - 当前背景与哪些情景相似、差异在哪里；
 - 每条分叉的实际行动、适用条件、收益和代价；
 - 短期/长期结果观察、反例和冲突；
 - 独立来源数、证据覆盖和仍然未知的变量。
 
-数据不足时明确返回“没有足够可比证据”，不使用相似但不相关的回答凑结论。
+数据不足时明确返回“没有足够可比证据”，不使用相似但不相关的回答凑结果。
 
 ## 当前数据集
 
@@ -75,6 +105,34 @@
 原始快照保留知乎回答 URL、原始 HTML、抓取响应和内容 hash。Cookie 只在本机请求进程中使用，不写入数据库、日志或 Git。
 
 当前候选仍需人工审核，不能把 `DecisionEpisodeCandidate` 直接当成正式情景或分叉。
+
+### 运行候选 embedding
+
+先导出脱敏候选（只包含候选语义字段，不包含知乎 URL、HTML 或 Cookie）：
+
+```powershell
+uv run python scripts/export_candidate_embedding_input.py `
+  --database-url sqlite+pysqlite:///./local.db `
+  --output .tmp/embedding/candidates_v2.json
+```
+
+在带 CUDA 的工作站上安装 `torch`、`sentence-transformers` 后运行：
+
+```powershell
+uv run python scripts/embed_candidate_scenarios.py `
+  --input .tmp/embedding/candidates_v2.json `
+  --output-dir .tmp/embedding/results
+```
+
+把 worker 产出的 `embeddings.npy`、`candidate_ids.json`、`scenario_texts.json` 和 `manifest.json` 一起导入：
+
+```powershell
+uv run python scripts/import_candidate_embeddings.py `
+  --input .tmp/embedding/candidates_v2.json `
+  --artifact-dir .tmp/embedding/results
+```
+
+内部召回接口为 `POST /api/retrieval/candidates`。它接收同一 embedding 版本的查询向量，可附带 `blocking_key`；返回候选和来源定位，不返回推荐结论。
 
 ## 本机启动
 
@@ -134,7 +192,7 @@ Cookie 文件只作为本机请求输入；不要提交 Cookie、批量响应 JS
 ```text
 src/decision_knowledge/        API、采集、证据库和候选分析
 migrations/                    Alembic 数据库迁移
-scripts/                       知乎采集、扩容和导入脚本
+scripts/                       知乎采集、扩容、embedding 导出/生成/导入脚本
 docs/knowledge-base-model.md   决策事件、情景、分叉和 embedding 模型
 PLAN.md                        实施主计划
 CONTEXT.md                     领域术语和边界

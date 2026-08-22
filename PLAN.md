@@ -91,6 +91,31 @@ LLM 和 embedding 通过接口注入，不把领域代码绑定到单一供应�
 | 情景、转移、分叉状态 | PostgreSQL | Neo4j 用于邻域和路径查询 |
 | 向量 | PostgreSQL/pgvector | 与模型 ID、输入 hash 一起版本化 |
 
+### 4.3 语义处理 Worker 与 Codex-Spark
+
+语义处理采用“任务驱动、提案落库、确定性校验”的边界。GPT-5.3-Codex-Spark（如果当前 Codex 账号可用）负责快速提出结构化语义结果；它不直接连接 PostgreSQL，也不能绕过证据和审核门槛修改正式情景。
+
+```text
+processing_task → CodexSparkDriver → semantic_proposal
+                → schema/证据校验 → candidate/review queue
+                → 事务写入 DecisionEpisode / Scenario / Branch
+```
+
+首批任务类型：
+
+- `classify_snapshot`：回答是否含有可抽取的决策材料；
+- `extract_fragments`：提取决策背景、决策情景和结果片段；
+- `compose_episode`：组合同一事件的片段；
+- `build_scenario_text`：生成决策情景 embedding 的规范化文本；
+- `propose_membership`：提出情景归属候选；
+- `summarize_outcomes`：按时间窗口汇总结果观察。
+
+每个提案必须保存模型 ID、提示词版本、输入 hash、证据片段 ID 和校验状态；相同输入重放必须幂等。embedding 由独立的向量模型生成，Spark 只负责生成稳定的情景文本。
+
+由于 Codex-Spark 当前是 Codex 中的研究预览，`SemanticModelDriver` 必须可替换；当账号/运行环境不能提供 Spark 时，使用同一任务契约的 API 结构化模型，不改变数据库模型和审核流程。
+
+成本默认分层：本地规则先过滤；`GLM-4.7-Flash` 批量处理常规分型和抽取（默认 L1）；`gpt-5.4-nano` 只处理低置信度、长文和冲突样本；Spark/强模型只用于提示词开发、黄金集复核和少量疑难案例。免费模型仍按配额/QPS 运行，Worker 必须记录 token 数、缓存命中、模型版本、限流重试和升级原因。
+
 ## 5. 数据契约与版本规则
 
 第一版先冻结五个契约：
