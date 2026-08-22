@@ -1,28 +1,65 @@
-# 决策情景知识库
+# 决策对象案例库
 
 ![决策情景知识库](./assets/decision-knowledge-overview.png)
 
-把真实来源的知乎回答，拆成可追溯的决策事件，再合并成可比较的决策情景、行动分叉和结果观察。
+把知乎问题凝练成统一的**决策对象**，再把真实回答作为该对象下的案例与证据。
 
-这不是回答列表，也不是标签库。核心数据关系是：
+核心数据关系是：
 
 ```text
-回答快照
-  → 原文片段
-  → 决策事件（决策背景 → 决策情景 → 决策结果）
-  → 规范情景
-  → 行动分叉
-  → 结果证据
+知乎问题标题 → 决策对象 → 可选 COEL 行为锚点
+知乎回答     → 决策对象下的案例 → 选择/结果/原文证据
+
+用户输入 → 决策对象 → 同对象案例 → 按完整情景排序
 ```
 
 ## 设计原则
 
-- **原文优先**：每条正式信息都能回到知乎 URL、原始 HTML 和具体证据片段。
-- **事件中心**：一篇回答可以拆成 0..N 个决策事件，也可以没有可抽取事件。
-- **情景不是标签**：情景由“可比较的决策背景 + 相同决策点”组成。
-- **行动形成分叉**：同一情景下的不同实际行动，才是分叉候选。
-- **结果保持观察**：保留时间窗口、代价、收益和反例，不把相关性写成因果。
-- **向量只做召回**：embedding 用来找相似决策情景，最终归属仍由结构化字段、证据和审核确认。
+- **对象负责归类**：只归一“用户正在决定什么”，背景不创建新分类。
+- **规范对象统一说法**：裸辞、辞职、离开公司等表达凝练成同一对象；COEL 只提供可选的上位语义锚点。
+- **情景负责排序**：背景、目标和约束只在同一对象内排序相似案例。
+- **结果负责支撑**：实际选择和结果不参与对象归类，只作为决策证据。
+- **原文负责可信**：每个案例保留知乎 URL、原始 HTML、快照和处理版本。
+
+## 决策对象链路
+
+本地数据库中的 10,396 条回答对应 2,423 个知乎问题。问题标题优先提供决策对象，回答正文提供该对象下的案例内容，因此不再逐回答猜测“它在讨论什么”。
+
+```text
+2,423 个问题标题
+  → 本地中文模型判断能否支持决策并凝练一个对象
+  → 格式、置信度和批次防塌缩质量门
+  → 高精度本地别名表挂接可选 COEL 编码
+  → decision_object
+  → decision_object_assignment（回链所有回答快照）
+```
+
+相同规范说法共享一个 `decision_object`，COEL 编码只是它的上位语义锚点。例如“选择工作城市”和“选择工作单位类型”都可锚定 `Get a job`，但仍是两个决策对象。模型不能自由猜 COEL；只有本地高精度别名命中才挂接。COEL 无法表达的中国本土对象使用带版本的本地键，不伪造标准编码。
+
+```powershell
+uv run python scripts/export_decision_object_input.py `
+  --database-url sqlite+pysqlite:///./local.db `
+  --output .tmp/decision_objects/questions.json
+
+# 在 CUDA worker 上运行
+uv run python scripts/extract_decision_objects.py `
+  --input .tmp/decision_objects/questions.json `
+  --coel .tmp/coel-1.0.json `
+  --output-dir .tmp/decision_objects/results
+
+uv run python scripts/import_decision_objects.py `
+  --database-url sqlite+pysqlite:///./local.db `
+  --input .tmp/decision_objects/results/decision_objects.json `
+  --report .tmp/decision_objects/import-report.json
+```
+
+COEL 1.0 使用 OASIS 的[官方 JSON 模型](https://docs.oasis-open.org/coel/COEL/v1.0/os/model/coel.json)。
+
+首批 100 个真实问题试跑已写入本地库：自动接受 41 个问题，形成 38 个决策对象，回链 190 条回答快照，其中 11 个对象命中 COEL；重复导入新增数据为 0。完整指标和失败实验见[决策对象试跑报告](./docs/decision-object-experiment.md)。
+
+## 旧情景聚类基线
+
+下面的 `DecisionEpisodeCandidate → DecisionScenario` 链路保留为实验基线和回答内案例分析，不再承担一级归类。一级归类以 `DecisionObject` 为准。
 
 ## 单条决策事件
 

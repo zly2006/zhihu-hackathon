@@ -389,3 +389,62 @@ class CandidateEmbedding(Base):
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
+
+
+class DecisionObject(Base):
+    """One normalized action, or action choice, that a user is deciding about."""
+
+    __tablename__ = "decision_object"
+    __table_args__ = (
+        UniqueConstraint("object_key", name="uq_decision_object_key"),
+        Index("ix_decision_object_taxonomy", "taxonomy_version"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    object_key: Mapped[str] = mapped_column(String(256), nullable=False)
+    name: Mapped[str] = mapped_column(String(256), nullable=False)
+    coel_codes: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    coel_labels: Mapped[list[str]] = mapped_column(JSON, nullable=False, default=list)
+    taxonomy_version: Mapped[str] = mapped_column(String(64), nullable=False, default="LOCAL-v1")
+    confidence: Mapped[float] = mapped_column(Float, nullable=False, default=0.0)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        nullable=False,
+        default=lambda: datetime.now(UTC),
+        onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class DecisionObjectAssignment(Base):
+    """Traceable assignment of one answer snapshot to a decision object."""
+
+    __tablename__ = "decision_object_assignment"
+    __table_args__ = (
+        UniqueConstraint(
+            "content_snapshot_id",
+            "extractor_version",
+            name="uq_decision_object_assignment_snapshot_version",
+        ),
+        Index("ix_decision_object_assignment_object", "decision_object_id"),
+        Index("ix_decision_object_assignment_question", "question_external_id"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    decision_object_id: Mapped[str] = mapped_column(
+        ForeignKey("decision_object.id", ondelete="CASCADE"), nullable=False
+    )
+    content_snapshot_id: Mapped[str] = mapped_column(
+        ForeignKey("content_snapshot.id", ondelete="CASCADE"), nullable=False
+    )
+    question_external_id: Mapped[str] = mapped_column(String(255), nullable=False)
+    source_title: Mapped[str] = mapped_column(Text, nullable=False)
+    extractor_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(256), nullable=False, default="")
+    confidence: Mapped[float] = mapped_column(Float, nullable=False)
+    evidence: Mapped[dict[str, Any]] = mapped_column(JSON, nullable=False, default=dict)
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
+    )

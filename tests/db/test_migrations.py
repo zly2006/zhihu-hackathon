@@ -29,6 +29,8 @@ def test_migrations_build_authoritative_ingest_tables(tmp_path: Path) -> None:
         "candidate_embedding",
         "decision_scenario_membership",
         "decision_branch_membership",
+        "decision_object",
+        "decision_object_assignment",
     }
     raw_envelope_columns = {
         column["name"] for column in inspect(engine).get_columns("raw_envelope")
