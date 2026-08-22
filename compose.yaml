@@ -41,7 +41,7 @@ services:
       [
         "sh",
         "-c",
-        "uv run alembic upgrade head && uv run uvicorn decision_knowledge.main:app --host 0.0.0.0 --port 8000",
+        "/app/.venv/bin/alembic upgrade head && exec /app/.venv/bin/uvicorn decision_knowledge.main:app --host 0.0.0.0 --port 8000",
       ]
     environment:
       DK_DATABASE_URL: ${DK_DATABASE_URL:-postgresql+psycopg://decision:decision-local-only@postgres:5432/decision_knowledge}

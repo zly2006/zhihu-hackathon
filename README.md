@@ -188,7 +188,7 @@ local.db.zst 校验并解压 → 只读传输文件
 ```bash
 DK_RELEASE_TAG=<git-commit> docker compose run --rm --no-deps \
   -v /absolute/path/local.db:/transfer/local.db:ro api \
-  uv run python scripts/sync_database.py \
+  /app/.venv/bin/python scripts/sync_database.py \
   --source-url sqlite+pysqlite:////transfer/local.db \
   --batch-size 100 \
   --replace
