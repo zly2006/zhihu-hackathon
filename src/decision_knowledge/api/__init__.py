@@ -11,6 +11,7 @@ from pydantic import BaseModel, ConfigDict, Field, HttpUrl
 from sqlalchemy import func, or_, select, text
 from sqlalchemy.orm import Session
 
+from decision_knowledge.analysis.retrieval import retrieve_candidate_embeddings
 from decision_knowledge.contracts.source_record import Availability
 from decision_knowledge.db import Database
 from decision_knowledge.ingest.bootstrap import import_jsonl
@@ -179,6 +180,15 @@ class CandidateReviewUpdate(BaseModel):
 
     review_status: str = Field(min_length=1, max_length=32)
     review_note: str | None = Field(default=None, max_length=8_000)
+
+
+class CandidateRetrievalRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid", frozen=True)
+
+    embedding_version: str = Field(min_length=1, max_length=128)
+    vector: tuple[float, ...] = Field(min_length=1, max_length=4096)
+    blocking_key: str | None = Field(default=None, max_length=64)
+    limit: int = Field(default=10, ge=1, le=100)
 
 
 def _body_preview(body: str, length: int = 220) -> str:
@@ -822,6 +832,58 @@ def create_app(
         return {
             "decision": _decision_view_dict(candidate, snapshot, item, envelope),
             "source": _detail(item, snapshot, envelope, include_payload=False).model_dump(),
+        }
+
+    @app.post("/api/retrieval/candidates")
+    def retrieve_candidates(
+        request: CandidateRetrievalRequest,
+        session: Annotated[Session, Depends(get_session)],
+    ) -> dict[str, object]:
+        """Recall candidates only; scenario membership still needs review."""
+
+        try:
+            hits = retrieve_candidate_embeddings(
+                session,
+                request.vector,
+                embedding_version=request.embedding_version,
+                blocking_key=request.blocking_key,
+                limit=request.limit,
+            )
+        except ValueError as exc:
+            raise HTTPException(status_code=422, detail=str(exc)) from exc
+
+        items: list[dict[str, object]] = []
+        for hit in hits:
+            candidate = session.get(DecisionEpisodeCandidate, hit.candidate_id)
+            source: dict[str, object] | None = None
+            if candidate is not None:
+                snapshot = session.get(ContentSnapshot, candidate.content_snapshot_id)
+                if snapshot is not None:
+                    item = session.get(ContentItem, snapshot.content_item_id)
+                    source = {
+                        "snapshot_id": snapshot.id,
+                        "title": snapshot.title,
+                        "canonical_url": item.canonical_url if item else "",
+                    }
+            items.append(
+                {
+                    "candidate_id": hit.candidate_id,
+                    "score": round(hit.score, 6),
+                    "scenario_text": hit.scenario_text,
+                    "blocking_key": hit.blocking_key,
+                    "context": hit.context,
+                    "decision": hit.decision,
+                    "action": hit.action,
+                    "outcome": hit.outcome,
+                    "confidence": hit.confidence,
+                    "review_status": hit.review_status,
+                    "source": source,
+                }
+            )
+        return {
+            "embedding_version": request.embedding_version,
+            "blocking_key": request.blocking_key,
+            "items": tuple(items),
         }
 
     @app.get("/api/scenarios/{scenario_id}")

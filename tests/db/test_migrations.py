@@ -26,6 +26,7 @@ def test_migrations_build_authoritative_ingest_tables(tmp_path: Path) -> None:
         "discovery_run",
         "keyword_candidate",
         "decision_episode_candidate",
+        "candidate_embedding",
     }
     raw_envelope_columns = {
         column["name"] for column in inspect(engine).get_columns("raw_envelope")

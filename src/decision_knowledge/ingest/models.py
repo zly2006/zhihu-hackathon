@@ -2,7 +2,17 @@ from datetime import UTC, datetime
 from typing import Any
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint
+from sqlalchemy import (
+    JSON,
+    DateTime,
+    ForeignKey,
+    Index,
+    Integer,
+    LargeBinary,
+    String,
+    Text,
+    UniqueConstraint,
+)
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from decision_knowledge.db import Base
@@ -258,4 +268,45 @@ class DecisionEpisodeCandidate(Base):
         nullable=False,
         default=lambda: datetime.now(UTC),
         onupdate=lambda: datetime.now(UTC),
+    )
+
+
+class CandidateEmbedding(Base):
+    """Versioned vector derived from one reviewable decision candidate."""
+
+    __tablename__ = "candidate_embedding"
+    __table_args__ = (
+        UniqueConstraint(
+            "candidate_id",
+            "embedding_version",
+            name="uq_candidate_embedding_candidate_version",
+        ),
+        Index("ix_candidate_embedding_version", "embedding_version"),
+        Index(
+            "ix_candidate_embedding_version_block",
+            "embedding_version",
+            "blocking_key",
+        ),
+        Index("ix_candidate_embedding_input_hash", "input_sha256"),
+    )
+
+    id: Mapped[str] = mapped_column(String(36), primary_key=True, default=new_id)
+    candidate_id: Mapped[str] = mapped_column(
+        ForeignKey("decision_episode_candidate.id", ondelete="CASCADE"),
+        nullable=False,
+    )
+    embedding_version: Mapped[str] = mapped_column(String(128), nullable=False)
+    model_id: Mapped[str] = mapped_column(String(256), nullable=False)
+    scenario_text_version: Mapped[str] = mapped_column(String(64), nullable=False)
+    scenario_text: Mapped[str] = mapped_column(Text, nullable=False)
+    blocking_key: Mapped[str] = mapped_column(String(64), nullable=False)
+    input_sha256: Mapped[str] = mapped_column(String(64), nullable=False)
+    dimension: Mapped[int] = mapped_column(Integer, nullable=False)
+    vector_encoding: Mapped[str] = mapped_column(String(32), nullable=False)
+    vector: Mapped[bytes] = mapped_column(LargeBinary, nullable=False)
+    status: Mapped[str] = mapped_column(
+        String(32), nullable=False, default="READY", server_default="READY"
+    )
+    created_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True), nullable=False, default=lambda: datetime.now(UTC)
     )
