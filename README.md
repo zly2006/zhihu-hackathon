@@ -4,6 +4,14 @@
 
 把知乎问题凝练成统一的**决策对象**，再把真实回答作为该对象下的案例与证据。
 
+系统只做四件事：
+
+```text
+采集真实回答 → 凝练决策对象 → 回链同对象案例 → 用情景 embedding 排序
+```
+
+数据库回答“大家在决定什么、相似的人怎么选、后来怎样”，不替用户做决定。
+
 核心数据关系是：
 
 ```text
@@ -162,6 +170,32 @@ GPT-5.3-Codex-Spark 负责快速拆分和归纳，不直接写数据库；所有
 
 原始快照、候选和自动归并结果仍分层保存：候选是输入，`CONFIRMED` 才是用户端可检索的正式情景；每条归属都能回链到知乎 URL、快照和原始 HTML。
 
+## 工作站数据库同步
+
+工作站运行时以 PostgreSQL 为唯一事实库；`local.db.zst` 只是可校验的传输快照和恢复材料，不直接挂载给 API。同步按以下固定顺序执行：
+
+```text
+Git commit 源码包 → 新建不可变 release
+PostgreSQL pg_dump → 保留回滚点
+Alembic upgrade head → 先补齐目标表
+local.db.zst 校验并解压 → 只读传输文件
+单事务替换所有应用表 → 行数逐表校验
+启动对应 commit 镜像 → /health、日志、重启次数、核心行数验收
+```
+
+数据库替换命令会保留主键、知乎 URL、原始 HTML、JSON 响应和所有证据关系；目标缺表、逐表行数不一致或任一步异常都会失败并回滚。命令需要显式传入 `--replace`，避免误操作：
+
+```bash
+DK_RELEASE_TAG=<git-commit> docker compose run --rm --no-deps \
+  -v /absolute/path/local.db:/transfer/local.db:ro api \
+  uv run python scripts/sync_database.py \
+  --source-url sqlite+pysqlite:////transfer/local.db \
+  --batch-size 100 \
+  --replace
+```
+
+目标连接默认从容器内的 `DK_DATABASE_URL` 读取，不把数据库密码放进命令或日志。每次发布保留旧 release、旧镜像标签和发布前的 PostgreSQL dump，验证失败时据此回滚。
+
 ### 运行候选 embedding
 
 先导出脱敏候选（只包含候选语义字段，不包含知乎 URL、HTML 或 Cookie）：
@@ -260,7 +294,7 @@ Cookie 文件只作为本机请求输入；不要提交 Cookie、批量响应 JS
 ```text
 src/decision_knowledge/        API、采集、证据库和候选分析
 migrations/                    Alembic 数据库迁移
-scripts/                       知乎采集、扩容、embedding 导出/生成/导入脚本
+scripts/                       采集、分析、embedding 和数据库同步脚本
 docs/knowledge-base-model.md   决策事件、情景、分叉和 embedding 模型
 PLAN.md                        实施主计划
 CONTEXT.md                     领域术语和边界

@@ -35,6 +35,7 @@ services:
       - neo4j_data:/data
 
   api:
+    image: decision-knowledge-api:${DK_RELEASE_TAG:-local}
     build: .
     command:
       [
