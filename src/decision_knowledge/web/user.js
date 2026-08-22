@@ -39,7 +39,7 @@ function adapterLabel(value) {
 }
 
 function reviewLabel(value) {
-  return ({ UNREVIEWED: '待审核', CONFIRMED: '已确认', REJECTED: '已排除' })[value] || value || '未标注';
+  return ({ UNREVIEWED: '候选', CONFIRMED: '已自动确认', REJECTED: '自动排除' })[value] || value || '未标注';
 }
 
 function renderOverview(data) {
@@ -51,7 +51,7 @@ function renderOverview(data) {
   ];
   $('#overview-strip').innerHTML = `
     <div class="summary-metrics">${metrics.map(([label, value]) => `<span><strong>${escapeHtml(value)}</strong>${escapeHtml(label)}</span>`).join('')}</div>
-    <div class="summary-state"><i></i><span><strong>${escapeHtml(data.semantic_status)}</strong><small>${escapeHtml(data.unreviewed_snapshots)} 条快照待整理</small></span></div>`;
+    <div class="summary-state"><i></i><span><strong>${escapeHtml(data.semantic_status)}</strong><small>${escapeHtml(data.unreviewed_snapshots)} 条原始快照已保留</small></span></div>`;
 }
 
 async function loadOverview() {
@@ -77,16 +77,16 @@ function renderSceneItems() {
   const container = $('#scenario-list');
   const items = (state.sceneItems || []).filter((item) => state.sceneDomain === '全部' || item.domain === state.sceneDomain);
   const countLabel = state.sceneDomain === '全部' ? (state.sceneTotal || items.length) : items.length;
-  $('#scenario-status').textContent = `${countLabel} 个场景候选`;
+  $('#scenario-status').textContent = `${countLabel} 个自动情景`;
   if (!items.length) {
-    container.innerHTML = '<div class="empty-state">没有匹配的场景候选。换一个关键词或领域。</div>';
+    container.innerHTML = '<div class="empty-state">没有匹配的自动情景。换一个关键词或领域。</div>';
     return;
   }
   container.innerHTML = items.map((scene) => `
     <article class="scene-card">
       <header class="scene-card-heading">
         <div>
-          <span class="scene-kicker">场景候选 · ${escapeHtml(scene.domain || '其他')}</span>
+          <span class="scene-kicker">自动情景 · ${escapeHtml(scene.domain || '其他')}</span>
           <h3>${escapeHtml(scene.name)}</h3>
         </div>
         <div class="scene-count"><strong>${escapeHtml(scene.answer_count)}</strong><span>条回答</span></div>

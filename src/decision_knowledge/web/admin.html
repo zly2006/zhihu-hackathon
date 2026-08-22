@@ -20,7 +20,7 @@
         <div>
           <p class="eyebrow">权威数据库</p>
           <h1 id="admin-title">快照库</h1>
-          <p>先核对原文，再整理情景与分叉。URL、HTML 和抓取哈希保持只读。</p>
+          <p>原文、URL、HTML 和抓取哈希保持只读；情景与分叉由自动质量门归并。</p>
         </div>
         <label class="import-button">导入 JSONL<input id="jsonl-input" type="file" accept=".jsonl,.json,application/json" /></label>
       </section>
@@ -38,7 +38,7 @@
         <header class="section-heading">
           <div>
             <h2 id="discovery-title">滚雪球与候选</h2>
-            <p class="section-note">只从质量门通过的回答生成下一轮词和决策经历草稿；草稿不会自动成为情景或分叉。</p>
+            <p class="section-note">只从质量门通过的回答生成下一轮词和决策经历候选；情景与分叉由独立自动质量门确认或排除。</p>
           </div>
           <button id="refresh-discovery" class="ghost-button">刷新</button>
         </header>
@@ -70,7 +70,7 @@
 
           <div class="data-table admin-snapshot-table" role="table" aria-label="管理端快照库">
             <div class="table-head" role="row">
-              <span>标题</span><span>回答 ID</span><span>审核</span><span>可用性</span><span>证据</span>
+              <span>标题</span><span>回答 ID</span><span>状态</span><span>可用性</span><span>证据</span>
             </div>
             <div id="admin-content-list" class="table-body" role="rowgroup">
               <div class="empty-state">正在读取数据库……</div>
@@ -86,14 +86,14 @@
           <div id="admin-detail" class="inspector-empty">
             <span class="empty-glyph">↖</span>
             <p>选择一条快照</p>
-            <small>在这里核对正文、URL、HTML 和审核状态。</small>
+            <small>在这里核对正文、URL、HTML 和处理状态。</small>
           </div>
         </aside>
       </section>
 
       <details id="semantic-library" class="panel semantic-workbench">
         <summary>
-          <span><strong>情景与分叉管理</strong><small>语义层 · 人工审核后才对用户可见</small></span>
+          <span><strong>情景与分叉管理</strong><small>语义层 · 自动确认后对用户可见</small></span>
           <span>展开管理</span>
         </summary>
         <div class="semantic-editor-grid">
@@ -109,7 +109,7 @@
           </section>
           <aside id="branch-library" class="operation-note">
             <h2>证据边界</h2>
-            <ul><li>原始 URL、HTML、抓取哈希只读。</li><li>审核与归档不覆盖原文。</li><li>每个分叉都应关联来源快照。</li><li>用户端只展示已确认情景。</li></ul>
+            <ul><li>原始 URL、HTML、抓取哈希只读。</li><li>自动确认/排除不覆盖原文。</li><li>每个分叉都应关联来源快照。</li><li>用户端只展示自动确认情景。</li></ul>
           </aside>
         </div>
       </details>

@@ -195,6 +195,39 @@ def test_public_overview_explains_the_database_pipeline(tmp_path: Path) -> None:
     database.dispose()
 
 
+def test_overview_counts_only_publishable_automatic_scenarios(tmp_path: Path) -> None:
+    database = Database(f"sqlite+pysqlite:///{tmp_path / 'overview-automatic.db'}")
+    database.create_schema()
+    client = TestClient(create_app(database=database))
+
+    confirmed = client.post(
+        "/api/admin/scenarios",
+        json={
+            "slug": "confirmed-scene",
+            "name": "自动确认情景",
+            "review_status": "CONFIRMED",
+        },
+    )
+    rejected = client.post(
+        "/api/admin/scenarios",
+        json={
+            "slug": "rejected-scene",
+            "name": "自动排除情景",
+            "review_status": "REJECTED",
+        },
+    )
+    assert confirmed.status_code == 200
+    assert rejected.status_code == 200
+
+    overview = client.get("/api/overview")
+    assert overview.status_code == 200
+    body = overview.json()
+    assert body["scenarios"] == 1
+    assert body["confirmed_scenarios"] == 1
+    assert body["semantic_status"] == "已自动建立情景"
+    database.dispose()
+
+
 def test_import_persists_snowball_lineage_and_decision_candidate(tmp_path: Path) -> None:
     database = Database(f"sqlite+pysqlite:///{tmp_path / 'workspace.db'}")
     database.create_schema()

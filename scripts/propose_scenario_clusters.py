@@ -1,4 +1,4 @@
-"""Generate reviewable scenario and branch proposals from stored embeddings."""
+"""Generate and automatically confirm scenario and branch records from embeddings."""
 
 from __future__ import annotations
 
@@ -58,7 +58,10 @@ def run(
     similarity_threshold: float,
     min_decision_overlap: float,
     min_cluster_size: int,
+    min_auto_similarity: float,
+    min_auto_confidence: int,
     dry_run: bool,
+    auto_confirm: bool,
 ) -> dict[str, object]:
     database = Database(database_url)
     database.create_schema()
@@ -78,7 +81,10 @@ def run(
                 "branch_proposal_count": sum(len(item.branches) for item in proposals),
                 "similarity_threshold": similarity_threshold,
                 "min_decision_overlap": min_decision_overlap,
+                "min_auto_similarity": min_auto_similarity,
+                "min_auto_confidence": min_auto_confidence,
                 "dry_run": dry_run,
+                "auto_confirm": auto_confirm,
                 "proposals": [
                     {
                         "cluster_key": item.cluster_key,
@@ -102,6 +108,9 @@ def run(
                     session,
                     proposals,
                     embedding_version=embedding_version,
+                    auto_confirm=auto_confirm,
+                    min_auto_similarity=min_auto_similarity,
+                    min_auto_confidence=min_auto_confidence,
                 )
                 result["persisted"] = {
                     "superseded_scenario_memberships": superseded.scenario_memberships,
@@ -113,6 +122,10 @@ def run(
                     "memberships_created": persisted.memberships_created,
                     "branches_created": persisted.branches_created,
                     "branch_memberships_created": persisted.branch_memberships_created,
+                    "auto_confirmed_scenarios": persisted.auto_confirmed_scenarios,
+                    "auto_rejected_scenarios": persisted.auto_rejected_scenarios,
+                    "auto_confirmed_branches": persisted.auto_confirmed_branches,
+                    "auto_rejected_branches": persisted.auto_rejected_branches,
                 }
             return result
     finally:
@@ -126,7 +139,14 @@ def main() -> None:
     parser.add_argument("--similarity-threshold", type=float, default=0.84)
     parser.add_argument("--min-decision-overlap", type=float, default=0.25)
     parser.add_argument("--min-cluster-size", type=int, default=2)
+    parser.add_argument("--min-auto-similarity", type=float, default=0.90)
+    parser.add_argument("--min-auto-confidence", type=int, default=80)
     parser.add_argument("--dry-run", action="store_true")
+    parser.add_argument(
+        "--no-auto-confirm",
+        action="store_true",
+        help="keep generated rows as PROPOSED instead of applying the automatic gate",
+    )
     parser.add_argument("--report", type=Path)
     args = parser.parse_args()
     result = run(
@@ -135,7 +155,10 @@ def main() -> None:
         similarity_threshold=args.similarity_threshold,
         min_decision_overlap=args.min_decision_overlap,
         min_cluster_size=args.min_cluster_size,
+        min_auto_similarity=args.min_auto_similarity,
+        min_auto_confidence=args.min_auto_confidence,
         dry_run=args.dry_run,
+        auto_confirm=not args.no_auto_confirm,
     )
     encoded = json.dumps(result, ensure_ascii=False, indent=2)
     if args.report:

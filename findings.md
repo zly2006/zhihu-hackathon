@@ -395,9 +395,16 @@
 
 - 候选 embedding 不能直接成为情景归属；当前实现采用三道门：`blocking_key` 粗粒度领域阻断、决策点字符 n-gram 交集、向量与簇质心相似度阈值。
 - 同一簇只比较“决策背景 + 决策点”，不把行动和结果放进情景相似度；簇内按实际行动分组，只有观察到至少两种不同实际行动时才生成分叉提案。
-- 自动输出写入 `DecisionScenario` / `DecisionBranch`，但统一为 `PROPOSED`；`DecisionScenarioMembership` / `DecisionBranchMembership` 保存相似度、算法版本、embedding 版本和候选证据，重复执行同一 embedding 版本幂等。
+- 自动输出写入 `DecisionScenario` / `DecisionBranch`；正常模式通过自动质量门写 `CONFIRMED`，不通过写 `REJECTED`；`DecisionScenarioMembership` / `DecisionBranchMembership` 保存相似度、算法版本、embedding 版本、候选证据和机器可读原因，重复执行同一 embedding 版本幂等。
 - 在当前 6,263 条清理候选上，阈值 `0.84`、决策点交集 `0.25`、最小簇大小 `2`，并增加“必须像决策点而非泛观点”的确定性门后，当前 v3 生成 18 个情景簇和 21 个分叉，覆盖 38 个候选。这个覆盖率刻意保守，绝大多数候选仍留在候选层；v1/v2 结果保留为 `SUPERSEDED` 审计记录。
-- 真实预览仍显示启发式候选中有“泛观点/长句/营销”混入；因此提案是审核队列而非知识事实。下一步优先用人工黄金集校准“决策点是否可比较”和阈值，必要时让 GLM 只处理难例，不把全量 LLM 结果直接写库。
+- 真实预览仍显示启发式候选中有“泛观点/长句/营销”混入；因此采用保守的自动排除而不是把低质量结果伪装成知识事实。`--no-auto-confirm` 只保留为诊断入口，不是生产流程。
+
+## 全自动情景确认（2026-08-22）
+
+- 用户明确要求去掉人工审核环节。新增 `auto-confirm-v1` 确定性策略：至少两个不同来源快照、决策点明确、最低相似度 `>=0.90`、候选置信度 `>=80`；任一条件失败即自动 `REJECTED`，原因写进归属 evidence。
+- 批处理脚本默认自动模式，支持 `--dry-run`（只计算）和 `--no-auto-confirm`（仅诊断提案）；生产运行不产生 `PROPOSED` 队列。
+- 真实库使用 6,263 条 `bge-large-zh-v1.5:scenario-text-v2` 向量：18 个情景簇中 15 个自动确认、3 个自动排除；21 个行动分叉中 14 个自动确认、7 个自动排除；31 条情景归属和 15 条分叉归属进入确认层，原始知乎 URL/HTML 保持可追溯。
+- 该自动化只解决“embedding 候选 → 情景/分叉归并”的确认决策；原始来源仍保留授权、质量门、可用性和版本边界，应用层也不把相似度解释成因果或最佳选择。
 
 - 用户提供的 GitHub 账号：<https://github.com/zly2006>
 - `zhurl` 仓库：<https://github.com/zly2006/zhurl>

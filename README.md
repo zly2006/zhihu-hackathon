@@ -48,16 +48,16 @@ DecisionEpisodeCandidate
   → blocking_key（粗粒度结构阻断）
   → candidate_embedding（模型/版本/hash/float32 向量）
   → Top-K 召回
-  → 人工或后续结构化校验
+  → 确定性结构化校验
 ```
 
 向量表是可删除、可重算的派生层；单独导入向量不会创建 `DecisionScenario` 或 `DecisionBranch`。本地工作库当前已导入 6,263 条 `bge-large-zh-v1.5:scenario-text-v2` 向量。
 
 ### 从候选到情景簇和分叉
 
-批处理命令把“同领域 + 决策点词面有交集 + 向量相似度达标”的候选合并为可审核的情景簇；
-再按同一情景中的实际行动拆成分叉。生成的情景、分叉和候选归属全部标记为 `PROPOSED`，
-不直接对用户端可见，也不覆盖已确认或已驳回的审核结果。
+批处理命令把“同领域 + 决策点词面有交集 + 向量相似度达标”的候选合并为情景簇；
+再按同一情景中的实际行动拆成分叉。自动质量门通过就写入 `CONFIRMED`，不通过就写入 `REJECTED`
+并记录原因；正常运行不生成待人工处理队列。
 
 ```powershell
 uv run python scripts/propose_scenario_clusters.py `
@@ -68,7 +68,7 @@ uv run python scripts/propose_scenario_clusters.py `
 
 这一步会写入 `decision_scenario_membership` 和 `decision_branch_membership`，保留相似度、算法版本、
 embedding 版本、候选 ID 和知乎快照定位；重复运行同一 embedding 版本是幂等的。先看结果而不写库时加
-`--dry-run`。当前真实库已生成 18 个情景簇提案、21 个分叉提案，覆盖 38 个候选；它们仍需管理端审核。
+`--dry-run`。当前真实库已生成 18 个情景簇、21 个分叉，自动确认 15 个情景和 14 个分叉，其余自动排除。
 
 ## 数据处理驱动
 
@@ -79,8 +79,8 @@ processing_task
   → CodexSparkDriver
   → 结构化语义提案
   → 证据/Schema 校验
-  → 审核队列
-  → 正式数据
+  → 自动质量门
+  → 正式数据或排除记录
 ```
 
 GPT-5.3-Codex-Spark 负责快速拆分和归纳，不直接写数据库；所有输出都要带模型版本、输入 hash 和原文证据。Spark 不生成向量，只生成规范化 `scenario_text`，向量由独立 embedding 模型生成。驱动层保持可替换，便于无人值守任务使用 API 结构化模型。
@@ -121,7 +121,9 @@ GPT-5.3-Codex-Spark 负责快速拆分和归纳，不直接写数据库；所有
 
 原始快照保留知乎回答 URL、原始 HTML、抓取响应和内容 hash。Cookie 只在本机请求进程中使用，不写入数据库、日志或 Git。
 
-当前候选仍需人工审核，不能把 `DecisionEpisodeCandidate` 直接当成正式情景或分叉。
+情景归并走自动化质量门：当前已自动确认 15 个情景、14 个行动分叉；3 个情景和 7 个分叉因相似度、决策点或候选置信度不足而自动排除。排除记录保留原因，不进入用户端，也不生成待人工处理队列。
+
+原始快照、候选和自动归并结果仍分层保存：候选是输入，`CONFIRMED` 才是用户端可检索的正式情景；每条归属都能回链到知乎 URL、快照和原始 HTML。
 
 ### 运行候选 embedding
 
@@ -151,6 +153,17 @@ uv run python scripts/import_candidate_embeddings.py `
 
 内部召回接口为 `POST /api/retrieval/candidates`。它接收同一 embedding 版本的查询向量，可附带 `blocking_key`；返回候选和来源定位，不返回推荐结论。
 
+生成情景和分叉并写回数据库（默认自动确认/自动排除）：
+
+```powershell
+uv run python scripts/propose_scenario_clusters.py `
+  --database-url sqlite+pysqlite:///./local.db `
+  --embedding-version "bge-large-zh-v1.5:scenario-text-v2" `
+  --report .tmp/embedding/scenario-auto.json
+```
+
+自动门槛是：至少两个不同快照、决策点明确、最低相似度不低于 `0.90`、候选置信度不低于 `80`。只计算不写库时使用 `--dry-run`；`--no-auto-confirm` 仅用于诊断提案，不是生产路径。
+
 ## 本机启动
 
 要求 Python 3.12 和 [uv](https://docs.astral.sh/uv/)。
@@ -167,7 +180,7 @@ uv run uvicorn decision_knowledge.main:app --reload
 - 管理端：<http://127.0.0.1:8000/admin>
 - API 文档：<http://127.0.0.1:8000/docs>
 
-用户端提供“场景视角”和“单一决策视角”；管理端用于查看原文快照、审核候选、审核情景簇归属和维护分叉。
+用户端提供“场景视角”和“单一决策视角”；管理端用于查看原文快照、自动归并状态、证据链和分叉。管理端保留手动修正接口，但主流程不依赖人工审核。
 当前工作台没有登录和多用户权限，不要直接暴露到公网。
 
 ## 恢复数据库快照

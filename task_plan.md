@@ -6,7 +6,7 @@
 
 ## 当前阶段
 
-Phase 30：候选情景簇与分叉提案已完成
+Phase 31：全自动情景归并与分叉确认已完成
 
 ## 阶段
 
@@ -305,4 +305,12 @@ Phase 30：候选情景簇与分叉提案已完成
 - [x] Generate branch proposals inside each cluster from observed actions, retaining candidate and Zhihu source evidence.
 - [x] Add a batch command, admin query endpoint, and a small real-database verification.
 - [x] Update docs, tests, the database snapshot, and GitHub.
+- **Status:** complete
+
+### Phase 31: Fully automated scenario confirmation
+
+- [x] Add deterministic auto-confirmation gates for scenario clusters and branches.
+- [x] Auto-reject insufficient clusters without creating a human review queue.
+- [x] Make the batch command automatic by default and keep an explicit dry-run mode.
+- [x] Update public/admin visibility, docs, tests, and the real database snapshot.
 - **Status:** complete

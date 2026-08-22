@@ -53,7 +53,12 @@ def test_admin_can_review_generated_scenario_membership(tmp_path: Path) -> None:
             ),
             similarity_threshold=0.9,
         )
-        persist_scenario_proposals(session, proposals, embedding_version="test-v1")
+        persist_scenario_proposals(
+            session,
+            proposals,
+            embedding_version="test-v1",
+            auto_confirm=False,
+        )
 
     client = TestClient(create_app(database=database))
     response = client.get("/api/admin/scenario-proposals")

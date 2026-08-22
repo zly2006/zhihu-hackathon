@@ -1,8 +1,8 @@
-"""Conservative, reviewable proposals for canonical scenarios and branches.
+"""Conservative proposals for canonical scenarios and branches.
 
 The embedding is used to rank/merge only after a coarse domain block and a
-decision-point overlap check.  The result is deliberately a proposal: this
-module never marks a scenario or branch as confirmed.
+    decision-point overlap check.  Persistence applies the deterministic
+    automatic acceptance gate; this module itself stays side-effect free.
 """
 
 from __future__ import annotations

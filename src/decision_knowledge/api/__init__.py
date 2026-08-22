@@ -570,12 +570,12 @@ def create_app(
         scenarios_count = session.scalar(
             select(func.count())
             .select_from(DecisionScenario)
-            .where(DecisionScenario.review_status != "SUPERSEDED")
+            .where(DecisionScenario.review_status.in_(("CONFIRMED", "PROPOSED")))
         ) or 0
         branches_count = session.scalar(
             select(func.count())
             .select_from(DecisionBranch)
-            .where(DecisionBranch.review_status != "SUPERSEDED")
+            .where(DecisionBranch.review_status.in_(("CONFIRMED", "PROPOSED")))
         ) or 0
         discovery_runs_count = count(DiscoveryRun)
         keyword_candidates_count = count(KeywordCandidate)
@@ -590,11 +590,14 @@ def create_app(
             .select_from(ContentSnapshot)
             .where(ContentSnapshot.review_status == "UNREVIEWED")
         ) or 0
-        semantic_status = "已建立情景" if confirmed_count else "待归类"
-        if scenarios_count and not confirmed_count:
-            semantic_status = "待审核"
+        if confirmed_count:
+            semantic_status = "已自动建立情景"
+        elif scenarios_count:
+            semantic_status = "自动处理中"
         elif decision_candidates_count:
-            semantic_status = "候选待审核"
+            semantic_status = "候选待自动归并"
+        else:
+            semantic_status = "待归类"
         return WorkspaceOverview(
             content_items=count(ContentItem),
             snapshots=count(ContentSnapshot),
@@ -970,12 +973,12 @@ def create_app(
         active_scenarios = session.scalar(
             select(func.count())
             .select_from(DecisionScenario)
-            .where(DecisionScenario.review_status != "SUPERSEDED")
+            .where(DecisionScenario.review_status.in_(("CONFIRMED", "PROPOSED")))
         ) or 0
         active_branches = session.scalar(
             select(func.count())
             .select_from(DecisionBranch)
-            .where(DecisionBranch.review_status != "SUPERSEDED")
+            .where(DecisionBranch.review_status.in_(("CONFIRMED", "PROPOSED")))
         ) or 0
         return AdminStats(
             content_items=count(ContentItem),
@@ -1169,7 +1172,7 @@ def create_app(
         session: Annotated[Session, Depends(get_session)],
         limit: int = Query(default=100, ge=1, le=500),
     ) -> dict[str, object]:
-        """List generated proposals separately from confirmed knowledge."""
+        """List diagnostic-only proposals created with ``--no-auto-confirm``."""
 
         records = session.scalars(
             select(DecisionScenario)

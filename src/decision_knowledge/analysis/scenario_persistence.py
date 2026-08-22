@@ -1,4 +1,4 @@
-"""Persist clustering output as reversible, reviewable proposals."""
+"""Persist clustering output with a deterministic automatic quality gate."""
 
 from __future__ import annotations
 
@@ -13,6 +13,7 @@ from decision_knowledge.analysis.scenarios import (
     BRANCH_PROPOSAL_ALGORITHM_VERSION,
     SCENARIO_CLUSTER_ALGORITHM_VERSION,
     ScenarioClusterProposal,
+    decision_point_ready,
 )
 from decision_knowledge.ingest.models import (
     DecisionBranch,
@@ -30,6 +31,10 @@ class ScenarioProposalPersistResult:
     memberships_created: int
     branches_created: int
     branch_memberships_created: int
+    auto_confirmed_scenarios: int
+    auto_rejected_scenarios: int
+    auto_confirmed_branches: int
+    auto_rejected_branches: int
 
 
 @dataclass(frozen=True)
@@ -38,6 +43,52 @@ class SupersedeProposalResult:
     branch_memberships: int
     scenarios: int
     branches: int
+
+
+AUTO_CONFIRMATION_POLICY_VERSION = "auto-confirm-v1"
+
+
+@dataclass(frozen=True)
+class AutoConfirmationDecision:
+    approved: bool
+    reasons: tuple[str, ...]
+
+
+def evaluate_auto_confirmation(
+    proposal: ScenarioClusterProposal,
+    candidates: dict[str, DecisionEpisodeCandidate],
+    *,
+    min_similarity: float = 0.90,
+    min_confidence: int = 80,
+) -> AutoConfirmationDecision:
+    """Apply a deterministic acceptance gate; no human queue is required."""
+
+    if not 0.0 < min_similarity <= 1.0:
+        raise ValueError("min_similarity must be between 0 and 1")
+    if not 0 <= min_confidence <= 100:
+        raise ValueError("min_confidence must be between 0 and 100")
+    reasons: list[str] = []
+    if len(proposal.candidate_ids) < 2:
+        reasons.append("fewer_than_two_candidates")
+    if proposal.minimum_similarity < min_similarity:
+        reasons.append("similarity_below_threshold")
+    if not decision_point_ready(proposal.decision):
+        reasons.append("decision_point_not_explicit")
+
+    members = [candidates[candidate_id] for candidate_id in proposal.candidate_ids]
+    if any(candidate.confidence < min_confidence for candidate in members):
+        reasons.append("candidate_confidence_below_threshold")
+    if len({candidate.content_snapshot_id for candidate in members}) < 2:
+        reasons.append("fewer_than_two_source_snapshots")
+
+    for branch in proposal.branches:
+        branch_members = [candidates[candidate_id] for candidate_id in branch.candidate_ids]
+        if not branch_members:
+            reasons.append("empty_branch")
+        elif any(not candidate.content_snapshot_id for candidate in branch_members):
+            reasons.append("branch_without_source_snapshot")
+
+    return AutoConfirmationDecision(approved=not reasons, reasons=tuple(reasons))
 
 
 def _slug(value: str) -> str:
@@ -78,8 +129,15 @@ def persist_scenario_proposals(
     embedding_version: str,
     scenario_algorithm_version: str = SCENARIO_CLUSTER_ALGORITHM_VERSION,
     branch_algorithm_version: str = BRANCH_PROPOSAL_ALGORITHM_VERSION,
+    auto_confirm: bool = True,
+    min_auto_similarity: float = 0.90,
+    min_auto_confidence: int = 80,
 ) -> ScenarioProposalPersistResult:
-    """Upsert proposals without changing confirmed or rejected review decisions."""
+    """Upsert proposals and automatically accept or reject them by default.
+
+    ``auto_confirm=False`` is retained only for diagnostics and compatibility
+    with the admin inspection endpoint; it is not the production batch path.
+    """
 
     candidate_ids = sorted(
         {
@@ -100,9 +158,27 @@ def persist_scenario_proposals(
 
     scenarios_created = scenarios_reused = memberships_created = 0
     branches_created = branch_memberships_created = 0
+    auto_confirmed_scenarios = auto_rejected_scenarios = 0
+    auto_confirmed_branches = auto_rejected_branches = 0
     now = datetime.now(UTC)
 
     for proposal in proposals:
+        auto_decision = evaluate_auto_confirmation(
+            proposal,
+            candidates,
+            min_similarity=min_auto_similarity,
+            min_confidence=min_auto_confidence,
+        )
+        if auto_confirm:
+            target_status = "CONFIRMED" if auto_decision.approved else "REJECTED"
+            if auto_decision.approved:
+                auto_confirmed_scenarios += 1
+                auto_confirmed_branches += len(proposal.branches)
+            else:
+                auto_rejected_scenarios += 1
+                auto_rejected_branches += len(proposal.branches)
+        else:
+            target_status = "PROPOSED"
         slug = _scenario_slug(
             embedding_version,
             proposal.cluster_key,
@@ -115,7 +191,7 @@ def persist_scenario_proposals(
                 name=_scenario_name(proposal),
                 summary=_scenario_summary(proposal),
                 domain=proposal.blocking_key,
-                review_status="PROPOSED",
+                review_status=target_status,
                 created_at=now,
                 updated_at=now,
             )
@@ -124,10 +200,11 @@ def persist_scenario_proposals(
             scenarios_created += 1
         else:
             scenarios_reused += 1
-            if scenario.review_status == "PROPOSED":
+            if scenario.review_status != "CONFIRMED":
                 scenario.name = _scenario_name(proposal)
                 scenario.summary = _scenario_summary(proposal)
                 scenario.domain = proposal.blocking_key
+                scenario.review_status = target_status
                 scenario.updated_at = now
 
         similarity_by_id = dict(proposal.member_similarities)
@@ -143,6 +220,11 @@ def persist_scenario_proposals(
                 "medoid_candidate_id": proposal.medoid_candidate_id,
                 "blocking_key": proposal.blocking_key,
                 "minimum_similarity": round(proposal.minimum_similarity, 6),
+                "confirmation_mode": "automatic" if auto_confirm else "queued",
+                "confirmation_policy": AUTO_CONFIRMATION_POLICY_VERSION
+                if auto_confirm
+                else None,
+                "confirmation_reasons": list(auto_decision.reasons),
             }
             if membership is None:
                 session.add(
@@ -152,17 +234,18 @@ def persist_scenario_proposals(
                         similarity=similarity_by_id[candidate_id],
                         algorithm_version=scenario_algorithm_version,
                         embedding_version=embedding_version,
-                        review_status="PROPOSED",
+                        review_status=target_status,
                         evidence=evidence,
                         created_at=now,
                     )
                 )
                 memberships_created += 1
-            elif membership.review_status == "PROPOSED":
+            elif membership.review_status != "CONFIRMED":
                 membership.similarity = similarity_by_id[candidate_id]
                 membership.algorithm_version = scenario_algorithm_version
                 membership.embedding_version = embedding_version
                 membership.evidence = evidence
+                membership.review_status = target_status
 
         for position, branch_proposal in enumerate(proposal.branches):
             label = f"{branch_proposal.label[:220]} · {branch_proposal.branch_key[-8:]}"
@@ -181,17 +264,18 @@ def persist_scenario_proposals(
                     action=branch_proposal.action,
                     outcome=branch_proposal.outcome,
                     position=position,
-                    review_status="PROPOSED",
+                    review_status=target_status,
                     source_snapshot_id=representative.content_snapshot_id,
                 )
                 session.add(branch)
                 session.flush()
                 branches_created += 1
-            elif branch.review_status == "PROPOSED":
+            elif branch.review_status != "CONFIRMED":
                 branch.trigger = branch_proposal.trigger
                 branch.action = branch_proposal.action
                 branch.outcome = branch_proposal.outcome
                 branch.position = position
+                branch.review_status = target_status
 
             for candidate_id in branch_proposal.candidate_ids:
                 branch_membership = session.scalar(
@@ -200,6 +284,15 @@ def persist_scenario_proposals(
                         DecisionBranchMembership.candidate_id == candidate_id,
                     )
                 )
+                branch_evidence = {
+                    "cluster_key": proposal.cluster_key,
+                    "branch_key": branch_proposal.branch_key,
+                    "confirmation_mode": "automatic" if auto_confirm else "queued",
+                    "confirmation_policy": AUTO_CONFIRMATION_POLICY_VERSION
+                    if auto_confirm
+                    else None,
+                    "confirmation_reasons": list(auto_decision.reasons),
+                }
                 if branch_membership is None:
                     session.add(
                         DecisionBranchMembership(
@@ -207,18 +300,18 @@ def persist_scenario_proposals(
                             candidate_id=candidate_id,
                             similarity=similarity_by_id[candidate_id],
                             algorithm_version=branch_algorithm_version,
-                            review_status="PROPOSED",
-                            evidence={
-                                "cluster_key": proposal.cluster_key,
-                                "branch_key": branch_proposal.branch_key,
-                            },
+                            review_status=target_status,
+                            evidence=branch_evidence,
                             created_at=now,
                         )
                     )
                     branch_memberships_created += 1
-                elif branch_membership.review_status == "PROPOSED":
+                elif branch_membership.review_status != "CONFIRMED":
                     branch_membership.similarity = similarity_by_id[candidate_id]
                     branch_membership.algorithm_version = branch_algorithm_version
+                    branch_membership.review_status = target_status
+                elif auto_confirm and branch_membership.evidence.get("confirmation_policy") is None:
+                    branch_membership.evidence = branch_evidence
 
     session.flush()
     return ScenarioProposalPersistResult(
@@ -227,6 +320,10 @@ def persist_scenario_proposals(
         memberships_created=memberships_created,
         branches_created=branches_created,
         branch_memberships_created=branch_memberships_created,
+        auto_confirmed_scenarios=auto_confirmed_scenarios,
+        auto_rejected_scenarios=auto_rejected_scenarios,
+        auto_confirmed_branches=auto_confirmed_branches,
+        auto_rejected_branches=auto_rejected_branches,
     )
 
 
