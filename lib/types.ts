@@ -31,7 +31,6 @@ export type Effect = Partial<Omit<LifeState, "age">>;
 export type ResourceContext = {
   cashBand: "生存线" | "紧张" | "稳定" | "宽裕";
   healthBand: "危险" | "透支" | "一般" | "良好";
-  riskModifier: number;
   incomeOpportunityRequired: boolean;
   recoveryOpportunityRequired: boolean;
   maxCashLoss: number;

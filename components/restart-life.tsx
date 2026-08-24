@@ -34,7 +34,12 @@ import type {
   Stats,
   TimelineEntry,
 } from "@/lib/types";
-import { advanceAge, projectedLifeEndAge, settleChoice } from "@/lib/mechanics";
+import {
+  advanceAge,
+  effectiveRiskForOption,
+  projectedLifeEndAge,
+  settleChoice,
+} from "@/lib/mechanics";
 import { readJsonResponse } from "@/lib/http-response";
 
 type Screen = "landing" | "setup" | "game" | "ending";
@@ -1047,7 +1052,7 @@ function Game({
                   <div className="resource-pressure">
                     <span>现金：{event.resourceContext.cashBand}</span>
                     <span>健康：{event.resourceContext.healthBand}</span>
-                    <span>基础风险修正：+{event.resourceContext.riskModifier}%</span>
+                    <span>风险按各选项的资源代价分别计算</span>
                     <span>
                       发展转化：{Math.round(event.resourceContext.developmentConversion * 100)}%
                     </span>
@@ -1069,19 +1074,7 @@ function Game({
                           option.experienceIds.includes(item.id),
                         );
                         const knownAuthors = matched.filter((item) => item.authorKnown);
-                        const shownRisk = Math.max(
-                          3,
-                          Math.min(
-                            95,
-                            Math.round(
-                              option.baseRisk +
-                                event.resourceContext.riskModifier -
-                                profile.talents.insight * 0.8 -
-                                profile.talents.luck * 0.7 -
-                                profile.talents.grit * 0.35,
-                            ),
-                          ),
-                        );
+                        const shownRisk = effectiveRiskForOption(state, profile, option);
                         return (
                           <button
                             className="option-card"

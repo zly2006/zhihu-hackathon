@@ -15,12 +15,9 @@ export function resourceContext(state: LifeState): ResourceContext {
     state.cash < 10 ? "生存线" : state.cash < 25 ? "紧张" : state.cash < 55 ? "稳定" : "宽裕";
   const healthBand =
     state.health < 15 ? "危险" : state.health < 35 ? "透支" : state.health < 65 ? "一般" : "良好";
-  const cashRisk = state.cash < 10 ? 24 : state.cash < 25 ? 13 : state.cash < 40 ? 5 : 0;
-  const healthRisk = state.health < 15 ? 28 : state.health < 35 ? 16 : state.health < 50 ? 6 : 0;
   return {
     cashBand,
     healthBand,
-    riskModifier: cashRisk + healthRisk,
     incomeOpportunityRequired: state.cash < 25,
     recoveryOpportunityRequired: state.health < 35,
     maxCashLoss: 12,
@@ -57,6 +54,33 @@ function bounded(value: number) {
   return Math.max(-12, Math.min(12, Math.round(value)));
 }
 
+function resourceCostPenalty(cost: number, available: number, critical: number, strained: number) {
+  if (cost <= 0) return 0;
+  const relativeBurden = (cost / Math.max(available, 1)) * 10;
+  const absoluteBurden = cost * 0.6;
+  const scarcityBurden = available < critical ? 4 : available < strained ? 2 : 0;
+  return Math.min(18, Math.round(relativeBurden + absoluteBurden + scarcityBurden));
+}
+
+export function effectiveRiskForOption(state: LifeState, profile: Profile, option: GameOption) {
+  const cashCost = Math.max(0, -Number(option.effects.cash || 0));
+  const healthCost = Math.max(0, -Number(option.effects.health || 0));
+  const cashPenalty = resourceCostPenalty(cashCost, state.cash, 10, 25);
+  const healthPenalty = resourceCostPenalty(healthCost, state.health, 15, 35);
+  const fitAdjustment = option.stateFit === "顺势" ? -6 : option.stateFit === "吃力" ? 8 : 0;
+  const talentProtection =
+    profile.talents.insight * 0.8 + profile.talents.luck * 0.7 + profile.talents.grit * 0.35;
+  return Math.round(
+    Math.max(
+      3,
+      Math.min(
+        95,
+        option.baseRisk + cashPenalty + healthPenalty + fitAdjustment - talentProtection,
+      ),
+    ),
+  );
+}
+
 export function settleChoice(
   state: LifeState,
   profile: Profile,
@@ -64,11 +88,7 @@ export function settleChoice(
   roll = Math.random() * 100,
 ) {
   const context = resourceContext(state);
-  const talentProtection =
-    profile.talents.insight * 0.8 + profile.talents.luck * 0.7 + profile.talents.grit * 0.35;
-  const effectiveRisk = Math.round(
-    Math.max(3, Math.min(95, option.baseRisk + context.riskModifier - talentProtection)),
-  );
+  const effectiveRisk = effectiveRiskForOption(state, profile, option);
   const riskOccurred = roll < effectiveRisk;
   const raw = Object.fromEntries(
     effectKeys.map((key) => [key, Number(option.effects[key] || 0)]),
