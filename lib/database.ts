@@ -104,8 +104,23 @@ export async function retrieveExperiences(
   age: number,
   historyKey: string,
   state: LifeState,
+  excludedExperienceIds: string[] = [],
 ) {
   const stage = stageSearch(age, profile, state);
+  const excludedIds = new Set(excludedExperienceIds);
+  const excludedUrls = new Set<string>();
+  if (excludedExperienceIds.length) {
+    const excludedRows = await db().query<{ url: string }>(
+      `
+      SELECT DISTINCT s.source_url url
+      FROM decision_episode_candidate c
+      JOIN content_snapshot s ON s.id = c.content_snapshot_id
+      WHERE c.id::text = ANY($1::text[])
+      `,
+      [excludedExperienceIds],
+    );
+    for (const row of excludedRows.rows) excludedUrls.add(row.url);
+  }
   const statements = stage.terms
     .map((_, index) => `(c.context LIKE $${index * 2 + 2} OR c.decision LIKE $${index * 2 + 3})`)
     .join(" OR ");
@@ -130,6 +145,8 @@ export async function retrieveExperiences(
     )
   ).rows;
 
+  anchors = anchors.filter((row) => !excludedIds.has(row.id) && !excludedUrls.has(row.url));
+
   if (!anchors.length) {
     anchors = (
       await db().query<CandidateRow>(
@@ -147,6 +164,31 @@ export async function retrieveExperiences(
       LIMIT 180
     `,
         [stage.domain],
+      )
+    ).rows.filter((row) => !excludedIds.has(row.id) && !excludedUrls.has(row.url));
+  }
+
+  if (!anchors.length) {
+    anchors = (
+      await db().query<CandidateRow>(
+        `
+        SELECT c.id, s.title, s.source_url url, i.external_id, c.context, c.decision,
+               c.action, c.outcome, c.confidence, e.blocking_key, e.vector,
+               s.author_name, s.author_avatar_url author_avatar, s.author_url_token author_token,
+               s.author_profile_url
+        FROM candidate_embedding e
+        JOIN decision_episode_candidate c ON c.id = e.candidate_id
+        JOIN content_snapshot s ON s.id = c.content_snapshot_id
+        JOIN content_item i ON i.id = s.content_item_id
+        WHERE e.status = 'READY' AND e.embedding_version = 'bge-large-zh-v1.5:scenario-text-v2'
+          AND c.review_status != 'REJECTED' AND c.confidence >= 75
+          AND s.author_name IS NOT NULL
+          AND NOT (c.id::text = ANY($1::text[]))
+          AND NOT (s.source_url = ANY($2::text[]))
+        ORDER BY random()
+        LIMIT 1
+        `,
+        [excludedExperienceIds, [...excludedUrls]],
       )
     ).rows;
   }
@@ -179,7 +221,7 @@ export async function retrieveExperiences(
 
   const anchorVector = decodeVector(anchor.vector);
   const neighbors = candidates
-    .filter((row) => row.id !== anchor.id)
+    .filter((row) => row.id !== anchor.id && !excludedIds.has(row.id) && !excludedUrls.has(row.url))
     .map((row) => ({ row, score: cosine(anchorVector, decodeVector(row.vector)) }))
     .sort((left, right) => right.score - left.score);
 
@@ -190,6 +232,39 @@ export async function retrieveExperiences(
     urls.add(item.row.url);
     distinct.push(item);
     if (distinct.length === 18) break;
+  }
+  if (distinct.length < 18) {
+    const fallback = (
+      await db().query<CandidateRow>(
+        `
+        SELECT c.id, s.title, s.source_url url, i.external_id, c.context, c.decision,
+               c.action, c.outcome, c.confidence, e.blocking_key, e.vector,
+               s.author_name, s.author_avatar_url author_avatar, s.author_url_token author_token,
+               s.author_profile_url
+        FROM candidate_embedding e
+        JOIN decision_episode_candidate c ON c.id = e.candidate_id
+        JOIN content_snapshot s ON s.id = c.content_snapshot_id
+        JOIN content_item i ON i.id = s.content_item_id
+        WHERE e.status = 'READY' AND e.embedding_version = 'bge-large-zh-v1.5:scenario-text-v2'
+          AND c.review_status != 'REJECTED' AND c.confidence >= 75
+          AND s.author_name IS NOT NULL
+          AND NOT (c.id::text = ANY($1::text[]))
+          AND NOT (s.source_url = ANY($2::text[]))
+        ORDER BY random()
+        LIMIT 360
+        `,
+        [excludedExperienceIds, [...excludedUrls]],
+      )
+    ).rows;
+    for (const row of fallback) {
+      if (urls.has(row.url) || excludedIds.has(row.id)) continue;
+      urls.add(row.url);
+      distinct.push({ row, score: cosine(anchorVector, decodeVector(row.vector)) });
+      if (distinct.length === 18) break;
+    }
+  }
+  if (distinct.length < 18) {
+    throw new Error(`全库未使用的有效案例只剩 ${distinct.length} 条，无法组成 18 条新经历`);
   }
   return {
     domain: anchor.blocking_key,

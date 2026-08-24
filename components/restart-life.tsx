@@ -837,6 +837,7 @@ function Game({
         effects: choice.effects,
         eventId: event.id,
         experienceIds: choice.experienceIds,
+        eventExperienceIds: event.experiences.map((experience) => experience.id),
         selectedOptionId: choice.optionId,
         customAction: choice.customAction,
         eventSnapshot: {

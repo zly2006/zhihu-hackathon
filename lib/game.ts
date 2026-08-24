@@ -140,7 +140,16 @@ export async function generateEvent(
     .slice(-4)
     .map((item) => `${item.eventId}:${item.selectedOptionId || "legacy"}`)
     .join(":");
-  const retrieved = await retrieveExperiences(profile, state.age, historyKey, state);
+  const excludedExperienceIds = [
+    ...new Set(history.flatMap((item) => item.eventExperienceIds || item.experienceIds)),
+  ];
+  const retrieved = await retrieveExperiences(
+    profile,
+    state.age,
+    historyKey,
+    state,
+    excludedExperienceIds,
+  );
   const retrievalMs = Math.round(performance.now() - generationStarted);
   if (!retrieved.items.length) throw new Error("数据库没有召回可用的人生经历");
   const evidence = retrieved.items

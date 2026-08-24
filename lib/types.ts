@@ -117,6 +117,7 @@ export type TimelineEntry = {
   effects: Effect;
   eventId: string;
   experienceIds: string[];
+  eventExperienceIds?: string[];
   selectedOptionId: "A" | "B" | "C" | "CUSTOM";
   customAction?: string;
   eventSnapshot: {
