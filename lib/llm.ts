@@ -14,7 +14,8 @@ export type ModelProgress = {
   tokensPerSecond: number;
 };
 
-type CallOptions = { onProgress?: (progress: ModelProgress) => void; signal?: AbortSignal };
+type AppendedMessage = { role: "assistant" | "user"; content: string };
+type CallOptions = { onProgress?: (progress: ModelProgress) => void; signal?: AbortSignal; appendMessages?: AppendedMessage[] };
 function environment(name: string) {
   return process.env[name];
 }
@@ -100,6 +101,11 @@ export async function callGameModel<T>(purpose: string, system: string, prompt: 
   let tokenCountEstimated = true;
   let tokensPerSecond = 0;
   let lastProgressAt = 0;
+  const messages = [
+    { role: "system", content: system },
+    { role: "user", content: prompt },
+    ...(options.appendMessages || []),
+  ];
 
   const progress = (stage: ModelProgress["stage"], force = false) => {
     const elapsedMs = Math.round(performance.now() - startedClock);
@@ -121,7 +127,7 @@ export async function callGameModel<T>(purpose: string, system: string, prompt: 
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: prompt }], temperature: 0.65, max_tokens: 3200, ...providerOptions, stream: true, stream_options: { include_usage: true } }),
+      body: JSON.stringify({ model, messages, temperature: 0.65, max_tokens: 3200, ...providerOptions, stream: true, stream_options: { include_usage: true } }),
       signal: controller.signal,
       cache: "no-store",
     });
@@ -206,8 +212,8 @@ export async function callGameModel<T>(purpose: string, system: string, prompt: 
       "===== SYSTEM PROMPT =====",
       system,
       "",
-      "===== FULL USER PROMPT WITH HISTORY =====",
-      prompt,
+      "===== FULL APPEND-ONLY CONVERSATION =====",
+      messages.map((message) => `${message.role.toUpperCase()}:\n${message.content}`).join("\n\n"),
       "",
       "===== RAW HTTP RESPONSE =====",
       rawHttpResponse || "<empty>",

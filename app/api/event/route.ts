@@ -24,7 +24,8 @@ export async function POST(request: Request) {
         const event = await generateEvent(body.profile, body.state, body.history || [], (progress) => send("progress", progress), request.signal);
         send("complete", event);
       } catch (error) {
-        send("error", { message: error instanceof Error ? error.message : "事件生成失败" });
+        console.error("event generation failed after model correction", error);
+        send("error", { message: "这段人生暂时没有写好，请再试一次" });
       } finally {
         controller.close();
       }
