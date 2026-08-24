@@ -23,8 +23,8 @@ export function resourceContext(state: LifeState): ResourceContext {
     riskModifier: cashRisk + healthRisk,
     incomeOpportunityRequired: state.cash < 25,
     recoveryOpportunityRequired: state.health < 35,
-    maxCashLoss: Math.max(0, Math.min(12, state.cash - Math.min(state.cash, 8))),
-    maxHealthLoss: Math.max(0, Math.min(12, state.health - Math.min(state.health, 8))),
+    maxCashLoss: 12,
+    maxHealthLoss: 12,
     developmentConversion: Math.max(
       0.35,
       (state.cash < 10 ? 0.6 : state.cash < 25 ? 0.8 : 1) *
@@ -90,8 +90,18 @@ export function settleChoice(
     raw.career -= option.strategyTag === "增加收入" ? 1 : 0;
   }
 
-  raw.cash = Math.max(-context.maxCashLoss, raw.cash);
-  raw.health = Math.max(-context.maxHealthLoss, raw.health);
+  const consequences: string[] = [];
+  if (state.cash + raw.cash <= 0) {
+    raw.happiness -= 5;
+    raw.connections -= 2;
+    raw.career -= 3;
+    consequences.push("现金归零，你失去了基本周转能力，心气、事业和人脉同时受损");
+  }
+  if (state.health + raw.health <= 0) {
+    raw.happiness -= 6;
+    raw.career -= 4;
+    consequences.push("健康归零，你已无法维持原有生活和工作节奏，必须进入长期恢复");
+  }
   const effects = Object.fromEntries(effectKeys.map((key) => [key, bounded(raw[key])])) as Effect;
-  return { effects, effectiveRisk, riskOccurred, context };
+  return { effects, effectiveRisk, riskOccurred, context, consequences };
 }

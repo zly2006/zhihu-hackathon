@@ -168,18 +168,25 @@ export async function generateEvent(
     "以下是程序在生成前根据当前状态计算出的硬约束，返回结果必须逐项满足：",
     "1. 必须且只能返回三个选项，三个 strategyTag 必须互不相同。",
     "2. 每个选项的七个 effects 字段都必须是 -12 到 12 的数字。",
-    `3. 每个选项的 effects.cash 必须大于或等于 -${resources.maxCashLoss}。`,
-    `4. 每个选项的 effects.health 必须大于或等于 -${resources.maxHealthLoss}。`,
     resources.incomeOpportunityRequired
-      ? "5. 至少一个选项必须同时满足 effects.cash 为 3 到 8，且 baseRisk 不高于 50。"
-      : "5. 当前状态不要求强制提供增收选项。",
+      ? "3. 至少一个选项必须同时满足 effects.cash 为 3 到 8，且 baseRisk 不高于 50。"
+      : "3. 当前状态不要求强制提供增收选项。",
     resources.recoveryOpportunityRequired
-      ? "6. 至少一个选项的 effects.health 必须大于或等于 4。"
-      : "6. 当前状态不要求强制提供恢复选项。",
-    `7. experienceNumbers 只能引用 1 到 ${retrieved.items.length}；每个选项至少一个序号，同一序号最多归入一个选项。`,
+      ? "4. 至少一个选项的 effects.health 必须大于或等于 4。"
+      : "4. 当前状态不要求强制提供恢复选项。",
+    `5. experienceNumbers 只能引用 1 到 ${retrieved.items.length}；每个选项至少一个序号，同一序号最多归入一个选项。`,
+    resources.incomeOpportunityRequired && resources.recoveryOpportunityRequired
+      ? "6. 增收选项和恢复健康选项必须是两个不同选项，不能用一个低风险万能选项同时解决现金与健康危机。"
+      : "6. 当前状态不需要拆分增收与恢复路径。",
     "输出前必须自行逐项检查以上数值和数量条件；不能忽略、解释或放宽任何一项。",
   ].join("\n");
-  const userPrompt = `${describePlayer(profile)}\n\n${describeLifeState(state)}\n\n资源规则:${JSON.stringify(resources)}\n最近完整路口（包含背景、全部未选分支和实际选择）:${JSON.stringify(recentCrossroads)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续已选路径造成的现实状态，把未选路径用于增加差异性并防止 mode collapse。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内正常推进结果","setback":"60字内风险兑现时的具体后果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}`;
+  const realismRequirements = [
+    "现实性推导要求：",
+    "1. 各选项的收益、损失和 baseRisk 必须由各自行动机制与证据分别推导，禁止为了整齐而使用相同或近似的 effects。",
+    "2. 高回报必须伴随相称的失败概率、资源代价或机会成本；低风险选项不得同时获得多项高收益。",
+    "3. 现金或健康可以降到 0，不得人为保底；游戏程序会负责结算破产或健康崩溃的后果。",
+  ].join("\n");
+  const userPrompt = `${describePlayer(profile)}\n\n${describeLifeState(state)}\n\n资源规则:${JSON.stringify(resources)}\n最近完整路口（包含背景、全部未选分支和实际选择）:${JSON.stringify(recentCrossroads)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续已选路径造成的现实状态，把未选路径用于增加差异性并防止 mode collapse。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内正常推进结果","setback":"60字内风险兑现时的具体后果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}\n\n${realismRequirements}`;
   const promptChars = userPrompt.length;
   onProgress?.({
     stage: "prompt",
@@ -244,16 +251,9 @@ export async function generateEvent(
     });
     if (new Set(validatedOptions.map((option) => option.strategyTag)).size !== 3)
       throw new Error("三个选项必须使用不同的行动机制，不能退化为同一模式");
-    if (
-      validatedOptions.some((option) => Number(option.effects.cash || 0) < -resources.maxCashLoss)
-    )
-      throw new Error("大模型生成的现金损失超过当前生存缓冲");
-    if (
-      validatedOptions.some(
-        (option) => Number(option.effects.health || 0) < -resources.maxHealthLoss,
-      )
-    )
-      throw new Error("大模型生成的健康损失超过当前安全下限");
+    const effectSignatures = validatedOptions.map((option) => JSON.stringify(option.effects));
+    if (new Set(effectSignatures).size !== effectSignatures.length)
+      throw new Error("不同选项不能返回完全相同的效果数值");
     if (
       resources.incomeOpportunityRequired &&
       !validatedOptions.some(
@@ -266,6 +266,22 @@ export async function generateEvent(
       !validatedOptions.some((option) => Number(option.effects.health || 0) >= 4)
     )
       throw new Error("低健康状态下必须提供一个恢复选项");
+    if (resources.incomeOpportunityRequired && resources.recoveryOpportunityRequired) {
+      const incomeOptionIndexes = validatedOptions
+        .map((option, index) =>
+          Number(option.effects.cash || 0) >= 3 && option.baseRisk <= 50 ? index : -1,
+        )
+        .filter((index) => index >= 0);
+      const recoveryOptionIndexes = validatedOptions
+        .map((option, index) => (Number(option.effects.health || 0) >= 4 ? index : -1))
+        .filter((index) => index >= 0);
+      if (
+        !incomeOptionIndexes.some((income) =>
+          recoveryOptionIndexes.some((recovery) => income !== recovery),
+        )
+      )
+        throw new Error("现金与健康都告急时，增收与恢复必须由不同选项承担");
+    }
     requireText(candidate.title, "title", 30);
     requireText(candidate.background, "background", 180);
     requireText(candidate.dilemma, "dilemma", 260);
@@ -284,20 +300,20 @@ export async function generateEvent(
   const appendMessages: Array<{ role: "assistant" | "user"; content: string }> = [];
   const hardConstraintCorrection = (error: unknown) => {
     const message = error instanceof Error ? error.message : "返回结果未通过校验";
-    if (message === "大模型生成的现金损失超过当前生存缓冲") {
-      return `这是程序检测到的硬约束：三个选项的 effects.cash 都必须大于或等于 -${resources.maxCashLoss}。逐项检查并修改所有低于 -${resources.maxCashLoss} 的值，任何一个都不能遗漏。`;
-    }
-    if (message === "大模型生成的健康损失超过当前安全下限") {
-      return `这是程序检测到的硬约束：三个选项的 effects.health 都必须大于或等于 -${resources.maxHealthLoss}。逐项检查并修改所有低于 -${resources.maxHealthLoss} 的值，任何一个都不能遗漏。`;
-    }
     if (message === "低现金状态下必须提供一个现实的小额增收选项") {
       return "这是程序检测到的硬约束：至少一个选项必须同时满足 effects.cash 为 3 到 8，且 baseRisk 不高于 50。请明确指定一个选项满足这两个数值条件。";
     }
     if (message === "低健康状态下必须提供一个恢复选项") {
       return "这是程序检测到的硬约束：至少一个选项的 effects.health 必须大于或等于 4。请明确指定一个恢复选项满足该数值条件。";
     }
+    if (message === "现金与健康都告急时，增收与恢复必须由不同选项承担") {
+      return "这是程序检测到的硬约束：请用两个不同选项分别承担增收和恢复功能。增收选项满足 cash 3 到 8 且 baseRisk 不高于 50；另一个恢复选项满足 health 至少 4。禁止一个万能选项同时承担两者。";
+    }
     if (message === "三个选项必须使用不同的行动机制，不能退化为同一模式") {
       return "这是程序检测到的硬约束：三个 strategyTag 必须互不相同，并代表三种不同的实际行动机制。请逐项改成不同机制。";
+    }
+    if (message === "不同选项不能返回完全相同的效果数值") {
+      return "这是程序检测到的硬约束：三个选项的 effects 不能完全相同。请根据每种行动的实际收益、代价和风险分别推导数值，不得平均分配。";
     }
     return `这是程序检测到的硬约束：${message}。必须修正后再输出，并逐字段自检；不能解释、忽略或仅口头承诺。`;
   };
@@ -412,18 +428,12 @@ export async function resolveCustomAction(event: GameEvent, action: string, stat
   }>(
     "裁决玩家自由选择",
     "你是现实主义人生模拟器的裁判。只输出 JSON。认可玩家创造性，但必须结合当前现金、健康与真实经历计算代价和风险。",
-    `事件:${JSON.stringify({ background: event.background, dilemma: event.dilemma })}\n玩家状态:${JSON.stringify(state)}\n资源规则:${JSON.stringify(event.resourceContext)}\n经过安全清洗的玩家选择:${JSON.stringify(sanitized)}\n真实经历:${JSON.stringify(event.experiences.map((item, index) => ({ number: index + 1, author: item.author, background: item.excerpt, action: item.action, outcome: item.outcome })))}\n选择与玩家行动最接近、确实提供支持的至少3条真实经历序号，不得编造。现金损失不得超过${event.resourceContext.maxCashLoss}，健康损失不得超过${event.resourceContext.maxHealthLoss}。返回 {"label":"12字内概括","result":"100字内正常推进结果","effects":{"cash":0,"health":0,"happiness":0,"knowledge":0,"connections":0,"career":0,"assets":0},"experienceNumbers":[1,2,3],"strategyTag":"具体行动机制","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"当前状态影响","setback":"风险兑现时的具体后果"}`,
+    `事件:${JSON.stringify({ background: event.background, dilemma: event.dilemma })}\n玩家状态:${JSON.stringify(state)}\n资源规则:${JSON.stringify(event.resourceContext)}\n经过安全清洗的玩家选择:${JSON.stringify(sanitized)}\n真实经历:${JSON.stringify(event.experiences.map((item, index) => ({ number: index + 1, author: item.author, background: item.excerpt, action: item.action, outcome: item.outcome })))}\n选择与玩家行动最接近、确实提供支持的至少3条真实经历序号，不得编造。收益、代价和 baseRisk 必须与行动机制及证据相称；现金或健康可以降到 0，不得人为保底，归零后果由游戏结算。返回 {"label":"12字内概括","result":"100字内正常推进结果","effects":{"cash":0,"health":0,"happiness":0,"knowledge":0,"connections":0,"career":0,"assets":0},"experienceNumbers":[1,2,3],"strategyTag":"具体行动机制","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"当前状态影响","setback":"风险兑现时的具体后果"}`,
   );
   const availableIds = new Set(event.experiences.map((item) => item.id));
   const effects = requireEffects(modeled.effects, "effects");
   if (event.resourceContext.incomeOpportunityRequired && Number(effects.cash || 0) > 8) {
     throw new Error("低现金状态下的单次增收不得超过 8，不能一幕暴涨");
-  }
-  if (Number(effects.cash || 0) < -event.resourceContext.maxCashLoss) {
-    throw new Error("自由选择的现金损失超过当前生存缓冲");
-  }
-  if (Number(effects.health || 0) < -event.resourceContext.maxHealthLoss) {
-    throw new Error("自由选择的健康损失超过当前安全下限");
   }
   return {
     label: requireText(modeled.label, "label", 24),

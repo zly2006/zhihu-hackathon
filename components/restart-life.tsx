@@ -863,9 +863,12 @@ function Game({
   };
   const choose = (option: GameOption) => {
     const settled = settleChoice(state, profile, option);
+    const consequence = settled.consequences.length
+      ? ` 后果：${settled.consequences.join("；")}。`
+      : "";
     commitChoice({
       label: option.label,
-      result: settled.riskOccurred ? `${option.result} 风险兑现：${option.setback}` : option.result,
+      result: `${settled.riskOccurred ? `${option.result} 风险兑现：${option.setback}` : option.result}${consequence}`,
       effects: settled.effects,
       experienceIds: option.experienceIds,
       optionId: option.id,
@@ -897,9 +900,7 @@ function Game({
         optionId: "CUSTOM",
         customAction: resolved.sanitizedAction,
         effects: settled.effects,
-        result: settled.riskOccurred
-          ? `${resolved.result} 风险兑现：${resolved.setback}`
-          : resolved.result,
+        result: `${settled.riskOccurred ? `${resolved.result} 风险兑现：${resolved.setback}` : resolved.result}${settled.consequences.length ? ` 后果：${settled.consequences.join("；")}。` : ""}`,
         effectiveRisk: settled.effectiveRisk,
         riskOccurred: settled.riskOccurred,
       });
