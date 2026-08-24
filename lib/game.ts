@@ -13,10 +13,10 @@ function requireEffects(value: unknown, field: string): Effect {
   const keys = ["cash", "health", "happiness", "knowledge", "connections", "career", "assets"] as const;
   return Object.fromEntries(keys.map((key) => {
     const amount = (value as Record<string, unknown>)[key];
-    if (typeof amount !== "number" || !Number.isFinite(amount) || amount < -12 || amount > 12) {
-      throw new Error(`大模型返回字段 ${field}.${key} 必须是 -12 到 12 的数字`);
+    if (typeof amount !== "number" || !Number.isFinite(amount)) {
+      throw new Error(`大模型返回字段 ${field}.${key} 必须是数字`);
     }
-    return [key, amount];
+    return [key, Math.max(-12, Math.min(12, amount))];
   })) as Effect;
 }
 
