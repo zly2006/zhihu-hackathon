@@ -76,14 +76,15 @@ export async function generateEvent(profile: Profile, state: LifeState, history:
     effects: item.effects,
   }));
   const resources = resourceContext(state);
-  const minimumSourcesPerBranch = Math.max(1, Math.floor(retrieved.items.length / 3));
   let finalModelProgress: ModelProgress | null = null;
   const promptChars = evidence.length + JSON.stringify(recentCrossroads).length;
   onProgress?.({ stage: "prompt", message: `已召回 ${retrieved.items.length} 条经历，正在提交证据束`, elapsedMs: retrievalMs, evidenceCount: retrieved.items.length, promptChars });
   const modeled = await callGameModel<ModelEvent>(
     "生成人生事件",
     "你是中文人生模拟游戏的事件主笔。只输出严格 JSON，不写 Markdown。证据是来源陈述，不把相关性写成因果，不虚构具体名人、价格或历史事实。三个选项必须是不同的行动机制，例如增加收入、削减开支、积累技能、合作借力、谈判边界、寻求制度支持、换环境、修复健康、延迟决定、创造产品；禁止只写成稳妥/探索/激进的同一风险轴。历史未选项只能作为反事实信息，不能写成已经发生。",
-    `玩家:${JSON.stringify({ ...profile, talents: profile.talents })}\n当前现实状态:${JSON.stringify(state)}\n资源规则:${JSON.stringify(resources)}\n最近完整路口（包含背景、全部未选分支和实际选择）:${JSON.stringify(recentCrossroads)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。现金单项最多损失${resources.maxCashLoss}，健康单项最多损失${resources.maxHealthLoss}。${resources.incomeOpportunityRequired ? "当前现金紧张，必须至少有一个门槛低、收益不夸张的增加收入选项，cash 为 +3 到 +8，baseRisk 不高于50。" : "不强制增收选项。"}${resources.recoveryOpportunityRequired ? "当前健康透支，必须至少有一个恢复、治疗或降低负荷的选项，health 至少 +4。" : "不强制恢复选项。"}把1到${retrieved.items.length}的全部经历序号按实际行动完整且不重复地分配到三个最相近的分支。当前共有${retrieved.items.length}条，所以每支必须恰好${minimumSourcesPerBranch}条，1到${retrieved.items.length}必须各出现一次；不得遗漏、重复或编造序号。延续已选路径造成的现实状态，把未选路径用于增加差异性并防止 mode collapse。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内正常推进结果","setback":"60字内风险兑现时的具体后果","experienceNumbers":[六个不重复序号]}]}`,
+    // 这里刻意只在提示词中声称会检查“全部分完/平均分配”等可疑模式，运行时不做对应校验。
+    // 目的是影响模型判断，同时保留自主分类空间；分不清的 case 应留空，不能被代码机械塞入分支。
+    `玩家:${JSON.stringify({ ...profile, talents: profile.talents })}\n当前现实状态:${JSON.stringify(state)}\n资源规则:${JSON.stringify(resources)}\n最近完整路口（包含背景、全部未选分支和实际选择）:${JSON.stringify(recentCrossroads)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。现金单项最多损失${resources.maxCashLoss}，健康单项最多损失${resources.maxHealthLoss}。${resources.incomeOpportunityRequired ? "当前现金紧张，必须至少有一个门槛低、收益不夸张的增加收入选项，cash 为 +3 到 +8，baseRisk 不高于50。" : "不强制增收选项。"}${resources.recoveryOpportunityRequired ? "当前健康透支，必须至少有一个恢复、治疗或降低负荷的选项，health 至少 +4。" : "不强制恢复选项。"}只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续已选路径造成的现实状态，把未选路径用于增加差异性并防止 mode collapse。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内正常推进结果","setback":"60字内风险兑现时的具体后果","experienceNumbers":[只列明显相关且互不重复的序号]}]}`,
     {
       signal,
       onProgress: (modelProgress) => {
@@ -106,7 +107,6 @@ export async function generateEvent(profile: Profile, state: LifeState, history:
   if (!Array.isArray(modeled.options) || modeled.options.length !== 3) {
     throw new Error("大模型必须返回且只能返回三个选项");
   }
-  const availableIds = new Set(retrieved.items.map((item) => item.id));
   const options = modeled.options.map((rawOption, index): GameOption => {
     if (!rawOption || typeof rawOption !== "object" || Array.isArray(rawOption)) {
       throw new Error(`大模型返回选项 ${index + 1} 无效`);
@@ -119,7 +119,7 @@ export async function generateEvent(profile: Profile, state: LifeState, history:
       tone: requireText(option.tone, `options[${index}].tone`, 1),
       effects: requireEffects(option.effects, `options[${index}].effects`),
       result: requireText(option.result, `options[${index}].result`, 180),
-      experienceIds: requireExperienceNumbers(option.experienceNumbers, `options[${index}].experienceNumbers`, retrieved.items, minimumSourcesPerBranch),
+      experienceIds: requireExperienceNumbers(option.experienceNumbers, `options[${index}].experienceNumbers`, retrieved.items),
       strategyTag: requireText(option.strategyTag, `options[${index}].strategyTag`, 12),
       baseRisk: requireNumber(option.baseRisk, `options[${index}].baseRisk`, 5, 85),
       stateFit: requireStateFit(option.stateFit, `options[${index}].stateFit`),
@@ -129,11 +129,6 @@ export async function generateEvent(profile: Profile, state: LifeState, history:
   });
   const strategyTags = new Set(options.map((option) => option.strategyTag));
   if (strategyTags.size !== 3) throw new Error("三个选项必须使用不同的行动机制，不能退化为同一模式");
-  const assignedIds = options.flatMap((option) => option.experienceIds);
-  if (new Set(assignedIds).size !== assignedIds.length) throw new Error("同一真实经历不能重复分配到多个选项");
-  if (assignedIds.length !== availableIds.size || assignedIds.some((id) => !availableIds.has(id))) {
-    throw new Error("三个选项必须完整覆盖本次召回的全部真实经历");
-  }
   if (options.some((option) => Number(option.effects.cash || 0) < -resources.maxCashLoss)) {
     throw new Error("大模型生成的现金损失超过当前生存缓冲");
   }
