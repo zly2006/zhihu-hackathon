@@ -4,6 +4,7 @@ import { randomUUID } from "node:crypto";
 
 const DEFAULT_ENDPOINT = "https://opencode.ai/zen/go/v1/chat/completions";
 const DEFAULT_MODEL = "deepseek-v4-flash";
+const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
 export type ModelProgress = {
   stage: "connected" | "generating" | "complete";
   elapsedMs: number;
@@ -18,16 +19,35 @@ function environment(name: string) {
   return process.env[name];
 }
 
-function apiKey() {
-  return environment("CPA_API_KEY") || "";
-}
-
 function reasoningEffort() {
   const value = environment("CPA_REASONING_EFFORT") || "low";
   if (value !== "low" && value !== "medium" && value !== "high") {
     throw new Error("CPA_REASONING_EFFORT 必须是 low、medium 或 high");
   }
   return value;
+}
+
+type ModelProvider = "opencodego" | "deepseek";
+
+function providerConfig() {
+  const provider = (environment("MODEL_PROVIDER") || "opencodego") as ModelProvider;
+  if (provider === "deepseek") {
+    return {
+      provider,
+      endpoint: environment("DEEPSEEK_ENDPOINT") || DEEPSEEK_ENDPOINT,
+      model: environment("DEEPSEEK_MODEL") || DEFAULT_MODEL,
+      apiKey: environment("DEEPSEEK_API_KEY") || "",
+    };
+  }
+  if (provider === "opencodego") {
+    return {
+      provider,
+      endpoint: environment("CPA_ENDPOINT") || DEFAULT_ENDPOINT,
+      model: environment("CPA_MODEL") || DEFAULT_MODEL,
+      apiKey: environment("CPA_API_KEY") || "",
+    };
+  }
+  throw new Error("MODEL_PROVIDER 必须是 opencodego 或 deepseek");
 }
 
 function contentText(content: unknown): string {
@@ -60,8 +80,8 @@ function callLogPath(startedAt: Date, purpose: string) {
 }
 
 export async function callGameModel<T>(purpose: string, system: string, prompt: string, options: CallOptions = {}): Promise<T> {
-  const endpoint = environment("CPA_ENDPOINT") || DEFAULT_ENDPOINT;
-  const model = environment("CPA_MODEL") || DEFAULT_MODEL;
+  const provider = providerConfig();
+  const { endpoint, model } = provider;
   const effort = reasoningEffort();
   const startedAt = new Date();
   const startedClock = performance.now();
@@ -92,12 +112,16 @@ export async function callGameModel<T>(purpose: string, system: string, prompt: 
   };
 
   try {
-    const key = apiKey();
-    if (!key) throw new Error("未配置 CPA_API_KEY，无法调用大模型");
+    if (!provider.apiKey) {
+      throw new Error(`未配置 ${provider.provider === "deepseek" ? "DEEPSEEK_API_KEY" : "CPA_API_KEY"}，无法调用大模型`);
+    }
+    const providerOptions = provider.provider === "deepseek"
+      ? { thinking: { type: "disabled" }, response_format: { type: "json_object" } }
+      : { reasoning_effort: effort };
     const response = await fetch(endpoint, {
       method: "POST",
-      headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: prompt }], temperature: 0.65, max_tokens: 3200, reasoning_effort: effort, stream: true, stream_options: { include_usage: true } }),
+      headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
+      body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: prompt }], temperature: 0.65, max_tokens: 3200, ...providerOptions, stream: true, stream_options: { include_usage: true } }),
       signal: controller.signal,
       cache: "no-store",
     });
@@ -165,8 +189,9 @@ export async function callGameModel<T>(purpose: string, system: string, prompt: 
     const log = [
       "LLM CALL AUDIT",
       `purpose: ${purpose}`,
+      `provider: ${provider.provider}`,
       `model: ${model}`,
-      `reasoning_effort: ${effort}`,
+      `reasoning_effort: ${provider.provider === "deepseek" ? "thinking-disabled" : effort}`,
       `endpoint: ${endpoint}`,
       `started_at: ${startedAt.toISOString()}`,
       `ended_at: ${endedAt.toISOString()}`,

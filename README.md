@@ -21,6 +21,8 @@ npm start
 
 模型推理深度默认由 `.env` 中的 `CPA_REASONING_EFFORT=low` 固定为 low；可选值为 `low`、`medium`、`high`，非法值会在请求前直接报错。
 
+`MODEL_PROVIDER` 可选 `opencodego` 或 `deepseek`。DeepSeek 官方会把 `low/medium` 映射为 `high`，因此官方 provider 使用 `thinking.type=disabled` 做低延迟生成；OpenCodeGo provider 使用 `CPA_REASONING_EFFORT`。
+
 模型返回的属性影响必须是有限数字；超出 `-12..12` 时由服务端自动裁剪到边界，避免轻微越界导致整次事件生成失败。缺失值和非数字仍会被拒绝。
 
 ## 数据边界
