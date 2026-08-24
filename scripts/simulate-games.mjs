@@ -5,13 +5,23 @@ const endpoint = new URL("/api/event", process.env.SIMULATION_BASE_URL || "http:
 const totalGames = Number(process.env.SIMULATION_GAMES || 100);
 const concurrency = Number(process.env.SIMULATION_CONCURRENCY || 4);
 const maxEvents = Number(process.env.SIMULATION_MAX_EVENTS || Number.POSITIVE_INFINITY);
+const forcedPrecision = process.env.SIMULATION_PRECISION
+  ? Number(process.env.SIMULATION_PRECISION)
+  : null;
+const gameOffset = Number(process.env.SIMULATION_GAME_OFFSET || 0);
 const outputDirectory = process.env.SIMULATION_OUTPUT_DIR || path.join(process.cwd(), ".tmp");
 const effectKeys = ["cash", "health", "happiness", "knowledge", "connections", "career", "assets"];
 let totalRequests = 0;
 let totalFailures = 0;
 
-if (!Number.isInteger(totalGames) || totalGames < 2 || totalGames % 2 !== 0) {
-  throw new Error("SIMULATION_GAMES 必须是大于零的偶数，以便均分 1 年和 3 年精度");
+if (!Number.isInteger(totalGames) || totalGames < 1) {
+  throw new Error("SIMULATION_GAMES 必须是正整数");
+}
+if (forcedPrecision !== null && forcedPrecision !== 1 && forcedPrecision !== 3) {
+  throw new Error("SIMULATION_PRECISION 只能是 1 或 3");
+}
+if (forcedPrecision === null && (totalGames < 2 || totalGames % 2 !== 0)) {
+  throw new Error("未指定 SIMULATION_PRECISION 时，SIMULATION_GAMES 必须是大于零的偶数");
 }
 
 fs.mkdirSync(outputDirectory, { recursive: true });
@@ -200,9 +210,10 @@ function settlementMessage(option, result, nextState) {
 }
 
 async function playGame(gameIndex) {
-  const precision = gameIndex < totalGames / 2 ? 1 : 3;
-  const profile = profileFor(gameIndex, precision);
-  const random = seededRandom(80_000 + gameIndex);
+  const precision = forcedPrecision || (gameIndex < totalGames / 2 ? 1 : 3);
+  const globalGameIndex = gameOffset + gameIndex;
+  const profile = profileFor(globalGameIndex, precision);
+  const random = seededRandom(80_000 + globalGameIndex);
   let state = initialState(profile);
   let history = [];
   let requests = 0;
@@ -226,7 +237,7 @@ async function playGame(gameIndex) {
         if (attempt === 2) throw error;
       }
     }
-    const option = chooseOption(event, state, profile, gameIndex, seenStrategies, random);
+    const option = chooseOption(event, state, profile, globalGameIndex, seenStrategies, random);
     seenStrategies.add(option.strategyTag);
     const settled = settle(state, profile, option, random);
     const before = { ...state };
@@ -298,7 +309,7 @@ async function playGame(gameIndex) {
   }
   return {
     type: "game",
-    gameIndex,
+    gameIndex: globalGameIndex,
     precision,
     profile: { ...profile, name: undefined },
     requests,
@@ -333,8 +344,8 @@ async function worker() {
     } catch (error) {
       const result = {
         type: "game_error",
-        gameIndex,
-        precision: gameIndex < totalGames / 2 ? 1 : 3,
+        gameIndex: gameOffset + gameIndex,
+        precision: forcedPrecision || (gameIndex < totalGames / 2 ? 1 : 3),
         message: error instanceof Error ? error.message : String(error),
       };
       results.push(result);
