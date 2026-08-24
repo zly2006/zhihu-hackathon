@@ -22,6 +22,14 @@ function apiKey() {
   return environment("CPA_API_KEY") || "";
 }
 
+function reasoningEffort() {
+  const value = environment("CPA_REASONING_EFFORT") || "low";
+  if (value !== "low" && value !== "medium" && value !== "high") {
+    throw new Error("CPA_REASONING_EFFORT 必须是 low、medium 或 high");
+  }
+  return value;
+}
+
 function contentText(content: unknown): string {
   if (typeof content === "string") return content;
   if (!Array.isArray(content)) return "";
@@ -54,6 +62,7 @@ function callLogPath(startedAt: Date, purpose: string) {
 export async function callGameModel<T>(purpose: string, system: string, prompt: string, options: CallOptions = {}): Promise<T> {
   const endpoint = environment("CPA_ENDPOINT") || DEFAULT_ENDPOINT;
   const model = environment("CPA_MODEL") || DEFAULT_MODEL;
+  const effort = reasoningEffort();
   const startedAt = new Date();
   const startedClock = performance.now();
   const logPath = callLogPath(startedAt, purpose);
@@ -88,7 +97,7 @@ export async function callGameModel<T>(purpose: string, system: string, prompt: 
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${key}`, "Content-Type": "application/json" },
-      body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: prompt }], temperature: 0.65, max_tokens: 3200, stream: true, stream_options: { include_usage: true } }),
+      body: JSON.stringify({ model, messages: [{ role: "system", content: system }, { role: "user", content: prompt }], temperature: 0.65, max_tokens: 3200, reasoning_effort: effort, stream: true, stream_options: { include_usage: true } }),
       signal: controller.signal,
       cache: "no-store",
     });
@@ -157,6 +166,7 @@ export async function callGameModel<T>(purpose: string, system: string, prompt: 
       "LLM CALL AUDIT",
       `purpose: ${purpose}`,
       `model: ${model}`,
+      `reasoning_effort: ${effort}`,
       `endpoint: ${endpoint}`,
       `started_at: ${startedAt.toISOString()}`,
       `ended_at: ${endedAt.toISOString()}`,

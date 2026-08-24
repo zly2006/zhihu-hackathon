@@ -19,6 +19,8 @@ npm run build
 npm start
 ```
 
+模型推理深度默认由 `.env` 中的 `CPA_REASONING_EFFORT=low` 固定为 low；可选值为 `low`、`medium`、`high`，非法值会在请求前直接报错。
+
 ## 数据边界
 
 - 浏览器不直连数据库，所有查询只发生在 Next.js 服务端。
