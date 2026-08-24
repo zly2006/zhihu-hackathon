@@ -164,7 +164,22 @@ export async function generateEvent(
   }));
   const resources = resourceContext(state);
   let finalModelProgress: ModelProgress | null = null;
-  const userPrompt = `${describePlayer(profile)}\n\n${describeLifeState(state)}\n\n资源规则:${JSON.stringify(resources)}\n最近完整路口（包含背景、全部未选分支和实际选择）:${JSON.stringify(recentCrossroads)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。现金单项最多损失${resources.maxCashLoss}，健康单项最多损失${resources.maxHealthLoss}。${resources.incomeOpportunityRequired ? "当前现金紧张，必须至少有一个门槛低、收益不夸张的增加收入选项，cash 为 +3 到 +8，baseRisk 不高于50。" : "不强制增收选项。"}${resources.recoveryOpportunityRequired ? "当前健康透支，必须至少有一个恢复、治疗或降低负荷的选项，health 至少 +4。" : "不强制恢复选项。"}只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续已选路径造成的现实状态，把未选路径用于增加差异性并防止 mode collapse。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内正常推进结果","setback":"60字内风险兑现时的具体后果","experienceNumbers":[只列明显相关且互不重复的序号]}]}`;
+  const hardConstraints = [
+    "以下是程序在生成前根据当前状态计算出的硬约束，返回结果必须逐项满足：",
+    "1. 必须且只能返回三个选项，三个 strategyTag 必须互不相同。",
+    "2. 每个选项的七个 effects 字段都必须是 -12 到 12 的数字。",
+    `3. 每个选项的 effects.cash 必须大于或等于 -${resources.maxCashLoss}。`,
+    `4. 每个选项的 effects.health 必须大于或等于 -${resources.maxHealthLoss}。`,
+    resources.incomeOpportunityRequired
+      ? "5. 至少一个选项必须同时满足 effects.cash 为 3 到 8，且 baseRisk 不高于 50。"
+      : "5. 当前状态不要求强制提供增收选项。",
+    resources.recoveryOpportunityRequired
+      ? "6. 至少一个选项的 effects.health 必须大于或等于 4。"
+      : "6. 当前状态不要求强制提供恢复选项。",
+    `7. experienceNumbers 只能引用 1 到 ${retrieved.items.length}；每个选项至少一个序号，同一序号最多归入一个选项。`,
+    "输出前必须自行逐项检查以上数值和数量条件；不能忽略、解释或放宽任何一项。",
+  ].join("\n");
+  const userPrompt = `${describePlayer(profile)}\n\n${describeLifeState(state)}\n\n资源规则:${JSON.stringify(resources)}\n最近完整路口（包含背景、全部未选分支和实际选择）:${JSON.stringify(recentCrossroads)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续已选路径造成的现实状态，把未选路径用于增加差异性并防止 mode collapse。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内正常推进结果","setback":"60字内风险兑现时的具体后果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}`;
   const promptChars = userPrompt.length;
   onProgress?.({
     stage: "prompt",
