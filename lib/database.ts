@@ -26,7 +26,12 @@ function db() {
   if (!pool) {
     const connectionString = process.env.DK_DATABASE_URL;
     if (!connectionString) throw new Error("DK_DATABASE_URL 未配置");
-    pool = new Pool({ connectionString, max: 8, idleTimeoutMillis: 30_000, connectionTimeoutMillis: 5_000 });
+    pool = new Pool({
+      connectionString,
+      max: 8,
+      idleTimeoutMillis: 30_000,
+      connectionTimeoutMillis: 5_000,
+    });
   }
   return pool;
 }
@@ -48,12 +53,15 @@ function hashNumber(value: string) {
 
 function stageSearch(age: number, profile: Profile, state: LifeState) {
   const incomeTerms = state.cash < 22 ? ["收入", "赚钱", "兼职", "副业"] : [];
-  if (state.health < 28) return { domain: "health_life", terms: ["健康", "恢复", "治疗", "休息", "工作强度"] };
-  if (age < 6) return { domain: "family_relationship", terms: ["家庭", "父母", "孩子", ...incomeTerms] };
+  if (state.health < 28)
+    return { domain: "health_life", terms: ["健康", "恢复", "治疗", "休息", "工作强度"] };
+  if (age < 6)
+    return { domain: "family_relationship", terms: ["家庭", "父母", "孩子", ...incomeTerms] };
   if (age < 13) return { domain: "education", terms: ["学习", "学校", "兴趣"] };
   if (age < 18) return { domain: "education", terms: ["高考", "专业", "学习"] };
   if (age < 23) return { domain: "education", terms: ["大学", "考研", "专业", "就业"] };
-  if (age < 29) return { domain: "career", terms: ["工作", "转行", "职业", "创业", ...incomeTerms] };
+  if (age < 29)
+    return { domain: "career", terms: ["工作", "转行", "职业", "创业", ...incomeTerms] };
   if (age < 36) return { domain: "career", terms: ["买房", "结婚", "工作", "创业"] };
   if (age < 46) return { domain: "career", terms: ["职业", "家庭", "健康", "投资"] };
   if (age < 56) return { domain: "health_life", terms: ["健康", "生活", "家庭", "工作"] };
@@ -91,11 +99,20 @@ function toExperience(row: CandidateRow, similarity: number): Experience {
   };
 }
 
-export async function retrieveExperiences(profile: Profile, age: number, historyKey: string, state: LifeState) {
+export async function retrieveExperiences(
+  profile: Profile,
+  age: number,
+  historyKey: string,
+  state: LifeState,
+) {
   const stage = stageSearch(age, profile, state);
-  const statements = stage.terms.map((_, index) => `(c.context LIKE $${index * 2 + 2} OR c.decision LIKE $${index * 2 + 3})`).join(" OR ");
+  const statements = stage.terms
+    .map((_, index) => `(c.context LIKE $${index * 2 + 2} OR c.decision LIKE $${index * 2 + 3})`)
+    .join(" OR ");
   const termParams = stage.terms.flatMap((term) => [`%${term}%`, `%${term}%`]);
-  let anchors = (await db().query<CandidateRow>(`
+  let anchors = (
+    await db().query<CandidateRow>(
+      `
     SELECT c.id, s.title, s.source_url url, i.external_id, c.context, c.decision,
            c.action, c.outcome, c.confidence, e.blocking_key, e.vector,
            s.author_name, s.author_avatar_url author_avatar, s.author_url_token author_token,
@@ -108,10 +125,15 @@ export async function retrieveExperiences(profile: Profile, age: number, history
       AND e.blocking_key = $1 AND (${statements})
       AND s.author_name IS NOT NULL
     LIMIT 180
-  `, [stage.domain, ...termParams])).rows;
+  `,
+      [stage.domain, ...termParams],
+    )
+  ).rows;
 
   if (!anchors.length) {
-    anchors = (await db().query<CandidateRow>(`
+    anchors = (
+      await db().query<CandidateRow>(
+        `
       SELECT c.id, s.title, s.source_url url, i.external_id, c.context, c.decision,
              c.action, c.outcome, c.confidence, e.blocking_key, e.vector,
              s.author_name, s.author_avatar_url author_avatar, s.author_url_token author_token,
@@ -123,13 +145,21 @@ export async function retrieveExperiences(profile: Profile, age: number, history
       WHERE c.review_status != 'REJECTED' AND c.confidence >= 80 AND e.blocking_key = $1
         AND s.author_name IS NOT NULL
       LIMIT 180
-    `, [stage.domain])).rows;
+    `,
+        [stage.domain],
+      )
+    ).rows;
   }
 
   if (!anchors.length) return { domain: stage.domain, items: [] };
 
-  const anchor = anchors[hashNumber(`${profile.birthYear}:${age}:${profile.family}:${historyKey}`) % anchors.length];
-  const candidates = (await db().query<CandidateRow>(`
+  const anchor =
+    anchors[
+      hashNumber(`${profile.birthYear}:${age}:${profile.family}:${historyKey}`) % anchors.length
+    ];
+  const candidates = (
+    await db().query<CandidateRow>(
+      `
     SELECT c.id, s.title, s.source_url url, i.external_id, c.context, c.decision,
            c.action, c.outcome, c.confidence, e.blocking_key, e.vector,
            s.author_name, s.author_avatar_url author_avatar, s.author_url_token author_token,
@@ -142,7 +172,10 @@ export async function retrieveExperiences(profile: Profile, age: number, history
       AND e.blocking_key = $1 AND c.review_status != 'REJECTED' AND c.confidence >= 75
       AND s.author_name IS NOT NULL
     LIMIT 420
-  `, [anchor.blocking_key])).rows;
+  `,
+      [anchor.blocking_key],
+    )
+  ).rows;
 
   const anchorVector = decodeVector(anchor.vector);
   const neighbors = candidates

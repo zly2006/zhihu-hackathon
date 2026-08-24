@@ -27,10 +27,14 @@ type OAuthSession = {
 };
 
 type SessionStore = Map<string, OAuthSession>;
-const globalSessions = globalThis as typeof globalThis & { restartLifeZhihuSessions?: SessionStore };
-const sessions = globalSessions.restartLifeZhihuSessions ??= new Map();
+const globalSessions = globalThis as typeof globalThis & {
+  restartLifeZhihuSessions?: SessionStore;
+};
+const sessions = (globalSessions.restartLifeZhihuSessions ??= new Map());
 
-function env(name: string) { return process.env[name]?.trim() || ""; }
+function env(name: string) {
+  return process.env[name]?.trim() || "";
+}
 
 function configuration() {
   return {
@@ -42,7 +46,8 @@ function configuration() {
 }
 
 function safeSecret(value: string, label: string) {
-  if (!value || /[\r\n]/.test(value)) throw oauthError("CREDENTIAL_INVALID", `${label} 未配置或格式无效`);
+  if (!value || /[\r\n]/.test(value))
+    throw oauthError("CREDENTIAL_INVALID", `${label} 未配置或格式无效`);
   return value;
 }
 
@@ -65,7 +70,13 @@ function equal(left: string, right: string) {
 }
 
 function parsePayloadError(payload: unknown, fallback: string) {
-  const body = payload as { code?: unknown; Code?: unknown; message?: unknown; Message?: unknown; data?: { message?: unknown } };
+  const body = payload as {
+    code?: unknown;
+    Code?: unknown;
+    message?: unknown;
+    Message?: unknown;
+    data?: { message?: unknown };
+  };
   const message = body?.data?.message || body?.message || body?.Message || fallback;
   return oauthError(String(body?.code ?? body?.Code ?? "OAUTH_FAILED"), String(message));
 }
@@ -90,7 +101,16 @@ export function sessionFor(request: NextRequest) {
   const existing = activeSession(request);
   if (existing) return { session: existing, created: false };
   const id = randomBytes(24).toString("base64url");
-  const session: OAuthSession = { id, sessionExpiresAt: Date.now() + SESSION_MAX_AGE_SECONDS * 1000, state: null, token: null, expiresAt: null, profile: null, stateVerified: null, error: null };
+  const session: OAuthSession = {
+    id,
+    sessionExpiresAt: Date.now() + SESSION_MAX_AGE_SECONDS * 1000,
+    state: null,
+    token: null,
+    expiresAt: null,
+    profile: null,
+    stateVerified: null,
+    error: null,
+  };
   sessions.set(id, session);
   return { session, created: true };
 }
@@ -108,11 +128,18 @@ export function attachSessionCookie(response: NextResponse, session: OAuthSessio
 export function applicationUrl(path: string, request: NextRequest) {
   const redirectUri = configuration().redirectUri;
   if (redirectUri) {
-    try { return new URL(path, new URL(redirectUri).origin); }
-    catch { /* authorizationUrl will return the precise configuration error */ }
+    try {
+      return new URL(path, new URL(redirectUri).origin);
+    } catch {
+      /* authorizationUrl will return the precise configuration error */
+    }
   }
-  const forwardedHost = request.headers.get("x-forwarded-host") || request.headers.get("host") || request.nextUrl.host;
-  const forwardedProtocol = request.headers.get("x-forwarded-proto") === "https" ? "https" : request.nextUrl.protocol.replace(":", "");
+  const forwardedHost =
+    request.headers.get("x-forwarded-host") || request.headers.get("host") || request.nextUrl.host;
+  const forwardedProtocol =
+    request.headers.get("x-forwarded-proto") === "https"
+      ? "https"
+      : request.nextUrl.protocol.replace(":", "");
   return new URL(path, `${forwardedProtocol}://${forwardedHost}`);
 }
 
@@ -129,7 +156,9 @@ export function publicStatus(request: NextRequest) {
     session,
     created,
     payload: {
-      configured: Boolean(config.appId && config.appKey && config.accessSecret && config.redirectUri),
+      configured: Boolean(
+        config.appId && config.appKey && config.accessSecret && config.redirectUri,
+      ),
       missingConfiguration,
       callbackConfigured: Boolean(config.redirectUri),
       authorized: Boolean(session.token),
@@ -148,12 +177,21 @@ export function authorizationUrl(request: NextRequest) {
     throw oauthError("OAUTH_NOT_CONFIGURED", "知乎登录尚未完成服务端凭据配置");
   }
   if (!/^\d+$/.test(config.appId)) throw oauthError("APP_ID_INVALID", "知乎 OAuth App ID 格式无效");
-  if (config.appKey.length <= 8 || config.appKey === config.appId) throw oauthError("APP_KEY_INVALID", "知乎 OAuth App Key 格式无效");
-  if (config.accessSecret === config.appKey) throw oauthError("CREDENTIALS_CONFLICT", "OAuth App Key 与 Access Secret 不能相同");
+  if (config.appKey.length <= 8 || config.appKey === config.appId)
+    throw oauthError("APP_KEY_INVALID", "知乎 OAuth App Key 格式无效");
+  if (config.accessSecret === config.appKey)
+    throw oauthError("CREDENTIALS_CONFLICT", "OAuth App Key 与 Access Secret 不能相同");
   let redirect: URL;
-  try { redirect = new URL(config.redirectUri); }
-  catch { throw oauthError("REDIRECT_URI_INVALID", "知乎 OAuth 回调地址格式无效"); }
-  if (redirect.protocol !== "https:" || ["localhost", "127.0.0.1"].includes(redirect.hostname) || redirect.pathname !== "/auth/callback") {
+  try {
+    redirect = new URL(config.redirectUri);
+  } catch {
+    throw oauthError("REDIRECT_URI_INVALID", "知乎 OAuth 回调地址格式无效");
+  }
+  if (
+    redirect.protocol !== "https:" ||
+    ["localhost", "127.0.0.1"].includes(redirect.hostname) ||
+    redirect.pathname !== "/auth/callback"
+  ) {
     throw oauthError("REDIRECT_URI_INVALID", "知乎 OAuth 回调必须是公网 HTTPS /auth/callback 地址");
   }
   session.state = randomBytes(24).toString("base64url");
@@ -170,10 +208,14 @@ export async function completeAuthorization(request: NextRequest) {
   const session = activeSession(request);
   if (!session?.state) throw oauthError("SESSION_MISSING", "登录会话已失效，请重新发起知乎授权");
   const config = configuration();
-  const code = request.nextUrl.searchParams.get("authorization_code") || request.nextUrl.searchParams.get("code") || "";
+  const code =
+    request.nextUrl.searchParams.get("authorization_code") ||
+    request.nextUrl.searchParams.get("code") ||
+    "";
   const returnedState = request.nextUrl.searchParams.get("state");
   if (!code) throw oauthError("CODE_MISSING", "知乎回调缺少 authorization_code");
-  if (returnedState && !equal(returnedState, session.state)) throw oauthError("STATE_MISMATCH", "知乎登录 state 校验失败");
+  if (returnedState && !equal(returnedState, session.state))
+    throw oauthError("STATE_MISMATCH", "知乎登录 state 校验失败");
 
   const form = new URLSearchParams({
     app_id: safeSecret(config.appId, "OAuth App ID"),
@@ -189,9 +231,14 @@ export async function completeAuthorization(request: NextRequest) {
     signal: AbortSignal.timeout(20_000),
     cache: "no-store",
   });
-  const tokenPayload = await readJsonResponse<{ access_token?: string; expires_in?: number; data?: { access_token?: string; expires_in?: number } }>(tokenResponse, "知乎 OAuth Token 接口");
+  const tokenPayload = await readJsonResponse<{
+    access_token?: string;
+    expires_in?: number;
+    data?: { access_token?: string; expires_in?: number };
+  }>(tokenResponse, "知乎 OAuth Token 接口");
   const token = tokenPayload.access_token || tokenPayload.data?.access_token;
-  if (!tokenResponse.ok || !token) throw parsePayloadError(tokenPayload, "未获得知乎 OAuth access token");
+  if (!tokenResponse.ok || !token)
+    throw parsePayloadError(tokenPayload, "未获得知乎 OAuth access token");
   const expiresIn = Number(tokenPayload.expires_in ?? tokenPayload.data?.expires_in);
   session.token = token;
   session.expiresAt = Number.isFinite(expiresIn) ? Date.now() + expiresIn * 1000 : null;
@@ -209,14 +256,20 @@ export async function completeAuthorization(request: NextRequest) {
       signal: AbortSignal.timeout(20_000),
       cache: "no-store",
     });
-    const profilePayload = await readJsonResponse<Record<string, unknown>>(profileResponse, "知乎账号资料接口");
-    const source = (profilePayload.data || profilePayload.Data || profilePayload.user) as Record<string, unknown> | undefined;
-    session.profile = source ? {
-      name: String(source.name || source.Fullname || source.fullname || "") || null,
-      avatarUrl: String(source.avatar_url || source.AvatarUrl || "") || null,
-      headline: String(source.headline || source.Headline || "") || null,
-      url: String(source.url || source.Url || "") || null,
-    } : null;
+    const profilePayload = await readJsonResponse<Record<string, unknown>>(
+      profileResponse,
+      "知乎账号资料接口",
+    );
+    const source = (profilePayload.data || profilePayload.Data || profilePayload.user) as
+      Record<string, unknown> | undefined;
+    session.profile = source
+      ? {
+          name: String(source.name || source.Fullname || source.fullname || "") || null,
+          avatarUrl: String(source.avatar_url || source.AvatarUrl || "") || null,
+          headline: String(source.headline || source.Headline || "") || null,
+          url: String(source.url || source.Url || "") || null,
+        }
+      : null;
   } catch {
     session.profile = null;
   }

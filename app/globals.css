@@ -1,15 +1,1590 @@
-:root { --ink:#1b1a17; --paper:#f3eddf; --paper-deep:#e7ddca; --red:#b83a28; --blue:#1e6671; --muted:#746d61; --line:#c8bda9; --shadow:0 18px 60px rgba(52,41,27,.16); }
-*{box-sizing:border-box} html,body{margin:0;min-height:100%;background:var(--paper);color:var(--ink);font-family:"Songti SC","Noto Serif CJK SC","STSong",serif} button,input,select,textarea{font:inherit} button{color:inherit} body{background-image:radial-gradient(rgba(46,38,29,.055) .7px,transparent .8px);background-size:5px 5px}.grain{position:fixed;inset:0;pointer-events:none;opacity:.3;background:url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.12'/%3E%3C/svg%3E")}
-.landing-shell{min-height:100vh;position:relative;overflow:hidden;padding:28px 5vw 54px;background:linear-gradient(105deg,transparent 0 68%,rgba(184,58,40,.055) 68%)}.landing-shell:before{content:"";position:absolute;width:560px;height:560px;border:1px solid rgba(184,58,40,.18);border-radius:50%;right:-170px;top:80px;box-shadow:0 0 0 34px rgba(184,58,40,.035),0 0 0 68px rgba(184,58,40,.025)}.masthead{display:flex;justify-content:space-between;align-items:flex-start;border-top:5px solid var(--ink);border-bottom:1px solid var(--ink);padding:12px 0;position:relative;z-index:1}.brand-mark{display:flex;gap:10px;align-items:center;font-size:11px;line-height:1.35;letter-spacing:.12em;font-weight:700}.brand-mark>span{background:var(--ink);color:var(--paper);font-size:25px;width:43px;height:43px;display:grid;place-items:center}.edition{text-align:right;font-size:10px;letter-spacing:.16em;line-height:1.6}.hero{position:relative;z-index:2;margin:10vh 0 0 8vw;max-width:900px}.hero-kicker{font-size:13px;letter-spacing:.22em;display:flex;align-items:center;gap:10px;font-weight:700}.hero-kicker span{background:var(--red);color:#fff;padding:3px 6px;letter-spacing:.06em}.hero h1{font-size:clamp(64px,8.1vw,130px);line-height:.96;letter-spacing:-.055em;margin:26px 0 34px;font-weight:900}.hero h1 em{font-style:normal;color:var(--red);position:relative}.hero h1 em:after{content:"";position:absolute;left:1%;right:-2%;bottom:-11px;height:13px;background:var(--red);clip-path:polygon(0 47%,100% 5%,98% 58%,8% 100%)}.hero-copy{font-size:16px;line-height:2;color:#4f4a42;border-left:3px solid var(--ink);padding-left:20px}.hero-actions{display:flex;align-items:center;gap:26px;margin-top:38px}.primary-button{border:0;background:var(--ink);color:#fff8ea;padding:16px 23px;display:inline-flex;gap:18px;align-items:center;justify-content:center;cursor:pointer;box-shadow:5px 5px 0 var(--red);transition:.2s transform,.2s box-shadow}.primary-button:hover{transform:translate(-2px,-2px);box-shadow:8px 8px 0 var(--red)}.primary-button:disabled{opacity:.45;cursor:not-allowed}.text-button,.back-button{border:0;background:none;display:flex;align-items:center;gap:8px;cursor:pointer;border-bottom:1px solid;padding:6px 0}.hero-proof{display:flex;margin-top:62px;border-top:1px solid var(--line);max-width:680px}.hero-proof div{padding:17px 34px 0 0;margin-right:34px;border-right:1px solid var(--line);display:flex;flex-direction:column}.hero-proof strong{font:700 25px "Shippori Mincho",serif}.hero-proof span{font-size:10px;letter-spacing:.14em;color:var(--muted)}.future-note{position:absolute;right:7vw;top:22vh;width:270px;background:#fff8d9;padding:35px 27px 25px;transform:rotate(3.5deg);box-shadow:var(--shadow);font-family:"Ma Shan Zheng",cursive;font-size:21px;line-height:1.5}.future-note .pin{position:absolute;top:10px;left:48%;width:13px;height:13px;border-radius:50%;background:var(--red);box-shadow:1px 2px 4px #555}.future-note .note-label{font:700 9px "Noto Serif SC";letter-spacing:.18em;color:var(--red)}.future-note small{font-size:15px;float:right}.ticker{position:absolute;bottom:0;left:0;right:0;background:var(--ink);color:#f6eddd;height:36px;display:flex;align-items:center;gap:7vw;white-space:nowrap;overflow:hidden;font-size:11px;letter-spacing:.12em}.ticker span:before{content:"◆";color:var(--red);padding:0 18px}
-.masthead-right{display:flex;align-items:center;gap:20px}.zhihu-login{border:1px solid var(--ink);background:transparent;padding:9px 12px;display:flex;align-items:center;gap:8px;cursor:pointer;font-size:10px}.zhihu-login>span{width:22px;height:22px;display:grid;place-items:center;background:var(--blue);color:white;font-weight:900}.zhihu-login:disabled{cursor:not-allowed;opacity:.5}.zhihu-account{display:flex;align-items:center;gap:9px;max-width:280px}.zhihu-account>img,.zhihu-account>span{width:34px;height:34px;border-radius:50%;display:grid;place-items:center;object-fit:cover;background:var(--blue);color:white}.zhihu-account>div{display:flex;flex-direction:column;max-width:160px}.zhihu-account b,.zhihu-account small{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}.zhihu-account b{font-size:11px}.zhihu-account small{font-size:8px;color:var(--muted)}.zhihu-account>button{border:0;background:transparent;cursor:pointer;padding:6px}.oauth-message{position:absolute;z-index:4;right:5vw;top:92px;max-width:430px;padding:10px 13px;background:#fff8d9;border-left:3px solid var(--red);font-size:10px;line-height:1.6;box-shadow:0 7px 20px rgba(52,41,27,.1)}
-.setup-shell{min-height:100vh;padding:32px 6vw 70px;position:relative}.back-button{position:absolute;top:34px;left:6vw}.setup-header{text-align:center;margin:45px auto 42px}.setup-header>span,.ending-kicker{font:700 10px "Shippori Mincho";letter-spacing:.28em;color:var(--red)}.setup-header h1{font-size:clamp(40px,5vw,72px);line-height:1.04;margin:14px 0 12px}.setup-header p{color:var(--muted);font-size:13px}.setup-grid{display:grid;grid-template-columns:minmax(0,1.15fr) minmax(380px,.85fr);max-width:1120px;margin:auto;box-shadow:var(--shadow)}.form-paper,.talent-paper{padding:42px 48px;background:#faf5e9}.talent-paper{background:var(--ink);color:#f6eedf;position:relative;overflow:hidden}.talent-paper:after{content:"命";position:absolute;right:-45px;bottom:-115px;font-size:280px;color:rgba(255,255,255,.035);font-weight:900}.form-paper label{display:block;font-size:11px;letter-spacing:.12em;font-weight:700;margin-bottom:25px}.form-paper input,.form-paper select{display:block;width:100%;border:0;border-bottom:1px solid var(--ink);background:transparent;padding:11px 2px 9px;margin-top:7px;font-size:17px;border-radius:0;outline:none}.field-row{display:grid;grid-template-columns:1fr 1fr;gap:30px}.choice-chips{display:grid;grid-template-columns:1fr 1fr;gap:9px;margin-top:12px}.choice-chips button{background:transparent;border:1px solid var(--line);padding:10px;cursor:pointer;font-size:12px}.choice-chips button.active{background:var(--red);color:white;border-color:var(--red)}.precision-cards{display:grid;grid-template-columns:1fr 1fr;gap:12px;margin-top:12px}.precision-cards button{border:1px solid var(--line);background:transparent;padding:16px;text-align:left;display:grid;grid-template-columns:auto 1fr;gap:3px 10px;cursor:pointer}.precision-cards svg{grid-row:1/3}.precision-cards small{font-size:9px;color:var(--muted)}.precision-cards .active{border:2px solid var(--blue);background:rgba(30,102,113,.06)}.talent-heading{display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #655f55;padding-bottom:16px}.talent-heading>span{letter-spacing:.2em;font-size:12px}.talent-heading strong{font:700 35px "Shippori Mincho"}.talent-heading small{font-size:12px;color:#9e978a}.talent-paper>p{font-size:11px;color:#aaa294;line-height:1.8}.talent-row{display:grid;grid-template-columns:48px 27px 1fr 27px 20px;gap:8px;align-items:center;margin:24px 0;position:relative;z-index:1}.talent-row>span{font-size:12px}.talent-row button{width:27px;height:27px;border:1px solid #777065;background:transparent;color:white;cursor:pointer}.talent-dots{display:flex;gap:5px}.talent-dots i{height:5px;flex:1;background:#4b4842}.talent-dots i.filled{background:#d4543c}.talent-row>b{text-align:right}.setup-quote{font-family:"Ma Shan Zheng";font-size:24px;color:#c9bfad;line-height:1.5;margin:32px 0;transform:rotate(-2deg)}.full{width:100%;position:relative;z-index:1}
-.game-shell{height:100vh;overflow:hidden;background:#e9e1d2}.game-topbar{height:72px;background:var(--ink);color:#f7efdf;display:grid;grid-template-columns:1fr auto 1fr;align-items:center;padding:0 28px;border-bottom:4px solid var(--red)}.mini-brand{font-weight:900;letter-spacing:.15em}.game-date{text-align:center;display:flex;gap:13px;align-items:center}.game-date b{font:700 30px "Shippori Mincho"}.game-date span{font-size:9px;letter-spacing:.2em;color:#aaa294;line-height:1.3}.restart-button{justify-self:end;background:transparent;border:1px solid #555047;color:#d9d0c1;padding:8px 12px;display:flex;gap:7px;align-items:center;cursor:pointer;font-size:10px}.game-layout{display:grid;grid-template-columns:210px minmax(500px,1fr) 240px;height:calc(100vh - 72px)}.stat-rail,.timeline-rail{padding:27px 22px;background:#ded4c2;border-right:1px solid #bbae98;overflow:auto}.timeline-rail{border-right:0;border-left:1px solid #bbae98;background:#e3dacb}.rail-title{font-size:10px;letter-spacing:.18em;font-weight:700;border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:20px}.rail-title span{float:right;color:var(--red)}.stat-item{display:grid;grid-template-columns:20px 1fr 27px;gap:8px;align-items:center;margin-bottom:23px}.stat-item svg{color:#5d574e}.stat-item>div>span{font-size:10px}.stat-item>b{font:700 13px "Shippori Mincho";text-align:right}.bar{height:3px;background:#c0b6a5;margin-top:7px}.bar i{display:block;height:100%;background:var(--red);transition:width .4s}.event-stage{overflow:auto;padding:30px 5vw 60px;position:relative}.chapter-line{display:flex;justify-content:space-between;align-items:center;max-width:850px;margin:auto auto 12px;font-size:10px;letter-spacing:.17em}.chapter-line button{border:0;background:transparent;color:var(--blue);cursor:pointer;display:flex;gap:6px;align-items:center;font-size:10px;border-bottom:1px solid}.event-paper{max-width:850px;margin:auto;background:#fbf6ea;box-shadow:var(--shadow);padding:48px 58px 44px;position:relative;border-top:7px solid var(--ink)}.paper-index{position:absolute;right:22px;top:18px;font:700 9px "Shippori Mincho";letter-spacing:.2em;color:#938a7c}.event-paper>header>span{font-size:9px;color:var(--red);letter-spacing:.16em}.event-paper h1{font-size:clamp(31px,3vw,48px);line-height:1.15;margin:11px 0 30px;max-width:85%}.event-background{border:1px solid var(--line);padding:15px 18px;position:relative;background:#f3ecde}.event-background label{position:absolute;left:15px;top:-8px;background:#f3ecde;padding:0 7px;color:var(--blue);font-size:9px;letter-spacing:.15em}.event-background p{font-size:13px;line-height:1.85;margin:0}.event-dilemma{display:grid;grid-template-columns:45px 1fr;gap:8px;margin:28px 0 16px}.quote-mark{font:700 70px Georgia;color:var(--red);line-height:.8}.event-dilemma p{font-size:19px;line-height:1.75;margin:0;font-weight:600}.event-detail{font-size:11px;color:var(--muted);border-bottom:1px dashed var(--line);padding-bottom:18px}.options-label{display:block;font-size:10px;letter-spacing:.2em;font-weight:700;margin:22px 0 10px}.option-card{width:100%;display:grid;grid-template-columns:38px 1fr 25px 18px;align-items:center;gap:13px;border:0;border-top:1px solid var(--line);background:transparent;text-align:left;padding:17px 8px;cursor:pointer;transition:.18s}.option-card:last-of-type{border-bottom:1px solid var(--line)}.option-card:hover{background:var(--ink);color:#fff8ea;padding-left:17px}.option-card>i{font:700 23px "Shippori Mincho";font-style:normal;color:var(--red)}.option-card div{display:flex;flex-direction:column;gap:3px}.option-card b{font-size:14px}.option-card div span{font-size:10px;color:var(--muted)}.option-card:hover div span{color:#bdb5a8}.option-card>em{font-family:"Ma Shan Zheng";font-size:20px;color:var(--blue);font-style:normal}.custom-trigger{margin:18px auto 0;border:0;background:transparent;color:var(--blue);display:flex;gap:7px;align-items:center;border-bottom:1px solid;cursor:pointer;padding:6px;font-size:11px}.custom-box{border:1px solid var(--blue);margin-top:14px;background:#edf0e9}.custom-box textarea{width:100%;min-height:90px;resize:vertical;border:0;background:transparent;padding:14px;outline:none;font-size:12px;line-height:1.8}.custom-box>div{border-top:1px solid #bdcac6;display:flex;justify-content:space-between;align-items:center;padding-left:12px}.custom-box span{font-size:9px;color:var(--muted)}.custom-box button{border:0;background:var(--blue);color:white;padding:10px 14px;display:flex;gap:7px;align-items:center;cursor:pointer;font-size:11px}.evidence-footnote{max-width:850px;margin:13px auto;color:var(--muted);font-size:9px;text-align:center}.evidence-footnote span{color:var(--red)}.timeline-list{position:relative;padding-left:13px}.timeline-list:before{content:"";position:absolute;left:3px;top:3px;bottom:0;border-left:1px solid #b5a994}.timeline-item{position:relative;padding:0 0 23px 10px}.timeline-item>i{position:absolute;left:-13px;top:4px;width:7px;height:7px;border-radius:50%;background:var(--red)}.timeline-item>span{display:block;font:700 9px "Shippori Mincho";color:var(--red)}.timeline-item>b{font-size:11px}.timeline-item>p{font-size:9px;color:var(--muted);margin:3px 0}.timeline-empty{font-size:10px;line-height:1.8;color:var(--muted)}.loading-file,.error-file{height:100%;display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center}.loading-file>span{font-size:9px;letter-spacing:.27em;color:var(--red);margin-top:22px}.loading-file h2{font-size:21px;margin:12px}.spin{animation:spin 1.2s linear infinite;color:var(--red)}@keyframes spin{to{transform:rotate(360deg)}}.loading-lines{width:300px;margin-top:22px}.loading-lines i{display:block;height:2px;background:#c4b9a7;margin:8px;animation:pulse 1.3s infinite}.loading-lines i:nth-child(2){width:70%;animation-delay:.2s}.loading-lines i:nth-child(3){width:84%;animation-delay:.4s}@keyframes pulse{50%{opacity:.2}}.result-panel{margin-top:25px;border-top:3px solid var(--red);padding:27px 25px;background:#efe6d5;position:relative}.result-stamp{position:absolute;right:25px;top:20px;border:2px solid var(--red);color:var(--red);padding:5px 8px;transform:rotate(7deg);font-size:10px;font-weight:700}.result-label{font-size:10px;letter-spacing:.2em;color:var(--red)}.result-panel p{font-size:16px;line-height:1.9;max-width:85%}.effect-list{display:flex;gap:8px;flex-wrap:wrap;margin:20px 0}.effect-list span{font-size:10px;padding:4px 7px;border:1px solid}.positive{color:var(--blue)}.negative{color:var(--red)}
-.drawer-backdrop{position:fixed;inset:0;background:rgba(21,19,16,.62);z-index:20;display:flex;justify-content:flex-end}.source-drawer{height:100%;width:min(620px,92vw);background:#f3ecde;padding:42px 42px 70px;overflow:auto;box-shadow:-20px 0 70px rgba(0,0,0,.25);animation:slideIn .25s ease-out}@keyframes slideIn{from{transform:translateX(100%)}}.drawer-close{position:absolute;right:22px;top:20px;border:0;background:none;cursor:pointer}.source-drawer header>span{font-size:9px;letter-spacing:.2em;color:var(--red)}.source-drawer header h2{font-size:30px;margin:10px 0}.source-drawer header p{font-size:11px;line-height:1.8;color:var(--muted)}.source-card{border-top:1px solid var(--ink);padding:20px 0}.source-person{display:flex;gap:10px;align-items:center}.source-person img{width:36px;height:36px;border-radius:50%}.source-person div{display:flex;flex-direction:column}.source-person b{font-size:11px}.source-person span{font-size:9px;color:var(--red)}.source-card h3{font-size:15px}.source-card p,.source-card>div:not(.source-person){font-size:10px;line-height:1.7;color:#5f594f}.source-card label{display:block;font-size:8px;letter-spacing:.14em;color:var(--blue);margin-top:8px}.source-card a{display:inline-flex;gap:5px;align-items:center;color:var(--blue);font-size:10px;margin-top:12px;text-decoration:none;border-bottom:1px solid}
-.ending-shell{min-height:100vh;padding:7vh 5vw;background:var(--ink);color:#f4ecdd;display:grid;place-items:center;background-image:radial-gradient(circle at 75% 20%,rgba(184,58,40,.25),transparent 30%)}.ending-card{width:min(920px,100%);border:1px solid #5e574c;padding:55px;position:relative}.ending-card:before,.ending-card:after{content:"";position:absolute;width:24px;height:24px;border-color:var(--red)}.ending-card:before{left:-1px;top:-1px;border-left:5px solid var(--red);border-top:5px solid var(--red)}.ending-card:after{right:-1px;bottom:-1px;border-right:5px solid var(--red);border-bottom:5px solid var(--red)}.ending-card h1{font-size:clamp(37px,5vw,67px);line-height:1.15;margin:13px 0 25px}.ending-card h1 em{font-style:normal;color:#df5b43}.ending-card>p{color:#bdb4a6;line-height:1.9;max-width:650px}.ending-score{position:absolute;right:60px;top:55px;text-align:right}.ending-score strong{font:700 86px "Shippori Mincho";color:#df5b43;line-height:1}.ending-score span{font-size:8px;letter-spacing:.18em}.ending-highlights{display:flex;gap:12px;margin:40px 0}.ending-highlights>div{border:1px solid #5c564c;padding:17px 22px;min-width:130px;display:grid;grid-template-columns:auto 1fr;gap:5px 10px;align-items:center}.ending-highlights svg{grid-row:1/3;color:#df5b43}.ending-highlights span{font-size:10px;color:#aaa294}.ending-highlights b{font-size:20px}.ending-quotes{display:grid;grid-template-columns:repeat(3,1fr);gap:15px;margin-bottom:35px}.ending-quotes blockquote{margin:0;border-top:1px solid #766f63;padding:13px 0;font-size:11px;line-height:1.8;color:#cfc6b8}.ending-quotes span{display:block;color:#df5b43;font-size:9px;margin-bottom:6px}
-@media(max-width:1050px){.future-note{display:none}.hero{margin-left:3vw}.game-layout{grid-template-columns:180px 1fr}.timeline-rail{display:none}.event-stage{padding-left:3vw;padding-right:3vw}.ending-score{position:static;text-align:left;margin:25px 0}.setup-grid{grid-template-columns:1fr}}
-@media(max-width:720px){.landing-shell{padding:20px 22px 50px}.masthead-right{gap:8px}.edition{display:none}.zhihu-login{font-size:0;padding:7px}.zhihu-login>span{font-size:14px}.zhihu-account>div{display:none}.oauth-message{top:82px;left:22px;right:22px}.hero{margin:13vh 0 0}.hero h1{font-size:52px}.hero-copy br{display:none}.hero-actions{align-items:flex-start;flex-direction:column;gap:12px}.hero-proof div{padding-right:12px;margin-right:12px}.hero-proof strong{font-size:18px}.setup-shell{padding:75px 15px 30px}.setup-header{text-align:left;margin-left:12px}.form-paper,.talent-paper{padding:29px 24px}.field-row{grid-template-columns:1fr}.game-topbar{padding:0 12px;grid-template-columns:1fr auto}.mini-brand{font-size:10px}.restart-button{display:none}.game-layout{display:block;height:calc(100vh - 72px)}.stat-rail{height:64px;padding:8px 12px;display:flex;gap:12px;overflow-x:auto;border-bottom:1px solid var(--line)}.stat-rail .rail-title{display:none}.stat-item{min-width:70px;margin:0;grid-template-columns:15px 1fr}.stat-item>b{display:none}.event-stage{height:calc(100% - 64px);padding:20px 12px 50px}.event-paper{padding:35px 22px}.event-paper h1{font-size:31px}.event-dilemma{grid-template-columns:27px 1fr}.quote-mark{font-size:50px}.event-dilemma p{font-size:16px}.chapter-line{font-size:8px}.ending-shell{padding:18px}.ending-card{padding:35px 24px}.ending-highlights{overflow-x:auto}.ending-quotes{grid-template-columns:1fr}.choice-chips,.precision-cards{grid-template-columns:1fr}}
+:root {
+  --ink: #1b1a17;
+  --paper: #f3eddf;
+  --paper-deep: #e7ddca;
+  --red: #b83a28;
+  --blue: #1e6671;
+  --muted: #746d61;
+  --line: #c8bda9;
+  --shadow: 0 18px 60px rgba(52, 41, 27, 0.16);
+}
+* {
+  box-sizing: border-box;
+}
+html,
+body {
+  margin: 0;
+  min-height: 100%;
+  background: var(--paper);
+  color: var(--ink);
+  font-family: "Songti SC", "Noto Serif CJK SC", "STSong", serif;
+}
+button,
+input,
+select,
+textarea {
+  font: inherit;
+}
+button {
+  color: inherit;
+}
+body {
+  background-image: radial-gradient(rgba(46, 38, 29, 0.055) 0.7px, transparent 0.8px);
+  background-size: 5px 5px;
+}
+.grain {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  opacity: 0.3;
+  background: url("data:image/svg+xml,%3Csvg viewBox='0 0 180 180' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.9' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='.12'/%3E%3C/svg%3E");
+}
+.landing-shell {
+  min-height: 100vh;
+  position: relative;
+  overflow: hidden;
+  padding: 28px 5vw 54px;
+  background: linear-gradient(105deg, transparent 0 68%, rgba(184, 58, 40, 0.055) 68%);
+}
+.landing-shell:before {
+  content: "";
+  position: absolute;
+  width: 560px;
+  height: 560px;
+  border: 1px solid rgba(184, 58, 40, 0.18);
+  border-radius: 50%;
+  right: -170px;
+  top: 80px;
+  box-shadow:
+    0 0 0 34px rgba(184, 58, 40, 0.035),
+    0 0 0 68px rgba(184, 58, 40, 0.025);
+}
+.masthead {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-top: 5px solid var(--ink);
+  border-bottom: 1px solid var(--ink);
+  padding: 12px 0;
+  position: relative;
+  z-index: 1;
+}
+.brand-mark {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  font-size: 11px;
+  line-height: 1.35;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+.brand-mark > span {
+  background: var(--ink);
+  color: var(--paper);
+  font-size: 25px;
+  width: 43px;
+  height: 43px;
+  display: grid;
+  place-items: center;
+}
+.edition {
+  text-align: right;
+  font-size: 10px;
+  letter-spacing: 0.16em;
+  line-height: 1.6;
+}
+.hero {
+  position: relative;
+  z-index: 2;
+  margin: 10vh 0 0 8vw;
+  max-width: 900px;
+}
+.hero-kicker {
+  font-size: 13px;
+  letter-spacing: 0.22em;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 700;
+}
+.hero-kicker span {
+  background: var(--red);
+  color: #fff;
+  padding: 3px 6px;
+  letter-spacing: 0.06em;
+}
+.hero h1 {
+  font-size: clamp(64px, 8.1vw, 130px);
+  line-height: 0.96;
+  letter-spacing: -0.055em;
+  margin: 26px 0 34px;
+  font-weight: 900;
+}
+.hero h1 em {
+  font-style: normal;
+  color: var(--red);
+  position: relative;
+}
+.hero h1 em:after {
+  content: "";
+  position: absolute;
+  left: 1%;
+  right: -2%;
+  bottom: -11px;
+  height: 13px;
+  background: var(--red);
+  clip-path: polygon(0 47%, 100% 5%, 98% 58%, 8% 100%);
+}
+.hero-copy {
+  font-size: 16px;
+  line-height: 2;
+  color: #4f4a42;
+  border-left: 3px solid var(--ink);
+  padding-left: 20px;
+}
+.hero-actions {
+  display: flex;
+  align-items: center;
+  gap: 26px;
+  margin-top: 38px;
+}
+.primary-button {
+  border: 0;
+  background: var(--ink);
+  color: #fff8ea;
+  padding: 16px 23px;
+  display: inline-flex;
+  gap: 18px;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 5px 5px 0 var(--red);
+  transition:
+    0.2s transform,
+    0.2s box-shadow;
+}
+.primary-button:hover {
+  transform: translate(-2px, -2px);
+  box-shadow: 8px 8px 0 var(--red);
+}
+.primary-button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+.text-button,
+.back-button {
+  border: 0;
+  background: none;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  border-bottom: 1px solid;
+  padding: 6px 0;
+}
+.hero-proof {
+  display: flex;
+  margin-top: 62px;
+  border-top: 1px solid var(--line);
+  max-width: 680px;
+}
+.hero-proof div {
+  padding: 17px 34px 0 0;
+  margin-right: 34px;
+  border-right: 1px solid var(--line);
+  display: flex;
+  flex-direction: column;
+}
+.hero-proof strong {
+  font:
+    700 25px "Shippori Mincho",
+    serif;
+}
+.hero-proof span {
+  font-size: 10px;
+  letter-spacing: 0.14em;
+  color: var(--muted);
+}
+.future-note {
+  position: absolute;
+  right: 7vw;
+  top: 22vh;
+  width: 270px;
+  background: #fff8d9;
+  padding: 35px 27px 25px;
+  transform: rotate(3.5deg);
+  box-shadow: var(--shadow);
+  font-family: "Ma Shan Zheng", cursive;
+  font-size: 21px;
+  line-height: 1.5;
+}
+.future-note .pin {
+  position: absolute;
+  top: 10px;
+  left: 48%;
+  width: 13px;
+  height: 13px;
+  border-radius: 50%;
+  background: var(--red);
+  box-shadow: 1px 2px 4px #555;
+}
+.future-note .note-label {
+  font: 700 9px "Noto Serif SC";
+  letter-spacing: 0.18em;
+  color: var(--red);
+}
+.future-note small {
+  font-size: 15px;
+  float: right;
+}
+.ticker {
+  position: absolute;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  background: var(--ink);
+  color: #f6eddd;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  gap: 7vw;
+  white-space: nowrap;
+  overflow: hidden;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.ticker span:before {
+  content: "◆";
+  color: var(--red);
+  padding: 0 18px;
+}
+.masthead-right {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+.zhihu-login {
+  border: 1px solid var(--ink);
+  background: transparent;
+  padding: 9px 12px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  font-size: 10px;
+}
+.zhihu-login > span {
+  width: 22px;
+  height: 22px;
+  display: grid;
+  place-items: center;
+  background: var(--blue);
+  color: white;
+  font-weight: 900;
+}
+.zhihu-login:disabled {
+  cursor: not-allowed;
+  opacity: 0.5;
+}
+.zhihu-account {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  max-width: 280px;
+}
+.zhihu-account > img,
+.zhihu-account > span {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: grid;
+  place-items: center;
+  object-fit: cover;
+  background: var(--blue);
+  color: white;
+}
+.zhihu-account > div {
+  display: flex;
+  flex-direction: column;
+  max-width: 160px;
+}
+.zhihu-account b,
+.zhihu-account small {
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.zhihu-account b {
+  font-size: 11px;
+}
+.zhihu-account small {
+  font-size: 8px;
+  color: var(--muted);
+}
+.zhihu-account > button {
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+  padding: 6px;
+}
+.oauth-message {
+  position: absolute;
+  z-index: 4;
+  right: 5vw;
+  top: 92px;
+  max-width: 430px;
+  padding: 10px 13px;
+  background: #fff8d9;
+  border-left: 3px solid var(--red);
+  font-size: 10px;
+  line-height: 1.6;
+  box-shadow: 0 7px 20px rgba(52, 41, 27, 0.1);
+}
+.setup-shell {
+  min-height: 100vh;
+  padding: 32px 6vw 70px;
+  position: relative;
+}
+.back-button {
+  position: absolute;
+  top: 34px;
+  left: 6vw;
+}
+.setup-header {
+  text-align: center;
+  margin: 45px auto 42px;
+}
+.setup-header > span,
+.ending-kicker {
+  font: 700 10px "Shippori Mincho";
+  letter-spacing: 0.28em;
+  color: var(--red);
+}
+.setup-header h1 {
+  font-size: clamp(40px, 5vw, 72px);
+  line-height: 1.04;
+  margin: 14px 0 12px;
+}
+.setup-header p {
+  color: var(--muted);
+  font-size: 13px;
+}
+.setup-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(380px, 0.85fr);
+  max-width: 1120px;
+  margin: auto;
+  box-shadow: var(--shadow);
+}
+.form-paper,
+.talent-paper {
+  padding: 42px 48px;
+  background: #faf5e9;
+}
+.talent-paper {
+  background: var(--ink);
+  color: #f6eedf;
+  position: relative;
+  overflow: hidden;
+}
+.talent-paper:after {
+  content: "命";
+  position: absolute;
+  right: -45px;
+  bottom: -115px;
+  font-size: 280px;
+  color: rgba(255, 255, 255, 0.035);
+  font-weight: 900;
+}
+.form-paper label {
+  display: block;
+  font-size: 11px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+  margin-bottom: 25px;
+}
+.form-paper input,
+.form-paper select {
+  display: block;
+  width: 100%;
+  border: 0;
+  border-bottom: 1px solid var(--ink);
+  background: transparent;
+  padding: 11px 2px 9px;
+  margin-top: 7px;
+  font-size: 17px;
+  border-radius: 0;
+  outline: none;
+}
+.field-row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 30px;
+}
+.choice-chips {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 9px;
+  margin-top: 12px;
+}
+.choice-chips button {
+  background: transparent;
+  border: 1px solid var(--line);
+  padding: 10px;
+  cursor: pointer;
+  font-size: 12px;
+}
+.choice-chips button.active {
+  background: var(--red);
+  color: white;
+  border-color: var(--red);
+}
+.precision-cards {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin-top: 12px;
+}
+.precision-cards button {
+  border: 1px solid var(--line);
+  background: transparent;
+  padding: 16px;
+  text-align: left;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 3px 10px;
+  cursor: pointer;
+}
+.precision-cards svg {
+  grid-row: 1/3;
+}
+.precision-cards small {
+  font-size: 9px;
+  color: var(--muted);
+}
+.precision-cards .active {
+  border: 2px solid var(--blue);
+  background: rgba(30, 102, 113, 0.06);
+}
+.talent-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  border-bottom: 1px solid #655f55;
+  padding-bottom: 16px;
+}
+.talent-heading > span {
+  letter-spacing: 0.2em;
+  font-size: 12px;
+}
+.talent-heading strong {
+  font: 700 35px "Shippori Mincho";
+}
+.talent-heading small {
+  font-size: 12px;
+  color: #9e978a;
+}
+.talent-paper > p {
+  font-size: 11px;
+  color: #aaa294;
+  line-height: 1.8;
+}
+.talent-row {
+  display: grid;
+  grid-template-columns: 48px 27px 1fr 27px 20px;
+  gap: 8px;
+  align-items: center;
+  margin: 24px 0;
+  position: relative;
+  z-index: 1;
+}
+.talent-row > span {
+  font-size: 12px;
+}
+.talent-row button {
+  width: 27px;
+  height: 27px;
+  border: 1px solid #777065;
+  background: transparent;
+  color: white;
+  cursor: pointer;
+}
+.talent-dots {
+  display: flex;
+  gap: 5px;
+}
+.talent-dots i {
+  height: 5px;
+  flex: 1;
+  background: #4b4842;
+}
+.talent-dots i.filled {
+  background: #d4543c;
+}
+.talent-row > b {
+  text-align: right;
+}
+.setup-quote {
+  font-family: "Ma Shan Zheng";
+  font-size: 24px;
+  color: #c9bfad;
+  line-height: 1.5;
+  margin: 32px 0;
+  transform: rotate(-2deg);
+}
+.full {
+  width: 100%;
+  position: relative;
+  z-index: 1;
+}
+.game-shell {
+  height: 100vh;
+  overflow: hidden;
+  background: #e9e1d2;
+}
+.game-topbar {
+  height: 72px;
+  background: var(--ink);
+  color: #f7efdf;
+  display: grid;
+  grid-template-columns: 1fr auto 1fr;
+  align-items: center;
+  padding: 0 28px;
+  border-bottom: 4px solid var(--red);
+}
+.mini-brand {
+  font-weight: 900;
+  letter-spacing: 0.15em;
+}
+.game-date {
+  text-align: center;
+  display: flex;
+  gap: 13px;
+  align-items: center;
+}
+.game-date b {
+  font: 700 30px "Shippori Mincho";
+}
+.game-date span {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: #aaa294;
+  line-height: 1.3;
+}
+.restart-button {
+  justify-self: end;
+  background: transparent;
+  border: 1px solid #555047;
+  color: #d9d0c1;
+  padding: 8px 12px;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  cursor: pointer;
+  font-size: 10px;
+}
+.game-layout {
+  display: grid;
+  grid-template-columns: 210px minmax(500px, 1fr) 240px;
+  height: calc(100vh - 72px);
+}
+.stat-rail,
+.timeline-rail {
+  padding: 27px 22px;
+  background: #ded4c2;
+  border-right: 1px solid #bbae98;
+  overflow: auto;
+}
+.timeline-rail {
+  border-right: 0;
+  border-left: 1px solid #bbae98;
+  background: #e3dacb;
+}
+.rail-title {
+  font-size: 10px;
+  letter-spacing: 0.18em;
+  font-weight: 700;
+  border-bottom: 2px solid var(--ink);
+  padding-bottom: 10px;
+  margin-bottom: 20px;
+}
+.rail-title span {
+  float: right;
+  color: var(--red);
+}
+.stat-item {
+  display: grid;
+  grid-template-columns: 20px 1fr 27px;
+  gap: 8px;
+  align-items: center;
+  margin-bottom: 23px;
+}
+.stat-item svg {
+  color: #5d574e;
+}
+.stat-item > div > span {
+  font-size: 10px;
+}
+.stat-item > b {
+  font: 700 13px "Shippori Mincho";
+  text-align: right;
+}
+.bar {
+  height: 3px;
+  background: #c0b6a5;
+  margin-top: 7px;
+}
+.bar i {
+  display: block;
+  height: 100%;
+  background: var(--red);
+  transition: width 0.4s;
+}
+.event-stage {
+  overflow: auto;
+  padding: 30px 5vw 60px;
+  position: relative;
+}
+.chapter-line {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  max-width: 850px;
+  margin: auto auto 12px;
+  font-size: 10px;
+  letter-spacing: 0.17em;
+}
+.chapter-line button {
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  cursor: pointer;
+  display: flex;
+  gap: 6px;
+  align-items: center;
+  font-size: 10px;
+  border-bottom: 1px solid;
+}
+.event-paper {
+  max-width: 850px;
+  margin: auto;
+  background: #fbf6ea;
+  box-shadow: var(--shadow);
+  padding: 48px 58px 44px;
+  position: relative;
+  border-top: 7px solid var(--ink);
+}
+.paper-index {
+  position: absolute;
+  right: 22px;
+  top: 18px;
+  font: 700 9px "Shippori Mincho";
+  letter-spacing: 0.2em;
+  color: #938a7c;
+}
+.event-paper > header > span {
+  font-size: 9px;
+  color: var(--red);
+  letter-spacing: 0.16em;
+}
+.event-paper h1 {
+  font-size: clamp(31px, 3vw, 48px);
+  line-height: 1.15;
+  margin: 11px 0 30px;
+  max-width: 85%;
+}
+.event-background {
+  border: 1px solid var(--line);
+  padding: 15px 18px;
+  position: relative;
+  background: #f3ecde;
+}
+.event-background label {
+  position: absolute;
+  left: 15px;
+  top: -8px;
+  background: #f3ecde;
+  padding: 0 7px;
+  color: var(--blue);
+  font-size: 9px;
+  letter-spacing: 0.15em;
+}
+.event-background p {
+  font-size: 13px;
+  line-height: 1.85;
+  margin: 0;
+}
+.event-dilemma {
+  display: grid;
+  grid-template-columns: 45px 1fr;
+  gap: 8px;
+  margin: 28px 0 16px;
+}
+.quote-mark {
+  font: 700 70px Georgia;
+  color: var(--red);
+  line-height: 0.8;
+}
+.event-dilemma p {
+  font-size: 19px;
+  line-height: 1.75;
+  margin: 0;
+  font-weight: 600;
+}
+.event-detail {
+  font-size: 11px;
+  color: var(--muted);
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 18px;
+}
+.options-label {
+  display: block;
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  font-weight: 700;
+  margin: 22px 0 10px;
+}
+.option-card {
+  width: 100%;
+  display: grid;
+  grid-template-columns: 38px 1fr 25px 18px;
+  align-items: center;
+  gap: 13px;
+  border: 0;
+  border-top: 1px solid var(--line);
+  background: transparent;
+  text-align: left;
+  padding: 17px 8px;
+  cursor: pointer;
+  transition: 0.18s;
+}
+.option-card:last-of-type {
+  border-bottom: 1px solid var(--line);
+}
+.option-card:hover {
+  background: var(--ink);
+  color: #fff8ea;
+  padding-left: 17px;
+}
+.option-card > i {
+  font: 700 23px "Shippori Mincho";
+  font-style: normal;
+  color: var(--red);
+}
+.option-card div {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+.option-card b {
+  font-size: 14px;
+}
+.option-card div span {
+  font-size: 10px;
+  color: var(--muted);
+}
+.option-card:hover div span {
+  color: #bdb5a8;
+}
+.option-card > em {
+  font-family: "Ma Shan Zheng";
+  font-size: 20px;
+  color: var(--blue);
+  font-style: normal;
+}
+.custom-trigger {
+  margin: 18px auto 0;
+  border: 0;
+  background: transparent;
+  color: var(--blue);
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  border-bottom: 1px solid;
+  cursor: pointer;
+  padding: 6px;
+  font-size: 11px;
+}
+.custom-box {
+  border: 1px solid var(--blue);
+  margin-top: 14px;
+  background: #edf0e9;
+}
+.custom-box textarea {
+  width: 100%;
+  min-height: 90px;
+  resize: vertical;
+  border: 0;
+  background: transparent;
+  padding: 14px;
+  outline: none;
+  font-size: 12px;
+  line-height: 1.8;
+}
+.custom-box > div {
+  border-top: 1px solid #bdcac6;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-left: 12px;
+}
+.custom-box span {
+  font-size: 9px;
+  color: var(--muted);
+}
+.custom-box button {
+  border: 0;
+  background: var(--blue);
+  color: white;
+  padding: 10px 14px;
+  display: flex;
+  gap: 7px;
+  align-items: center;
+  cursor: pointer;
+  font-size: 11px;
+}
+.evidence-footnote {
+  max-width: 850px;
+  margin: 13px auto;
+  color: var(--muted);
+  font-size: 9px;
+  text-align: center;
+}
+.evidence-footnote span {
+  color: var(--red);
+}
+.timeline-list {
+  position: relative;
+  padding-left: 13px;
+}
+.timeline-list:before {
+  content: "";
+  position: absolute;
+  left: 3px;
+  top: 3px;
+  bottom: 0;
+  border-left: 1px solid #b5a994;
+}
+.timeline-item {
+  position: relative;
+  padding: 0 0 23px 10px;
+}
+.timeline-item > i {
+  position: absolute;
+  left: -13px;
+  top: 4px;
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: var(--red);
+}
+.timeline-item > span {
+  display: block;
+  font: 700 9px "Shippori Mincho";
+  color: var(--red);
+}
+.timeline-item > b {
+  font-size: 11px;
+}
+.timeline-item > p {
+  font-size: 9px;
+  color: var(--muted);
+  margin: 3px 0;
+}
+.timeline-empty {
+  font-size: 10px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.loading-file,
+.error-file {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+}
+.loading-file > span {
+  font-size: 9px;
+  letter-spacing: 0.27em;
+  color: var(--red);
+  margin-top: 22px;
+}
+.loading-file h2 {
+  font-size: 21px;
+  margin: 12px;
+}
+.spin {
+  animation: spin 1.2s linear infinite;
+  color: var(--red);
+}
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+.loading-lines {
+  width: 300px;
+  margin-top: 22px;
+}
+.loading-lines i {
+  display: block;
+  height: 2px;
+  background: #c4b9a7;
+  margin: 8px;
+  animation: pulse 1.3s infinite;
+}
+.loading-lines i:nth-child(2) {
+  width: 70%;
+  animation-delay: 0.2s;
+}
+.loading-lines i:nth-child(3) {
+  width: 84%;
+  animation-delay: 0.4s;
+}
+@keyframes pulse {
+  50% {
+    opacity: 0.2;
+  }
+}
+.result-panel {
+  margin-top: 25px;
+  border-top: 3px solid var(--red);
+  padding: 27px 25px;
+  background: #efe6d5;
+  position: relative;
+}
+.result-stamp {
+  position: absolute;
+  right: 25px;
+  top: 20px;
+  border: 2px solid var(--red);
+  color: var(--red);
+  padding: 5px 8px;
+  transform: rotate(7deg);
+  font-size: 10px;
+  font-weight: 700;
+}
+.result-label {
+  font-size: 10px;
+  letter-spacing: 0.2em;
+  color: var(--red);
+}
+.result-panel p {
+  font-size: 16px;
+  line-height: 1.9;
+  max-width: 85%;
+}
+.effect-list {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 20px 0;
+}
+.effect-list span {
+  font-size: 10px;
+  padding: 4px 7px;
+  border: 1px solid;
+}
+.positive {
+  color: var(--blue);
+}
+.negative {
+  color: var(--red);
+}
+.drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  background: rgba(21, 19, 16, 0.62);
+  z-index: 20;
+  display: flex;
+  justify-content: flex-end;
+}
+.source-drawer {
+  height: 100%;
+  width: min(620px, 92vw);
+  background: #f3ecde;
+  padding: 42px 42px 70px;
+  overflow: auto;
+  box-shadow: -20px 0 70px rgba(0, 0, 0, 0.25);
+  animation: slideIn 0.25s ease-out;
+}
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+  }
+}
+.drawer-close {
+  position: absolute;
+  right: 22px;
+  top: 20px;
+  border: 0;
+  background: none;
+  cursor: pointer;
+}
+.source-drawer header > span {
+  font-size: 9px;
+  letter-spacing: 0.2em;
+  color: var(--red);
+}
+.source-drawer header h2 {
+  font-size: 30px;
+  margin: 10px 0;
+}
+.source-drawer header p {
+  font-size: 11px;
+  line-height: 1.8;
+  color: var(--muted);
+}
+.source-card {
+  border-top: 1px solid var(--ink);
+  padding: 20px 0;
+}
+.source-person {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+}
+.source-person img {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+}
+.source-person div {
+  display: flex;
+  flex-direction: column;
+}
+.source-person b {
+  font-size: 11px;
+}
+.source-person span {
+  font-size: 9px;
+  color: var(--red);
+}
+.source-card h3 {
+  font-size: 15px;
+}
+.source-card p,
+.source-card > div:not(.source-person) {
+  font-size: 10px;
+  line-height: 1.7;
+  color: #5f594f;
+}
+.source-card label {
+  display: block;
+  font-size: 8px;
+  letter-spacing: 0.14em;
+  color: var(--blue);
+  margin-top: 8px;
+}
+.source-card a {
+  display: inline-flex;
+  gap: 5px;
+  align-items: center;
+  color: var(--blue);
+  font-size: 10px;
+  margin-top: 12px;
+  text-decoration: none;
+  border-bottom: 1px solid;
+}
+.ending-shell {
+  min-height: 100vh;
+  padding: 7vh 5vw;
+  background: var(--ink);
+  color: #f4ecdd;
+  display: grid;
+  place-items: center;
+  background-image: radial-gradient(circle at 75% 20%, rgba(184, 58, 40, 0.25), transparent 30%);
+}
+.ending-card {
+  width: min(920px, 100%);
+  border: 1px solid #5e574c;
+  padding: 55px;
+  position: relative;
+}
+.ending-card:before,
+.ending-card:after {
+  content: "";
+  position: absolute;
+  width: 24px;
+  height: 24px;
+  border-color: var(--red);
+}
+.ending-card:before {
+  left: -1px;
+  top: -1px;
+  border-left: 5px solid var(--red);
+  border-top: 5px solid var(--red);
+}
+.ending-card:after {
+  right: -1px;
+  bottom: -1px;
+  border-right: 5px solid var(--red);
+  border-bottom: 5px solid var(--red);
+}
+.ending-card h1 {
+  font-size: clamp(37px, 5vw, 67px);
+  line-height: 1.15;
+  margin: 13px 0 25px;
+}
+.ending-card h1 em {
+  font-style: normal;
+  color: #df5b43;
+}
+.ending-card > p {
+  color: #bdb4a6;
+  line-height: 1.9;
+  max-width: 650px;
+}
+.ending-score {
+  position: absolute;
+  right: 60px;
+  top: 55px;
+  text-align: right;
+}
+.ending-score strong {
+  font: 700 86px "Shippori Mincho";
+  color: #df5b43;
+  line-height: 1;
+}
+.ending-score span {
+  font-size: 8px;
+  letter-spacing: 0.18em;
+}
+.ending-highlights {
+  display: flex;
+  gap: 12px;
+  margin: 40px 0;
+}
+.ending-highlights > div {
+  border: 1px solid #5c564c;
+  padding: 17px 22px;
+  min-width: 130px;
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: 5px 10px;
+  align-items: center;
+}
+.ending-highlights svg {
+  grid-row: 1/3;
+  color: #df5b43;
+}
+.ending-highlights span {
+  font-size: 10px;
+  color: #aaa294;
+}
+.ending-highlights b {
+  font-size: 20px;
+}
+.ending-quotes {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 15px;
+  margin-bottom: 35px;
+}
+.ending-quotes blockquote {
+  margin: 0;
+  border-top: 1px solid #766f63;
+  padding: 13px 0;
+  font-size: 11px;
+  line-height: 1.8;
+  color: #cfc6b8;
+}
+.ending-quotes span {
+  display: block;
+  color: #df5b43;
+  font-size: 9px;
+  margin-bottom: 6px;
+}
+@media (max-width: 1050px) {
+  .future-note {
+    display: none;
+  }
+  .hero {
+    margin-left: 3vw;
+  }
+  .game-layout {
+    grid-template-columns: 180px 1fr;
+  }
+  .timeline-rail {
+    display: none;
+  }
+  .event-stage {
+    padding-left: 3vw;
+    padding-right: 3vw;
+  }
+  .ending-score {
+    position: static;
+    text-align: left;
+    margin: 25px 0;
+  }
+  .setup-grid {
+    grid-template-columns: 1fr;
+  }
+}
+@media (max-width: 720px) {
+  .landing-shell {
+    padding: 20px 22px 50px;
+  }
+  .masthead-right {
+    gap: 8px;
+  }
+  .edition {
+    display: none;
+  }
+  .zhihu-login {
+    font-size: 0;
+    padding: 7px;
+  }
+  .zhihu-login > span {
+    font-size: 14px;
+  }
+  .zhihu-account > div {
+    display: none;
+  }
+  .oauth-message {
+    top: 82px;
+    left: 22px;
+    right: 22px;
+  }
+  .hero {
+    margin: 13vh 0 0;
+  }
+  .hero h1 {
+    font-size: 52px;
+  }
+  .hero-copy br {
+    display: none;
+  }
+  .hero-actions {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 12px;
+  }
+  .hero-proof div {
+    padding-right: 12px;
+    margin-right: 12px;
+  }
+  .hero-proof strong {
+    font-size: 18px;
+  }
+  .setup-shell {
+    padding: 75px 15px 30px;
+  }
+  .setup-header {
+    text-align: left;
+    margin-left: 12px;
+  }
+  .form-paper,
+  .talent-paper {
+    padding: 29px 24px;
+  }
+  .field-row {
+    grid-template-columns: 1fr;
+  }
+  .game-topbar {
+    padding: 0 12px;
+    grid-template-columns: 1fr auto;
+  }
+  .mini-brand {
+    font-size: 10px;
+  }
+  .restart-button {
+    display: none;
+  }
+  .game-layout {
+    display: block;
+    height: calc(100vh - 72px);
+  }
+  .stat-rail {
+    height: 64px;
+    padding: 8px 12px;
+    display: flex;
+    gap: 12px;
+    overflow-x: auto;
+    border-bottom: 1px solid var(--line);
+  }
+  .stat-rail .rail-title {
+    display: none;
+  }
+  .stat-item {
+    min-width: 70px;
+    margin: 0;
+    grid-template-columns: 15px 1fr;
+  }
+  .stat-item > b {
+    display: none;
+  }
+  .event-stage {
+    height: calc(100% - 64px);
+    padding: 20px 12px 50px;
+  }
+  .event-paper {
+    padding: 35px 22px;
+  }
+  .event-paper h1 {
+    font-size: 31px;
+  }
+  .event-dilemma {
+    grid-template-columns: 27px 1fr;
+  }
+  .quote-mark {
+    font-size: 50px;
+  }
+  .event-dilemma p {
+    font-size: 16px;
+  }
+  .chapter-line {
+    font-size: 8px;
+  }
+  .ending-shell {
+    padding: 18px;
+  }
+  .ending-card {
+    padding: 35px 24px;
+  }
+  .ending-highlights {
+    overflow-x: auto;
+  }
+  .ending-quotes {
+    grid-template-columns: 1fr;
+  }
+  .choice-chips,
+  .precision-cards {
+    grid-template-columns: 1fr;
+  }
+}
 
-.option-people{display:flex!important;flex-direction:row!important;align-items:center;gap:8px;margin-top:8px}.option-people strong{font-size:9px;color:var(--blue);font-weight:600}.option-card:hover .option-people strong{color:#8ec2c8}.avatar-stack{display:flex;align-items:center}.avatar-stack img{width:25px;height:25px;border-radius:50%;border:2px solid #f7f0e3;margin-left:-7px;background:#ddd}.avatar-stack img:first-child{margin-left:0}.fellow-trajectories{border-top:1px solid #c3b6a2;margin:22px 0 25px;padding-top:18px}.fellow-trajectories>header{display:flex;align-items:center;gap:12px;margin-bottom:14px}.fellow-trajectories>header>div:last-child{display:flex;flex-direction:column}.fellow-trajectories>header b{font-size:12px}.fellow-trajectories>header span{font-size:9px;color:var(--muted)}.fellow-trajectories article{background:#faf5e9;border:1px solid #d0c4b1;padding:13px;margin-top:9px}.trajectory-user{display:flex;align-items:center;gap:8px;border-bottom:1px solid #ddd1be;padding-bottom:9px}.trajectory-user img{width:28px;height:28px;border-radius:50%}.trajectory-user b{font-size:10px}.trajectory-user a{margin-left:auto;display:flex;align-items:center;gap:4px;font-size:9px;color:var(--blue);text-decoration:none}.trajectory-flow{display:grid;grid-template-columns:1fr auto 1fr auto 1fr;gap:8px;margin-top:11px;align-items:start}.trajectory-flow>i{font-style:normal;color:var(--red);padding-top:16px}.trajectory-flow label{font-size:8px;letter-spacing:.12em;color:var(--blue)}.trajectory-flow p{font-size:9px!important;line-height:1.65!important;margin:4px 0!important;color:#5d574e;max-width:none!important}
-@media(max-width:720px){.trajectory-flow{grid-template-columns:1fr}.trajectory-flow>i{transform:rotate(90deg);padding:0;text-align:center}.fellow-trajectories>header{align-items:flex-start}.option-people strong{font-size:8px}}
-.missing-avatar{width:28px;height:28px;border-radius:50%;border:1px dashed #9c9282;display:grid!important;place-items:center;font-size:6px!important;color:#766e62!important;background:transparent!important;flex:0 0 auto}.author-link{font-size:10px;color:var(--blue);font-weight:700;text-decoration:none;border-bottom:1px solid}.source-person .author-link{font-size:11px}.resource-pressure{display:flex;gap:7px;flex-wrap:wrap;margin:12px 0 2px}.resource-pressure span{font-size:8px;padding:4px 7px;background:#ded5c5;color:#5c554b;border-left:2px solid var(--red)}.option-mechanics{display:flex!important;flex-direction:row!important;align-items:center;gap:6px;margin-top:7px}.option-mechanics strong,.option-mechanics em,.option-mechanics i{font-size:8px;font-style:normal;padding:2px 5px;border:1px solid #b8ad9c}.option-mechanics strong{color:var(--blue)}.option-mechanics em{color:#7c5a24}.option-mechanics i{color:var(--red)}.option-card .state-reason{font-size:8px;color:#7e766b;margin-top:3px}.result-mechanics{display:flex;gap:7px;flex-wrap:wrap;margin:10px 0}.result-mechanics span{font-size:9px;padding:3px 6px;border:1px solid #b8ad9c}.risk-hit{color:var(--red);border-color:var(--red)!important}.risk-safe{color:var(--blue);border-color:var(--blue)!important}.result-panel>.state-reason{display:block;font-size:9px;color:#6d6559;margin-top:-8px}
-.stream-metrics{display:flex;gap:7px;flex-wrap:wrap;justify-content:center;min-height:27px}.stream-metrics b,.stream-metrics span{font:700 9px "Shippori Mincho",serif;letter-spacing:.08em;border:1px solid var(--line);padding:5px 8px;background:#f4ecdd}.stream-metrics b{color:var(--red);border-color:var(--red)}
+.option-people {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 8px;
+  margin-top: 8px;
+}
+.option-people strong {
+  font-size: 9px;
+  color: var(--blue);
+  font-weight: 600;
+}
+.option-card:hover .option-people strong {
+  color: #8ec2c8;
+}
+.avatar-stack {
+  display: flex;
+  align-items: center;
+}
+.avatar-stack img {
+  width: 25px;
+  height: 25px;
+  border-radius: 50%;
+  border: 2px solid #f7f0e3;
+  margin-left: -7px;
+  background: #ddd;
+}
+.avatar-stack img:first-child {
+  margin-left: 0;
+}
+.fellow-trajectories {
+  border-top: 1px solid #c3b6a2;
+  margin: 22px 0 25px;
+  padding-top: 18px;
+}
+.fellow-trajectories > header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.fellow-trajectories > header > div:last-child {
+  display: flex;
+  flex-direction: column;
+}
+.fellow-trajectories > header b {
+  font-size: 12px;
+}
+.fellow-trajectories > header span {
+  font-size: 9px;
+  color: var(--muted);
+}
+.fellow-trajectories article {
+  background: #faf5e9;
+  border: 1px solid #d0c4b1;
+  padding: 13px;
+  margin-top: 9px;
+}
+.trajectory-user {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  border-bottom: 1px solid #ddd1be;
+  padding-bottom: 9px;
+}
+.trajectory-user img {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+}
+.trajectory-user b {
+  font-size: 10px;
+}
+.trajectory-user a {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 9px;
+  color: var(--blue);
+  text-decoration: none;
+}
+.trajectory-flow {
+  display: grid;
+  grid-template-columns: 1fr auto 1fr auto 1fr;
+  gap: 8px;
+  margin-top: 11px;
+  align-items: start;
+}
+.trajectory-flow > i {
+  font-style: normal;
+  color: var(--red);
+  padding-top: 16px;
+}
+.trajectory-flow label {
+  font-size: 8px;
+  letter-spacing: 0.12em;
+  color: var(--blue);
+}
+.trajectory-flow p {
+  font-size: 9px !important;
+  line-height: 1.65 !important;
+  margin: 4px 0 !important;
+  color: #5d574e;
+  max-width: none !important;
+}
+@media (max-width: 720px) {
+  .trajectory-flow {
+    grid-template-columns: 1fr;
+  }
+  .trajectory-flow > i {
+    transform: rotate(90deg);
+    padding: 0;
+    text-align: center;
+  }
+  .fellow-trajectories > header {
+    align-items: flex-start;
+  }
+  .option-people strong {
+    font-size: 8px;
+  }
+}
+.missing-avatar {
+  width: 28px;
+  height: 28px;
+  border-radius: 50%;
+  border: 1px dashed #9c9282;
+  display: grid !important;
+  place-items: center;
+  font-size: 6px !important;
+  color: #766e62 !important;
+  background: transparent !important;
+  flex: 0 0 auto;
+}
+.author-link {
+  font-size: 10px;
+  color: var(--blue);
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 1px solid;
+}
+.source-person .author-link {
+  font-size: 11px;
+}
+.resource-pressure {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 12px 0 2px;
+}
+.resource-pressure span {
+  font-size: 8px;
+  padding: 4px 7px;
+  background: #ded5c5;
+  color: #5c554b;
+  border-left: 2px solid var(--red);
+}
+.option-mechanics {
+  display: flex !important;
+  flex-direction: row !important;
+  align-items: center;
+  gap: 6px;
+  margin-top: 7px;
+}
+.option-mechanics strong,
+.option-mechanics em,
+.option-mechanics i {
+  font-size: 8px;
+  font-style: normal;
+  padding: 2px 5px;
+  border: 1px solid #b8ad9c;
+}
+.option-mechanics strong {
+  color: var(--blue);
+}
+.option-mechanics em {
+  color: #7c5a24;
+}
+.option-mechanics i {
+  color: var(--red);
+}
+.option-card .state-reason {
+  font-size: 8px;
+  color: #7e766b;
+  margin-top: 3px;
+}
+.result-mechanics {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  margin: 10px 0;
+}
+.result-mechanics span {
+  font-size: 9px;
+  padding: 3px 6px;
+  border: 1px solid #b8ad9c;
+}
+.risk-hit {
+  color: var(--red);
+  border-color: var(--red) !important;
+}
+.risk-safe {
+  color: var(--blue);
+  border-color: var(--blue) !important;
+}
+.result-panel > .state-reason {
+  display: block;
+  font-size: 9px;
+  color: #6d6559;
+  margin-top: -8px;
+}
+.stream-metrics {
+  display: flex;
+  gap: 7px;
+  flex-wrap: wrap;
+  justify-content: center;
+  min-height: 27px;
+}
+.stream-metrics b,
+.stream-metrics span {
+  font:
+    700 9px "Shippori Mincho",
+    serif;
+  letter-spacing: 0.08em;
+  border: 1px solid var(--line);
+  padding: 5px 8px;
+  background: #f4ecdd;
+}
+.stream-metrics b {
+  color: var(--red);
+  border-color: var(--red);
+}

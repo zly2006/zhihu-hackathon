@@ -6,12 +6,12 @@
 
 `content_snapshot` 直接保存游戏所需的来源与作者信息：
 
-| 字段 | 用途 |
-|---|---|
-| `source_url` | 原始知乎回答链接 |
-| `author_name` | 作者展示名 |
-| `author_avatar_url` | 作者头像地址 |
-| `author_url_token` | 知乎作者 token |
+| 字段                 | 用途                 |
+| -------------------- | -------------------- |
+| `source_url`         | 原始知乎回答链接     |
+| `author_name`        | 作者展示名           |
+| `author_avatar_url`  | 作者头像地址         |
+| `author_url_token`   | 知乎作者 token       |
 | `author_profile_url` | 可直接打开的作者主页 |
 
 这些字段由受治理的迁移和采集链路写入。`raw_envelope.payload` 是冷证据，不用于在线作者信息解析。

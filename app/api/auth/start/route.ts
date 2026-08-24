@@ -1,5 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
-import { applicationUrl, attachSessionCookie, authorizationUrl, recordOAuthError } from "@/lib/zhihu-auth";
+import {
+  applicationUrl,
+  attachSessionCookie,
+  authorizationUrl,
+  recordOAuthError,
+} from "@/lib/zhihu-auth";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";

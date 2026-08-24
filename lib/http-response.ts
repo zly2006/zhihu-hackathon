@@ -24,7 +24,8 @@ function errorDetail(payload: unknown) {
   if (!payload || typeof payload !== "object") return "";
   const body = payload as { error?: unknown; message?: unknown };
   if (typeof body.error === "string") return body.error;
-  if (body.error && typeof body.error === "object" && "message" in body.error) return String(body.error.message || "");
+  if (body.error && typeof body.error === "object" && "message" in body.error)
+    return String(body.error.message || "");
   return typeof body.message === "string" ? body.message : "";
 }
 
@@ -36,7 +37,9 @@ export async function readJsonResponse<T>(response: Response, purpose: string): 
     try {
       payload = JSON.parse(rawBody);
       validJson = true;
-    } catch { /* HTTP status remains the primary error for non-2xx responses. */ }
+    } catch {
+      /* HTTP status remains the primary error for non-2xx responses. */
+    }
   }
 
   if (!response.ok) {
@@ -44,6 +47,7 @@ export async function readJsonResponse<T>(response: Response, purpose: string): 
     throw new Error(`${purpose}失败：${httpStatus(response)}${detail ? `：${detail}` : ""}`);
   }
   if (!rawBody.trim()) throw new Error(`${purpose}失败：${httpStatus(response)}，响应正文为空`);
-  if (!validJson) throw new Error(`${purpose}失败：${httpStatus(response)}，服务返回的正文不是 JSON`);
+  if (!validJson)
+    throw new Error(`${purpose}失败：${httpStatus(response)}，服务返回的正文不是 JSON`);
   return payload as T;
 }

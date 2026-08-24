@@ -123,6 +123,17 @@ export type TimelineEntry = {
     background: string;
     dilemma: string;
     detail: string;
-    options: Array<Pick<GameOption, "id" | "label" | "description" | "experienceIds" | "strategyTag" | "stateFit" | "stateReason">>;
+    options: Array<
+      Pick<
+        GameOption,
+        | "id"
+        | "label"
+        | "description"
+        | "experienceIds"
+        | "strategyTag"
+        | "stateFit"
+        | "stateReason"
+      >
+    >;
   };
 };

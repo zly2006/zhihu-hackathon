@@ -4,17 +4,17 @@
 
 ## 固定参数
 
-| 项目 | 值 |
-|---|---|
-| 应用目录 | 仓库根目录 |
-| 容器名 | `zhihu-restart-life` |
-| 镜像名 | `zhihu-restart-life:<git-commit>` |
-| 容器端口 | `3000` |
-| off 主机端口 | `15180` |
-| FRP 公网端口 | `25180` |
-| HTTPS 域名 | `restart-life.ai2.fintechedu.cn` |
-| 数据目录 | `/home/dom/services/restart-life-data/`（仅日志与旧库回滚材料） |
-| 运行目录 | `/home/dom/services/restart-life/` |
+| 项目         | 值                                                              |
+| ------------ | --------------------------------------------------------------- |
+| 应用目录     | 仓库根目录                                                      |
+| 容器名       | `zhihu-restart-life`                                            |
+| 镜像名       | `zhihu-restart-life:<git-commit>`                               |
+| 容器端口     | `3000`                                                          |
+| off 主机端口 | `15180`                                                         |
+| FRP 公网端口 | `25180`                                                         |
+| HTTPS 域名   | `restart-life.ai2.fintechedu.cn`                                |
+| 数据目录     | `/home/dom/services/restart-life-data/`（仅日志与旧库回滚材料） |
+| 运行目录     | `/home/dom/services/restart-life/`                              |
 
 端口和域名是本次已完成部署的参数；后续新实例必须先用 `check_ports.sh` 检查，不能直接复用已占用端口。
 
