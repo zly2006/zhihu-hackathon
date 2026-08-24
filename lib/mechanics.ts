@@ -81,6 +81,33 @@ export function effectiveRiskForOption(state: LifeState, profile: Profile, optio
   );
 }
 
+export function calibrateOptionRisks(state: LifeState, profile: Profile, options: GameOption[]) {
+  const calibrated = options.map((option) => ({ ...option }));
+  const risks = () => calibrated.map((option) => effectiveRiskForOption(state, profile, option));
+  const averageRisk = () => {
+    const values = risks();
+    return values.reduce((sum, value) => sum + value, 0) / values.length;
+  };
+
+  for (let step = 0; step < 240 && averageRisk() > 50; step += 1) {
+    const values = risks();
+    const adjustable = calibrated
+      .map((option, index) => ({ option, risk: values[index] }))
+      .filter(({ option }) => option.baseRisk > 5)
+      .sort((left, right) => right.risk - left.risk)[0];
+    if (!adjustable) break;
+    adjustable.option.baseRisk -= 1;
+  }
+
+  const values = risks();
+  const safestIndex = values.indexOf(Math.min(...values));
+  while (values[safestIndex] > 30 && calibrated[safestIndex].baseRisk > 5) {
+    calibrated[safestIndex].baseRisk -= 1;
+    values[safestIndex] = effectiveRiskForOption(state, profile, calibrated[safestIndex]);
+  }
+  return calibrated;
+}
+
 export function settleChoice(
   state: LifeState,
   profile: Profile,

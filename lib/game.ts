@@ -1,7 +1,7 @@
 import { createHash } from "node:crypto";
 import { callGameModel, type ModelProgress } from "./llm";
 import { retrieveExperiences } from "./database";
-import { resourceContext } from "./mechanics";
+import { calibrateOptionRisks, resourceContext } from "./mechanics";
 import type {
   Effect,
   EventStreamProgress,
@@ -397,6 +397,7 @@ export async function generateEvent(
     }
   }
   if (!options) throw new Error("模型结果未通过现实约束校验");
+  options = calibrateOptionRisks(state, profile, options);
   const anchor = retrieved.items[0];
   const totalMs = Math.round(performance.now() - generationStarted);
   const modelMetrics = finalModelProgress as ModelProgress | null;
