@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
+import type { ModelConversationMessage } from "./types";
 
 const DEFAULT_ENDPOINT = "https://opencode.ai/zen/go/v1/chat/completions";
 const DEFAULT_MODEL = "deepseek-v4-flash";
@@ -14,13 +15,17 @@ export type ModelProgress = {
   tokensPerSecond: number;
   retryAttempt: number;
   retryReason?: string;
+  promptCacheHitTokens: number;
+  promptCacheMissTokens: number;
 };
 
-type AppendedMessage = { role: "assistant" | "user"; content: string };
+export type ModelMessage = ModelConversationMessage;
 type CallOptions = {
   onProgress?: (progress: ModelProgress) => void;
   signal?: AbortSignal;
-  appendMessages?: AppendedMessage[];
+  prefixMessages?: ModelMessage[];
+  appendMessages?: ModelMessage[];
+  onCompletedMessage?: (content: string) => void;
   slowRetryAttempt?: number;
 };
 function environment(name: string) {
@@ -125,8 +130,11 @@ export async function callGameModel<T>(
   let tokensPerSecond = 0;
   let lastProgressAt = 0;
   let slowStreamDetected = false;
+  let promptCacheHitTokens = 0;
+  let promptCacheMissTokens = 0;
   const messages = [
     { role: "system", content: system },
+    ...(options.prefixMessages || []),
     { role: "user", content: prompt },
     ...(options.appendMessages || []),
   ];
@@ -148,6 +156,8 @@ export async function callGameModel<T>(
       tokenCountEstimated,
       tokensPerSecond,
       retryAttempt,
+      promptCacheHitTokens,
+      promptCacheMissTokens,
     });
   };
 
@@ -210,7 +220,11 @@ export async function callGameModel<T>(
       if (!data || data === "[DONE]") return;
       let payload: {
         choices?: Array<{ delta?: { content?: unknown; reasoning_content?: unknown } }>;
-        usage?: { completion_tokens?: number };
+        usage?: {
+          completion_tokens?: number;
+          prompt_cache_hit_tokens?: number;
+          prompt_cache_miss_tokens?: number;
+        };
         error?: { message?: string };
       };
       try {
@@ -233,6 +247,10 @@ export async function callGameModel<T>(
         completionTokens = payload.usage.completion_tokens;
         tokenCountEstimated = false;
       }
+      if (typeof payload.usage?.prompt_cache_hit_tokens === "number")
+        promptCacheHitTokens = payload.usage.prompt_cache_hit_tokens;
+      if (typeof payload.usage?.prompt_cache_miss_tokens === "number")
+        promptCacheMissTokens = payload.usage.prompt_cache_miss_tokens;
     };
     while (true) {
       const { done, value } = await reader.read();
@@ -255,6 +273,7 @@ export async function callGameModel<T>(
     } catch {
       throw new Error("大模型返回的 JSON 无法解析");
     }
+    options.onCompletedMessage?.(modelContent);
     return parsedResponse;
   } catch (error) {
     if (error instanceof Error && error.name === "AbortError" && slowStreamDetected) {
@@ -269,6 +288,8 @@ export async function callGameModel<T>(
           tokensPerSecond,
           retryAttempt: retryAttempt + 1,
           retryReason: terminalError,
+          promptCacheHitTokens,
+          promptCacheMissTokens,
         });
         return callGameModel<T>(purpose, system, prompt, {
           ...options,
@@ -298,6 +319,8 @@ export async function callGameModel<T>(
       `http_status: ${httpStatus ?? "n/a"}`,
       `first_token_ms: ${firstTokenMs ?? "n/a"}`,
       `completion_tokens: ${completionTokens}`,
+      `prompt_cache_hit_tokens: ${promptCacheHitTokens}`,
+      `prompt_cache_miss_tokens: ${promptCacheMissTokens}`,
       `token_count_estimated: ${tokenCountEstimated}`,
       `tokens_per_second: ${tokensPerSecond}`,
       `error: ${terminalError || "none"}`,

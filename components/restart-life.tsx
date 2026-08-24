@@ -836,7 +836,15 @@ function Game({
   const commitChoice = (choice: ChoiceResult) => {
     if (!event) return;
     const nextState = applyEffects(state, choice.effects);
-    const nextHistory = [
+    const settlementMessage = [
+      `玩家选择：${choice.label}`,
+      `程序结算结果：${choice.result}`,
+      `状态变化：${Object.entries(choice.effects)
+        .map(([key, value]) => `${key}${Number(value) >= 0 ? "+" : ""}${value}`)
+        .join("，")}`,
+      `结算后状态：年龄${nextState.age}，现金${nextState.cash}，健康${nextState.health}，幸福${nextState.happiness}，知识${nextState.knowledge}，人脉${nextState.connections}，事业${nextState.career}，资产${nextState.assets}`,
+    ].join("\n");
+    let nextHistory: TimelineEntry[] = [
       ...history,
       {
         age: state.age,
@@ -850,6 +858,10 @@ function Game({
         eventExperienceIds: event.experiences.map((experience) => experience.id),
         selectedOptionId: choice.optionId,
         customAction: choice.customAction,
+        modelConversation: [
+          ...event.modelConversation,
+          { role: "user", content: settlementMessage },
+        ],
         eventSnapshot: {
           background: event.background,
           dilemma: event.dilemma,
@@ -868,6 +880,9 @@ function Game({
         },
       },
     ];
+    if (nextHistory.length % 8 === 0) {
+      nextHistory = nextHistory.map(({ modelConversation: _compacted, ...entry }) => entry);
+    }
     setState(nextState);
     setHistory(nextHistory);
     setResult(choice);
@@ -982,6 +997,10 @@ function Game({
                       {eventProgress.tokenCountEstimated ? "约 " : ""}
                       {eventProgress.tokensPerSecond} token/s
                     </span>
+                  )}
+                {eventProgress?.promptCacheHitTokens !== undefined &&
+                  eventProgress.promptCacheHitTokens > 0 && (
+                    <span>缓存命中 {eventProgress.promptCacheHitTokens} tokens</span>
                   )}
               </div>
               <div className="loading-lines">

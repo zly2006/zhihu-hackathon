@@ -28,6 +28,11 @@ export type LifeState = {
 
 export type Effect = Partial<Omit<LifeState, "age">>;
 
+export type ModelConversationMessage = {
+  role: "assistant" | "user";
+  content: string;
+};
+
 export type ResourceContext = {
   cashBand: "生存线" | "紧张" | "稳定" | "宽裕";
   healthBand: "危险" | "透支" | "一般" | "良好";
@@ -91,8 +96,11 @@ export type GameEvent = {
     completionTokens: number;
     tokenCountEstimated: boolean;
     tokensPerSecond: number;
+    promptCacheHitTokens: number;
+    promptCacheMissTokens: number;
     totalMs: number;
   };
+  modelConversation: ModelConversationMessage[];
 };
 
 export type EventStreamProgress = {
@@ -107,6 +115,8 @@ export type EventStreamProgress = {
   completionTokens?: number;
   tokenCountEstimated?: boolean;
   tokensPerSecond?: number;
+  promptCacheHitTokens?: number;
+  promptCacheMissTokens?: number;
 };
 
 export type TimelineEntry = {
@@ -121,6 +131,7 @@ export type TimelineEntry = {
   eventExperienceIds?: string[];
   selectedOptionId: "A" | "B" | "C" | "CUSTOM";
   customAction?: string;
+  modelConversation?: ModelConversationMessage[];
   eventSnapshot: {
     background: string;
     dilemma: string;
