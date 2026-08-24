@@ -79,10 +79,13 @@ function requireExperienceNumbers(
     throw new Error(`大模型返回字段 ${field} 必须包含至少 ${minimum} 个真实经历序号`);
   }
   const numbers = [...new Set(value.map((item) => Number(item)))];
-  if (numbers.some((item) => !Number.isInteger(item) || item < 1 || item > experiences.length)) {
-    throw new Error(`大模型返回字段 ${field} 引用了不存在的经历序号`);
+  const validNumbers = numbers.filter(
+    (item) => Number.isInteger(item) && item >= 1 && item <= experiences.length,
+  );
+  if (validNumbers.length < minimum) {
+    throw new Error(`大模型返回字段 ${field} 没有足够的合法经历序号`);
   }
-  return numbers.map((item) => experiences[item - 1].id);
+  return validNumbers.map((item) => experiences[item - 1].id);
 }
 
 function requireNumber(value: unknown, field: string, minimum: number, maximum: number) {
@@ -290,6 +293,9 @@ export async function generateEvent(
     "3. 现金或健康可以降到 0，不得人为保底；游戏程序会负责结算破产或健康崩溃的后果。",
     "4. 每个选项都要计算机会成本。禁止把描述中所有正面词分别兑换成知识、人脉、事业和幸福的同步加分。",
     "5. 延续尚未解决的危机，但不要把已经处理过的核心矛盾换一个标题再次生成；新一幕应体现时间推进、上一选择的后果或新的生活领域。",
+    state.happiness < 20
+      ? "6. 当前幸福已处于低谷。本幕至少要有一条现实可行的重建生活意义或支持关系的路径，并写清它需要牺牲的时间、现金、事业机会或其他代价；不得用无代价的快乐选项保底。"
+      : "6. 当前幸福未处于低谷，不要求强制安排情绪恢复路径。",
   ].join("\n");
   const userPrompt = `${describeLifeState(state)}\n\n${describeEffectScale(profile, state)}\n\n资源规则:${JSON.stringify(resources)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续对话中已经选择的路径及其现实后果；程序给出的当前状态是数值事实，优先级高于历史摘要。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内正常推进结果","setback":"60字内风险兑现时的具体后果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}\n\n${realismRequirements}`;
   const promptChars =

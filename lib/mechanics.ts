@@ -125,6 +125,10 @@ export function settleChoice(
   if (raw.career > 0) raw.career *= context.developmentConversion;
   if (raw.cash > 0 && state.health < 35) raw.cash *= state.health < 15 ? 0.55 : 0.8;
 
+  for (const key of ["knowledge", "connections", "career", "assets"] as const) {
+    if (raw[key] > 0) raw[key] *= Math.max(0, (100 - state[key]) / 100);
+  }
+
   if (state.cash < 10) raw.happiness -= 3;
   else if (state.cash < 25) raw.happiness -= 1;
   if (state.health < 15) raw.happiness -= 3;

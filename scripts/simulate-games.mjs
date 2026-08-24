@@ -127,6 +127,9 @@ function settle(state, profile, option, random) {
   if (effects.knowledge > 0) effects.knowledge *= context.developmentConversion;
   if (effects.career > 0) effects.career *= context.developmentConversion;
   if (effects.cash > 0 && state.health < 35) effects.cash *= state.health < 15 ? 0.55 : 0.8;
+  for (const key of ["knowledge", "connections", "career", "assets"]) {
+    if (effects[key] > 0) effects[key] *= Math.max(0, (100 - state[key]) / 100);
+  }
   if (state.cash < 10) effects.happiness -= 3;
   else if (state.cash < 25) effects.happiness -= 1;
   if (state.health < 15) effects.happiness -= 3;
