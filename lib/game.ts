@@ -135,7 +135,12 @@ export async function generateEvent(
   signal?: AbortSignal,
 ): Promise<GameEvent> {
   const generationStarted = performance.now();
-  onProgress?.({ stage: "retrieval", message: "正在从真实经历库召回相似人生", elapsedMs: 0 });
+  onProgress?.({
+    stage: "retrieval",
+    title: "正在寻找这一幕的人生证据",
+    subtitle: "正在从真实经历库召回相似人生",
+    elapsedMs: 0,
+  });
   const historyKey = history
     .slice(-4)
     .map((item) => `${item.eventId}:${item.selectedOptionId || "legacy"}`)
@@ -199,7 +204,8 @@ export async function generateEvent(
   const promptChars = userPrompt.length;
   onProgress?.({
     stage: "prompt",
-    message: `已召回 ${retrieved.items.length} 条经历，正在提交证据束`,
+    title: "正在生成新的人生事件",
+    subtitle: `已召回 ${retrieved.items.length} 条经历，正在提交证据束`,
     elapsedMs: retrievalMs,
     evidenceCount: retrieved.items.length,
     promptChars,
@@ -214,10 +220,21 @@ export async function generateEvent(
       signal,
       onProgress: (modelProgress) => {
         finalModelProgress = modelProgress;
+        const apiRetrying = modelProgress.retryAttempt > 0;
         onProgress?.({
-          stage: modelProgress.stage === "connected" ? "connected" : "generating",
-          message:
-            modelProgress.stage === "connected" ? "模型已连接，等待首个 token" : "模型正在编写事件",
+          stage:
+            modelProgress.stage === "retrying"
+              ? "retrying"
+              : modelProgress.stage === "connected"
+                ? "connected"
+                : "generating",
+          title: apiRetrying ? "DeepSeek API 发生故障，正在重新生成" : "正在生成新的人生事件",
+          subtitle:
+            modelProgress.stage === "retrying"
+              ? modelProgress.retryReason || "检测到模型响应过慢，已中断本次请求"
+              : modelProgress.stage === "connected"
+                ? "模型已连接，等待首个 token"
+                : "模型正在编写事件",
           elapsedMs: retrievalMs + modelProgress.elapsedMs,
           evidenceCount: retrieved.items.length,
           promptChars,
@@ -300,7 +317,8 @@ export async function generateEvent(
 
   onProgress?.({
     stage: "validating",
-    message: "生成完成，正在校验三个选择与真实经历",
+    title: "正在校验生成结果",
+    subtitle: "正在校验三个选择与真实经历",
     elapsedMs: Math.round(performance.now() - generationStarted),
     evidenceCount: retrieved.items.length,
     promptChars,
@@ -342,7 +360,8 @@ export async function generateEvent(
       );
       onProgress?.({
         stage: "generating",
-        message: `正在进行第 ${attempt + 1} 次现实约束修正`,
+        title: "正在修正生成结果",
+        subtitle: `正在进行第 ${attempt + 1} 次现实约束修正`,
         elapsedMs: Math.round(performance.now() - generationStarted),
         evidenceCount: retrieved.items.length,
         promptChars,
@@ -356,9 +375,14 @@ export async function generateEvent(
           appendMessages: [...appendMessages],
           onProgress: (modelProgress) => {
             finalModelProgress = modelProgress;
+            const apiRetrying = modelProgress.retryAttempt > 0;
             onProgress?.({
-              stage: "generating",
-              message: "模型正在修正未通过的约束",
+              stage: modelProgress.stage === "retrying" ? "retrying" : "generating",
+              title: apiRetrying ? "DeepSeek API 发生故障，正在重新生成" : "正在修正生成结果",
+              subtitle:
+                modelProgress.stage === "retrying"
+                  ? modelProgress.retryReason || "检测到模型响应过慢，已中断本次请求"
+                  : "模型正在修正未通过的约束",
               elapsedMs: Math.round(performance.now() - generationStarted),
               evidenceCount: retrieved.items.length,
               promptChars,

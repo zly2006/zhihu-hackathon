@@ -6,12 +6,14 @@ const DEFAULT_ENDPOINT = "https://opencode.ai/zen/go/v1/chat/completions";
 const DEFAULT_MODEL = "deepseek-v4-flash";
 const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
 export type ModelProgress = {
-  stage: "connected" | "generating" | "complete";
+  stage: "connected" | "generating" | "complete" | "retrying";
   elapsedMs: number;
   firstTokenMs: number | null;
   completionTokens: number;
   tokenCountEstimated: boolean;
   tokensPerSecond: number;
+  retryAttempt: number;
+  retryReason?: string;
 };
 
 type AppendedMessage = { role: "assistant" | "user"; content: string };
@@ -19,6 +21,7 @@ type CallOptions = {
   onProgress?: (progress: ModelProgress) => void;
   signal?: AbortSignal;
   appendMessages?: AppendedMessage[];
+  slowRetryAttempt?: number;
 };
 function environment(name: string) {
   return process.env[name];
@@ -110,6 +113,7 @@ export async function callGameModel<T>(
   const abortFromCaller = () => controller.abort();
   options.signal?.addEventListener("abort", abortFromCaller, { once: true });
   const timeout = setTimeout(() => controller.abort(), 90_000);
+  const retryAttempt = options.slowRetryAttempt || 0;
   let httpStatus: number | null = null;
   let rawHttpResponse = "";
   let modelContent = "";
@@ -120,6 +124,7 @@ export async function callGameModel<T>(
   let tokenCountEstimated = true;
   let tokensPerSecond = 0;
   let lastProgressAt = 0;
+  let slowStreamDetected = false;
   const messages = [
     { role: "system", content: system },
     { role: "user", content: prompt },
@@ -142,8 +147,23 @@ export async function callGameModel<T>(
       completionTokens: measuredTokens,
       tokenCountEstimated,
       tokensPerSecond,
+      retryAttempt,
     });
   };
+
+  const slowStreamMonitor = setInterval(() => {
+    if (provider.provider !== "deepseek" || slowStreamDetected) return;
+    const elapsedMs = performance.now() - startedClock;
+    if (elapsedMs <= 10_000) return;
+    const measuredTokens = completionTokens || estimatedTokens(modelContent);
+    const generationMs = firstTokenMs === null ? elapsedMs : elapsedMs - firstTokenMs;
+    const currentTokensPerSecond = generationMs > 0 ? measuredTokens / (generationMs / 1000) : 0;
+    tokensPerSecond = Number(currentTokensPerSecond.toFixed(1));
+    if (currentTokensPerSecond < 10) {
+      slowStreamDetected = true;
+      controller.abort();
+    }
+  }, 250);
 
   try {
     if (!provider.apiKey) {
@@ -237,11 +257,31 @@ export async function callGameModel<T>(
     }
     return parsedResponse;
   } catch (error) {
-    if (error instanceof Error && error.name === "AbortError") terminalError = "大模型请求超时";
-    else terminalError = error instanceof Error ? error.message : "大模型请求失败";
+    if (error instanceof Error && error.name === "AbortError" && slowStreamDetected) {
+      terminalError = "DeepSeek API 持续超过 10 秒且速度低于 10 token/s";
+      if (retryAttempt < 1 && !options.signal?.aborted) {
+        options.onProgress?.({
+          stage: "retrying",
+          elapsedMs: Math.round(performance.now() - startedClock),
+          firstTokenMs,
+          completionTokens: completionTokens || estimatedTokens(modelContent),
+          tokenCountEstimated,
+          tokensPerSecond,
+          retryAttempt: retryAttempt + 1,
+          retryReason: terminalError,
+        });
+        return callGameModel<T>(purpose, system, prompt, {
+          ...options,
+          slowRetryAttempt: retryAttempt + 1,
+        });
+      }
+    } else if (error instanceof Error && error.name === "AbortError") {
+      terminalError = options.signal?.aborted ? "大模型请求已取消" : "大模型请求超时";
+    } else terminalError = error instanceof Error ? error.message : "大模型请求失败";
     throw new Error(terminalError);
   } finally {
     clearTimeout(timeout);
+    clearInterval(slowStreamMonitor);
     options.signal?.removeEventListener("abort", abortFromCaller);
     const endedAt = new Date();
     const log = [
@@ -250,6 +290,7 @@ export async function callGameModel<T>(
       `provider: ${provider.provider}`,
       `model: ${model}`,
       `reasoning_effort: ${provider.provider === "deepseek" ? "thinking-disabled" : effort}`,
+      `retry_attempt: ${retryAttempt}`,
       `endpoint: ${endpoint}`,
       `started_at: ${startedAt.toISOString()}`,
       `ended_at: ${endedAt.toISOString()}`,

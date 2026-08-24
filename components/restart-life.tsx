@@ -736,7 +736,12 @@ function Game({
     setLoading(true);
     setError("");
     setEvent(null);
-    setEventProgress({ stage: "retrieval", message: "正在连接事件生成服务", elapsedMs: 0 });
+    setEventProgress({
+      stage: "retrieval",
+      title: "正在生成新的人生事件",
+      subtitle: "正在连接事件生成服务",
+      elapsedMs: 0,
+    });
     try {
       const response = await fetch("/api/event", {
         method: "POST",
@@ -947,9 +952,10 @@ function Game({
             <div className="loading-file">
               <LoaderCircle className="spin" size={42} />
               <span>LIVE GENERATION</span>
-              <h2>
-                {eventProgress?.message || loadingMessages[loadingTick % loadingMessages.length]}
-              </h2>
+              <h2>{eventProgress?.title || "正在生成新的人生事件"}</h2>
+              <p className="loading-subtitle">
+                {eventProgress?.subtitle || loadingMessages[loadingTick % loadingMessages.length]}
+              </p>
               <div className="stream-metrics">
                 <b>{((eventProgress?.elapsedMs || 0) / 1000).toFixed(1)}s</b>
                 {eventProgress?.evidenceCount !== undefined && (

@@ -913,7 +913,13 @@ body {
 }
 .loading-file h2 {
   font-size: 21px;
-  margin: 12px;
+  margin: 12px 12px 5px;
+}
+.loading-subtitle {
+  min-height: 1.5em;
+  margin: 0 12px 8px;
+  color: var(--muted);
+  font-size: 12px;
 }
 .spin {
   animation: spin 1.2s linear infinite;

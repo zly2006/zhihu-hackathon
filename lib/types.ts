@@ -97,8 +97,10 @@ export type GameEvent = {
 };
 
 export type EventStreamProgress = {
-  stage: "retrieval" | "prompt" | "connected" | "generating" | "validating";
-  message: string;
+  stage: "retrieval" | "prompt" | "connected" | "generating" | "retrying" | "validating";
+  title: string;
+  subtitle: string;
+  message?: string;
   elapsedMs: number;
   evidenceCount?: number;
   promptChars?: number;
