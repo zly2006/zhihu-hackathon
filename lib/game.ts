@@ -70,18 +70,6 @@ function requireText(value: unknown, field: string, maximum: number) {
   return value.trim().slice(0, maximum);
 }
 
-function requireSuccessfulResult(value: unknown, field: string, maximum: number) {
-  const result = requireText(value, field, maximum);
-  if (
-    /滞销|销量平平|未收回|没有收回|未回本|落选|项目告吹|创业失败|考试失利|求职失败|合作破裂|被裁|破产/.test(
-      result,
-    )
-  ) {
-    throw new Error(`${field} 写入了失败结果，必须移入 setback`);
-  }
-  return result;
-}
-
 function requireSetbackDownside(effects: Effect, setbackEffects: Effect, field: string) {
   const keys = [
     "cash",
@@ -340,7 +328,25 @@ export async function generateEvent(
     "8. 风险必须是互斥的结果分支：result 与 effects 是风险未触发时的成功结局；setback 与 setbackEffects 是风险触发时的失败结局。失败分支不得先获得成功分支收益再追加惩罚。",
     "9. result 必须兑现选项承诺的核心目标，不能写成滞销、落选、未回本或其他只有风险触发才合理的失败。两个分支都必付的投入可以重复写入两组 effects，但必须在 description 中明说。",
   ].join("\n");
-  const userPrompt = `${describeLifeState(state)}\n\n${describeEffectScale(profile, state)}\n\n资源规则:${JSON.stringify(resources)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续对话中已经选择的路径及其现实后果；程序给出的当前状态是数值事实，优先级高于历史摘要。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内，明说两个分支都要承担的前期投入","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内风险未触发且核心目标兑现的成功结果","setbackEffects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"setback":"60字内风险触发后的替代失败结果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}\n\n${realismRequirements}`;
+  const firstPassChecklist = [
+    "第一次输出前的内部检查（只检查，不输出思考过程）：",
+    resources.incomeOpportunityRequired
+      ? "- 现金告急：先保留一个低波动现金缓解分支，再写其他选项。它可以是追回欠款、出售闲置、减少持续支出、协商预支或加薪、公共支持、已有技能的小额确定订单等符合年龄和情境的机制；不要把高风险副业当成唯一现金正向路径。确认该分支成功 effects.cash 明确写成 3 到 8，baseRisk 明确写成 5 到 50。"
+      : "- 当前不需要专门圈定增收分支。",
+    resources.recoveryOpportunityRequired
+      ? "- 先圈定一个现实恢复分支，确认它的成功 effects.health 至少为 4。"
+      : "- 当前不需要专门圈定恢复分支。",
+    resources.incomeOpportunityRequired && resources.recoveryOpportunityRequired
+      ? "- 现金与健康同时告急：先选定两个不同的选项槽位。一个只负责低波动现金缓解并满足 cash 3..8、baseRisk 5..50；另一个负责恢复并满足 health 4..12。第三个选项自由承担另一种现实机制。写完后按选项索引重新核对，不能让同一个选项同时充当现金与恢复路径。"
+      : "- 不需要额外检查增收与恢复是否分属不同选项。",
+    "- 对每个选项先口头回答它承诺的核心目标是什么，再确认 result 已经兑现该目标；如果没有兑现，整段应移入 setback。",
+    "- 对每个选项分别从零计算 effects 和 setbackEffects；setbackEffects 至少一项应比 effects 更差，不能把成功结果与失败结果串在一起。",
+    "- baseRisk 只按资源正常的人执行该行动时的结构难度填写；不要把当前现金、健康和 stateFit 再加进 baseRisk，程序会据此计算实际风险，禁止重复惩罚。",
+    "- 检查 description 是否已告诉玩家两条世界线都会支付的现金、时间或健康成本，禁止结算时突然出现隐藏投入。",
+    `- 最后逐个检查 experienceNumbers 都在 1 到 ${retrieved.items.length}，三个选项没有复用同一序号，strategyTag 也没有重复。`,
+    "以上任何一项不满足，都在第一次输出 JSON 前直接改正，不要先交一份明知需要修正的结果。",
+  ].join("\n");
+  const userPrompt = `${describeLifeState(state)}\n\n${describeEffectScale(profile, state)}\n\n资源规则:${JSON.stringify(resources)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续对话中已经选择的路径及其现实后果；程序给出的当前状态是数值事实，优先级高于历史摘要。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内，明说两个分支都要承担的前期投入","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内风险未触发且核心目标兑现的成功结果","setbackEffects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"setback":"60字内风险触发后的替代失败结果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}\n\n${realismRequirements}\n\n${firstPassChecklist}`;
   const promptChars =
     userPrompt.length +
     prefixMessages.reduce((total, message) => total + message.content.length, 0);
@@ -415,7 +421,7 @@ export async function generateEvent(
         tone: requireText(option.tone, `options[${index}].tone`, 1),
         effects,
         setbackEffects,
-        result: requireSuccessfulResult(option.result, `options[${index}].result`, 180),
+        result: requireText(option.result, `options[${index}].result`, 180),
         experienceIds: requireExperienceNumbers(
           option.experienceNumbers,
           `options[${index}].experienceNumbers`,
@@ -647,7 +653,7 @@ export async function resolveCustomAction(event: GameEvent, action: string, stat
   }
   return {
     label: requireText(modeled.label, "label", 24),
-    result: requireSuccessfulResult(modeled.result, "result", 220),
+    result: requireText(modeled.result, "result", 220),
     effects,
     setbackEffects,
     experienceIds: requireExperienceNumbers(
