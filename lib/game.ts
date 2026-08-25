@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import { callGameModel, type ModelMessage, type ModelProgress } from "./llm";
 import { retrieveExperiences } from "./database";
+import { EVENT_STYLE_ACKNOWLEDGEMENT, EVENT_STYLE_REFERENCE } from "./event-style-reference";
 import { calibrateOptionRisks, resourceContext } from "./mechanics";
 import type {
   Effect,
@@ -185,6 +186,14 @@ function conversationPrefix(profile: Profile, history: TimelineEntry[]): ModelMe
   const messages: ModelMessage[] = [
     {
       role: "user",
+      content: EVENT_STYLE_REFERENCE,
+    },
+    {
+      role: "assistant",
+      content: EVENT_STYLE_ACKNOWLEDGEMENT,
+    },
+    {
+      role: "user",
       content: `以下玩家资料在本局内保持不变：\n${describePlayer(profile)}`,
     },
     {
@@ -275,7 +284,9 @@ export async function generateEvent(
     "1. 必须且只能返回三个选项，三个 strategyTag 必须互不相同。",
     "2. 每个选项的七个 effects 字段都必须是 -12 到 12 的数字。",
     resources.incomeOpportunityRequired
-      ? "3. 至少一个选项必须同时满足 effects.cash 为 3 到 8，且 baseRisk 不高于 50。"
+      ? state.age < 18
+        ? "3. 至少一个选项必须通过家长调整、减少家庭支出、公共支持或年龄合适的资源交换缓解家庭现金压力，并满足 effects.cash 为 3 到 8、baseRisk 不高于 50；禁止让未成年玩家打工、创业或承担养家责任。"
+        : "3. 至少一个选项必须同时满足 effects.cash 为 3 到 8，且 baseRisk 不高于 50。"
       : "3. 当前状态不要求强制提供增收选项。",
     resources.recoveryOpportunityRequired
       ? "4. 至少一个选项的 effects.health 必须大于或等于 4。"
@@ -296,6 +307,9 @@ export async function generateEvent(
     state.happiness < 20
       ? "6. 当前幸福已处于低谷。本幕至少要有一条现实可行的重建生活意义或支持关系的路径，并写清它需要牺牲的时间、现金、事业机会或其他代价；不得用无代价的快乐选项保底。"
       : "6. 当前幸福未处于低谷，不要求强制安排情绪恢复路径。",
+    state.age < 18
+      ? "7. 玩家尚未成年，行动权限必须符合年龄。家庭现金代表家庭处境；涉及工作、借贷、迁居、医疗和制度手续时，应由监护人决策或协助，不能把成年人责任转嫁给孩子。"
+      : "7. 玩家已成年，可以自行承担工作、财务、迁居和制度选择。",
   ].join("\n");
   const userPrompt = `${describeLifeState(state)}\n\n${describeEffectScale(profile, state)}\n\n资源规则:${JSON.stringify(resources)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续对话中已经选择的路径及其现实后果；程序给出的当前状态是数值事实，优先级高于历史摘要。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内正常推进结果","setback":"60字内风险兑现时的具体后果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}\n\n${realismRequirements}`;
   const promptChars =
@@ -433,7 +447,9 @@ export async function generateEvent(
   const hardConstraintCorrection = (error: unknown) => {
     const message = error instanceof Error ? error.message : "返回结果未通过校验";
     if (message === "低现金状态下必须提供一个现实的小额增收选项") {
-      return "这是程序检测到的硬约束：至少一个选项必须同时满足 effects.cash 为 3 到 8，且 baseRisk 不高于 50。请明确指定一个选项满足这两个数值条件。";
+      return state.age < 18
+        ? "这是程序检测到的硬约束：至少一个选项必须通过家长调整、减少家庭支出、公共支持或年龄合适的资源交换缓解家庭现金压力，并满足 effects.cash 为 3 到 8、baseRisk 不高于 50。玩家尚未成年，禁止安排打工、创业或养家。"
+        : "这是程序检测到的硬约束：至少一个选项必须同时满足 effects.cash 为 3 到 8，且 baseRisk 不高于 50。请明确指定一个选项满足这两个数值条件。";
     }
     if (message === "低健康状态下必须提供一个恢复选项") {
       return "这是程序检测到的硬约束：至少一个选项的 effects.health 必须大于或等于 4。请明确指定一个恢复选项满足该数值条件。";
