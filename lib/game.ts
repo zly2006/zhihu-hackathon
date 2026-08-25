@@ -70,6 +70,33 @@ function requireText(value: unknown, field: string, maximum: number) {
   return value.trim().slice(0, maximum);
 }
 
+function requireSuccessfulResult(value: unknown, field: string, maximum: number) {
+  const result = requireText(value, field, maximum);
+  if (
+    /滞销|销量平平|未收回|没有收回|未回本|落选|项目告吹|创业失败|考试失利|求职失败|合作破裂|被裁|破产/.test(
+      result,
+    )
+  ) {
+    throw new Error(`${field} 写入了失败结果，必须移入 setback`);
+  }
+  return result;
+}
+
+function requireSetbackDownside(effects: Effect, setbackEffects: Effect, field: string) {
+  const keys = [
+    "cash",
+    "health",
+    "happiness",
+    "knowledge",
+    "connections",
+    "career",
+    "assets",
+  ] as const;
+  if (!keys.some((key) => Number(setbackEffects[key] || 0) < Number(effects[key] || 0))) {
+    throw new Error(`${field} 必须至少有一项劣于成功分支`);
+  }
+}
+
 function requireExperienceNumbers(
   value: unknown,
   field: string,
@@ -282,7 +309,7 @@ export async function generateEvent(
   const hardConstraints = [
     "以下是程序在生成前根据当前状态计算出的硬约束，返回结果必须逐项满足：",
     "1. 必须且只能返回三个选项，三个 strategyTag 必须互不相同。",
-    "2. 每个选项的七个 effects 字段都必须是 -12 到 12 的数字。",
+    "2. 每个选项的 effects 和 setbackEffects 都必须包含完整七个字段，每个字段都是 -12 到 12 的数字。",
     resources.incomeOpportunityRequired
       ? state.age < 18
         ? "3. 至少一个选项必须通过家长调整、减少家庭支出、公共支持或年龄合适的资源交换缓解家庭现金压力，并满足 effects.cash 为 3 到 8、baseRisk 不高于 50；禁止让未成年玩家打工、创业或承担养家责任。"
@@ -310,8 +337,10 @@ export async function generateEvent(
     state.age < 18
       ? "7. 玩家尚未成年，行动权限必须符合年龄。家庭现金代表家庭处境；涉及工作、借贷、迁居、医疗和制度手续时，应由监护人决策或协助，不能把成年人责任转嫁给孩子。"
       : "7. 玩家已成年，可以自行承担工作、财务、迁居和制度选择。",
+    "8. 风险必须是互斥的结果分支：result 与 effects 是风险未触发时的成功结局；setback 与 setbackEffects 是风险触发时的失败结局。失败分支不得先获得成功分支收益再追加惩罚。",
+    "9. result 必须兑现选项承诺的核心目标，不能写成滞销、落选、未回本或其他只有风险触发才合理的失败。两个分支都必付的投入可以重复写入两组 effects，但必须在 description 中明说。",
   ].join("\n");
-  const userPrompt = `${describeLifeState(state)}\n\n${describeEffectScale(profile, state)}\n\n资源规则:${JSON.stringify(resources)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续对话中已经选择的路径及其现实后果；程序给出的当前状态是数值事实，优先级高于历史摘要。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内正常推进结果","setback":"60字内风险兑现时的具体后果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}\n\n${realismRequirements}`;
+  const userPrompt = `${describeLifeState(state)}\n\n${describeEffectScale(profile, state)}\n\n资源规则:${JSON.stringify(resources)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续对话中已经选择的路径及其现实后果；程序给出的当前状态是数值事实，优先级高于历史摘要。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内，明说两个分支都要承担的前期投入","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内风险未触发且核心目标兑现的成功结果","setbackEffects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"setback":"60字内风险触发后的替代失败结果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}\n\n${realismRequirements}`;
   const promptChars =
     userPrompt.length +
     prefixMessages.reduce((total, message) => total + message.content.length, 0);
@@ -375,13 +404,18 @@ export async function generateEvent(
       }
       const option = rawOption as Record<string, unknown>;
       const effects = requireEffects(option.effects, `options[${index}].effects`);
+      const setbackEffects = requireEffects(
+        option.setbackEffects,
+        `options[${index}].setbackEffects`,
+      );
       return {
         id: ["A", "B", "C"][index] as "A" | "B" | "C",
         label: requireText(option.label, `options[${index}].label`, 20),
         description: requireText(option.description, `options[${index}].description`, 80),
         tone: requireText(option.tone, `options[${index}].tone`, 1),
         effects,
-        result: requireText(option.result, `options[${index}].result`, 180),
+        setbackEffects,
+        result: requireSuccessfulResult(option.result, `options[${index}].result`, 180),
         experienceIds: requireExperienceNumbers(
           option.experienceNumbers,
           `options[${index}].experienceNumbers`,
@@ -394,6 +428,13 @@ export async function generateEvent(
         setback: requireText(option.setback, `options[${index}].setback`, 140),
       };
     });
+    for (const [index, option] of validatedOptions.entries()) {
+      requireSetbackDownside(
+        option.effects,
+        option.setbackEffects,
+        `options[${index}].setbackEffects`,
+      );
+    }
     if (new Set(validatedOptions.map((option) => option.strategyTag)).size !== 3)
       throw new Error("三个选项必须使用不同的行动机制，不能退化为同一模式");
     const effectSignatures = validatedOptions.map((option) => JSON.stringify(option.effects));
@@ -585,6 +626,7 @@ export async function resolveCustomAction(event: GameEvent, action: string, stat
     label?: unknown;
     result?: unknown;
     effects?: unknown;
+    setbackEffects?: unknown;
     experienceNumbers?: unknown;
     strategyTag?: unknown;
     baseRisk?: unknown;
@@ -594,17 +636,20 @@ export async function resolveCustomAction(event: GameEvent, action: string, stat
   }>(
     "裁决玩家自由选择",
     "你是现实主义人生模拟器的裁判。只输出 JSON。认可玩家创造性，但必须结合当前现金、健康与真实经历计算代价和风险。",
-    `事件:${JSON.stringify({ background: event.background, dilemma: event.dilemma })}\n玩家状态:${JSON.stringify(state)}\n资源规则:${JSON.stringify(event.resourceContext)}\n经过安全清洗的玩家选择:${JSON.stringify(sanitized)}\n真实经历:${JSON.stringify(event.experiences.map((item, index) => ({ number: index + 1, author: item.author, background: item.excerpt, action: item.action, outcome: item.outcome })))}\n选择与玩家行动最接近、确实提供支持的至少3条真实经历序号，不得编造。收益、代价和 baseRisk 必须与行动机制及证据相称；现金或健康可以降到 0，不得人为保底，归零后果由游戏结算。返回 {"label":"12字内概括","result":"100字内正常推进结果","effects":{"cash":0,"health":0,"happiness":0,"knowledge":0,"connections":0,"career":0,"assets":0},"experienceNumbers":[1,2,3],"strategyTag":"具体行动机制","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"当前状态影响","setback":"风险兑现时的具体后果"}`,
+    `事件:${JSON.stringify({ background: event.background, dilemma: event.dilemma })}\n玩家状态:${JSON.stringify(state)}\n资源规则:${JSON.stringify(event.resourceContext)}\n经过安全清洗的玩家选择:${JSON.stringify(sanitized)}\n真实经历:${JSON.stringify(event.experiences.map((item, index) => ({ number: index + 1, author: item.author, background: item.excerpt, action: item.action, outcome: item.outcome })))}\n选择与玩家行动最接近、确实提供支持的至少3条真实经历序号，不得编造。收益、代价和 baseRisk 必须与行动机制及证据相称；现金或健康可以降到 0，不得人为保底，归零后果由游戏结算。风险是互斥分支：result 与 effects 表示风险未触发且核心目标兑现；setback 与 setbackEffects 表示风险触发后的替代失败结局，不能先结算成功收益再追加惩罚。两个分支都必付的投入要分别写进两组 effects，并在结果文字中说明。返回 {"label":"12字内概括","result":"100字内成功结果","effects":{"cash":0,"health":0,"happiness":0,"knowledge":0,"connections":0,"career":0,"assets":0},"setback":"风险触发后的失败结果","setbackEffects":{"cash":0,"health":0,"happiness":0,"knowledge":0,"connections":0,"career":0,"assets":0},"experienceNumbers":[1,2,3],"strategyTag":"具体行动机制","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"当前状态影响"}`,
   );
   const availableIds = new Set(event.experiences.map((item) => item.id));
   const effects = requireEffects(modeled.effects, "effects");
+  const setbackEffects = requireEffects(modeled.setbackEffects, "setbackEffects");
+  requireSetbackDownside(effects, setbackEffects, "setbackEffects");
   if (event.resourceContext.incomeOpportunityRequired && Number(effects.cash || 0) > 8) {
     throw new Error("低现金状态下的单次增收不得超过 8，不能一幕暴涨");
   }
   return {
     label: requireText(modeled.label, "label", 24),
-    result: requireText(modeled.result, "result", 220),
+    result: requireSuccessfulResult(modeled.result, "result", 220),
     effects,
+    setbackEffects,
     experienceIds: requireExperienceNumbers(
       modeled.experienceNumbers,
       "experienceNumbers",

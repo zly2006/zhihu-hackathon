@@ -122,6 +122,24 @@ function number(value: number) {
   return new Intl.NumberFormat("zh-CN").format(value);
 }
 
+function EffectPreview({ label, effects }: { label: string; effects: Effect }) {
+  const changes = Object.entries(effects).filter(([, value]) => value);
+  return (
+    <small className="option-effects">
+      <b>{label}</b>
+      {changes.map(([key, value]) => {
+        const meta = statMeta.find(([id]) => id === key);
+        return (
+          <span key={key} className={Number(value) > 0 ? "positive" : "negative"}>
+            {meta?.[1]} {Number(value) > 0 ? "+" : ""}
+            {value}
+          </span>
+        );
+      })}
+    </small>
+  );
+}
+
 async function readEventStream(
   response: Response,
   onProgress: (progress: EventStreamProgress) => void,
@@ -643,11 +661,16 @@ function ResultPanel({
         <span>{result.strategyTag}</span>
         <span>{result.stateFit}</span>
         <span className={result.riskOccurred ? "risk-hit" : "risk-safe"}>
-          实际风险 {result.effectiveRisk}% · {result.riskOccurred ? "已兑现" : "未兑现"}
+          失败风险 {result.effectiveRisk}% · {result.riskOccurred ? "本次触发" : "本次未触发"}
         </span>
       </div>
       <p>{result.result}</p>
       <small className="state-reason">状态影响：{result.stateReason}</small>
+      <small className="settlement-note">
+        {result.riskOccurred
+          ? "以下仅结算失败分支，不叠加成功收益。"
+          : "以下仅结算成功分支，没有追加失败损失。"}
+      </small>
       <div className="effect-list">
         {Object.entries(result.effects)
           .filter(([, value]) => value)
@@ -799,6 +822,10 @@ function Game({
                 strategyTag: option.strategyTag,
                 baseRisk: option.baseRisk,
                 stateFit: option.stateFit,
+                successResult: option.result,
+                successEffects: option.effects,
+                failureResult: option.setback,
+                failureEffects: option.setbackEffects,
                 sourceCount: option.experienceIds.length,
               })),
               recalledAuthors: event.experiences
@@ -838,6 +865,7 @@ function Game({
     const nextState = applyEffects(state, choice.effects);
     const settlementMessage = [
       `玩家选择：${choice.label}`,
+      `失败风险：${choice.effectiveRisk}%，本次${choice.riskOccurred ? "触发" : "未触发"}。后续不得把未触发的失败分支改写成已经发生。`,
       `程序结算结果：${choice.result}`,
       `状态变化：${Object.entries(choice.effects)
         .map(([key, value]) => `${key}${Number(value) >= 0 ? "+" : ""}${value}`)
@@ -894,7 +922,7 @@ function Game({
       : "";
     commitChoice({
       label: option.label,
-      result: `${settled.riskOccurred ? `${option.result} 风险兑现：${option.setback}` : option.result}${consequence}`,
+      result: `${settled.riskOccurred ? option.setback : option.result}${consequence}`,
       effects: settled.effects,
       experienceIds: option.experienceIds,
       optionId: option.id,
@@ -926,7 +954,7 @@ function Game({
         optionId: "CUSTOM",
         customAction: resolved.sanitizedAction,
         effects: settled.effects,
-        result: `${settled.riskOccurred ? `${resolved.result} 风险兑现：${resolved.setback}` : resolved.result}${settled.consequences.length ? ` 后果：${settled.consequences.join("；")}。` : ""}`,
+        result: `${settled.riskOccurred ? resolved.setback : resolved.result}${settled.consequences.length ? ` 后果：${settled.consequences.join("；")}。` : ""}`,
         effectiveRisk: settled.effectiveRisk,
         riskOccurred: settled.riskOccurred,
       });
@@ -1107,9 +1135,12 @@ function Game({
                               <small className="option-mechanics">
                                 <strong>{option.strategyTag}</strong>
                                 <em>{option.stateFit}</em>
-                                <i>风险 {shownRisk}%</i>
+                                <i>失败风险 {shownRisk}%</i>
                               </small>
                               <small className="state-reason">{option.stateReason}</small>
+                              <EffectPreview label="成功" effects={option.effects} />
+                              <EffectPreview label="失败" effects={option.setbackEffects} />
+                              <small className="option-setback">失败时：{option.setback}</small>
                               <small className="option-people">
                                 <span className="avatar-stack">
                                   {knownAuthors.slice(0, 4).map((item) => (

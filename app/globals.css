@@ -1548,6 +1548,22 @@ body {
   color: #7e766b;
   margin-top: 3px;
 }
+.option-card .option-setback {
+  display: block;
+  margin-top: 4px;
+  color: var(--red);
+  font-size: 8px;
+}
+.option-card .option-effects {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 5px;
+  margin-top: 5px;
+  font-size: 8px;
+}
+.option-card .option-effects > b {
+  color: #6d6559;
+}
 .result-mechanics {
   display: flex;
   gap: 7px;
@@ -1572,6 +1588,12 @@ body {
   font-size: 9px;
   color: #6d6559;
   margin-top: -8px;
+}
+.result-panel > .settlement-note {
+  display: block;
+  margin-top: 7px;
+  color: #6d6559;
+  font-size: 9px;
 }
 .stream-metrics {
   display: flex;

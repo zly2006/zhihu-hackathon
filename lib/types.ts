@@ -63,6 +63,7 @@ export type GameOption = {
   description: string;
   tone: string;
   effects: Effect;
+  setbackEffects: Effect;
   result: string;
   experienceIds: string[];
   strategyTag: string;

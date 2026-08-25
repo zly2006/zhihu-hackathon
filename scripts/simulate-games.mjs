@@ -120,8 +120,11 @@ function effectiveRisk(state, profile, option) {
 }
 
 function settle(state, profile, option, random) {
+  const risk = effectiveRisk(state, profile, option);
+  const riskOccurred = random() * 100 < risk;
+  const branchEffects = riskOccurred ? option.setbackEffects : option.effects;
   const effects = Object.fromEntries(
-    effectKeys.map((key) => [key, Number(option.effects[key] || 0)]),
+    effectKeys.map((key) => [key, Number(branchEffects[key] || 0)]),
   );
   const context = resourceContext(state);
   if (effects.knowledge > 0) effects.knowledge *= context.developmentConversion;
@@ -134,14 +137,6 @@ function settle(state, profile, option, random) {
   else if (state.cash < 25) effects.happiness -= 1;
   if (state.health < 15) effects.happiness -= 3;
   else if (state.health < 35) effects.happiness -= 1;
-  const risk = effectiveRisk(state, profile, option);
-  const riskOccurred = random() * 100 < risk;
-  if (riskOccurred) {
-    effects.cash -= state.cash < 15 ? 1 : 3;
-    effects.health -= state.health < 18 ? 1 : 2;
-    effects.happiness -= 2;
-    effects.career -= option.strategyTag === "增加收入" ? 1 : 0;
-  }
   if (state.cash + effects.cash <= 0) {
     effects.happiness -= 5;
     effects.connections -= 2;
@@ -160,15 +155,16 @@ function chooseOption(event, state, profile, gameIndex, seenStrategies, random) 
   const policy = gameIndex % 4;
   const scored = event.options.map((option) => {
     const risk = effectiveRisk(state, profile, option);
+    const successWeight = 1 - risk / 100;
+    const expected = (key) =>
+      Number(option.effects[key] || 0) * successWeight +
+      Number(option.setbackEffects[key] || 0) * (1 - successWeight);
     const novelty = seenStrategies.has(option.strategyTag) ? 0 : 8;
     const survival =
-      Number(option.effects.cash || 0) * (state.cash < 25 ? 2 : 0.5) +
-      Number(option.effects.health || 0) * (state.health < 35 ? 2 : 0.6);
+      expected("cash") * (state.cash < 25 ? 2 : 0.5) +
+      expected("health") * (state.health < 35 ? 2 : 0.6);
     const growth =
-      Number(option.effects.knowledge || 0) +
-      Number(option.effects.connections || 0) +
-      Number(option.effects.career || 0) +
-      Number(option.effects.assets || 0);
+      expected("knowledge") + expected("connections") + expected("career") + expected("assets");
     return { option, risk, score: novelty + survival + growth - risk * 0.12 + random() };
   });
   if (policy === 0) return scored.sort((left, right) => left.risk - right.risk)[0].option;
@@ -206,7 +202,7 @@ function settlementMessage(option, result, nextState) {
     .join("，");
   return [
     `玩家选择：${option.label}`,
-    `程序结算结果：${option.result}${result.riskOccurred ? ` 风险兑现：${option.setback}` : ""}`,
+    `程序结算结果：${result.riskOccurred ? option.setback : option.result}`,
     `状态变化：${changes}`,
     `结算后状态：年龄${nextState.age}，现金${nextState.cash}，健康${nextState.health}，幸福${nextState.happiness}，知识${nextState.knowledge}，人脉${nextState.connections}，事业${nextState.career}，资产${nextState.assets}`,
   ].join("\n");
@@ -276,7 +272,7 @@ async function playGame(gameIndex) {
         year: profile.birthYear + state.age,
         title: event.title,
         choice: option.label,
-        result: option.result,
+        result: settled.riskOccurred ? option.setback : option.result,
         effects: settled.effects,
         eventId: event.id,
         experienceIds: option.experienceIds,

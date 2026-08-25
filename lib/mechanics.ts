@@ -117,8 +117,9 @@ export function settleChoice(
   const context = resourceContext(state);
   const effectiveRisk = effectiveRiskForOption(state, profile, option);
   const riskOccurred = roll < effectiveRisk;
+  const branchEffects = riskOccurred ? option.setbackEffects : option.effects;
   const raw = Object.fromEntries(
-    effectKeys.map((key) => [key, Number(option.effects[key] || 0)]),
+    effectKeys.map((key) => [key, Number(branchEffects[key] || 0)]),
   ) as Required<Effect>;
 
   if (raw.knowledge > 0) raw.knowledge *= context.developmentConversion;
@@ -133,13 +134,6 @@ export function settleChoice(
   else if (state.cash < 25) raw.happiness -= 1;
   if (state.health < 15) raw.happiness -= 3;
   else if (state.health < 35) raw.happiness -= 1;
-
-  if (riskOccurred) {
-    raw.cash -= state.cash < 15 ? 1 : 3;
-    raw.health -= state.health < 18 ? 1 : 2;
-    raw.happiness -= 2;
-    raw.career -= option.strategyTag === "增加收入" ? 1 : 0;
-  }
 
   const consequences: string[] = [];
   if (state.cash + raw.cash <= 0) {
