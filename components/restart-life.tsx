@@ -37,9 +37,11 @@ import type {
 import {
   advanceAge,
   effectiveRiskForOption,
+  newlyZeroedCrises,
   projectedLifeEndAge,
   settleChoice,
 } from "@/lib/mechanics";
+import type { CrisisKey } from "@/lib/mechanics";
 import { readJsonResponse } from "@/lib/http-response";
 
 type Screen = "landing" | "setup" | "game" | "ending";
@@ -56,6 +58,12 @@ type ChoiceResult = {
   riskOccurred: boolean;
   customAction?: string;
   modelEnhanced?: boolean;
+  consequences?: string[];
+};
+type Crisis = {
+  keys: CrisisKey[];
+  effects: Effect;
+  consequences: string[];
 };
 type AuthStatus = {
   configured: boolean;
@@ -540,19 +548,111 @@ function StatRail({ state }: { state: LifeState }) {
       <div className="rail-title">
         实时状态 <span>LIVE</span>
       </div>
-      {statMeta.map(([key, label, Icon]) => (
-        <div className="stat-item" key={key}>
-          <Icon size={17} />
-          <div>
-            <span>{label}</span>
-            <div className="bar">
-              <i style={{ width: `${state[key]}%` }} />
+      {statMeta.map(([key, label, Icon]) => {
+        const isZero = state[key] === 0;
+        const isWarning = state[key] > 0 && state[key] <= 15;
+        return (
+          <div className={`stat-item${isZero ? " is-zero" : isWarning ? " is-warning" : ""}`} key={key}>
+            <Icon size={17} />
+            <div>
+              <span>{label}</span>
+              {isZero ? (
+                <div className="zero-marker" aria-label={`${label}归零`}>
+                  <i>×</i> 归零
+                </div>
+              ) : (
+                <div className="bar">
+                  <i style={{ width: `${state[key]}%` }} />
+                </div>
+              )}
+            </div>
+            <b>{state[key]}</b>
+          </div>
+        );
+      })}
+    </aside>
+  );
+}
+
+const crisisCopy: Record<CrisisKey, { label: string; title: string; description: string }> = {
+  cash: {
+    label: "财务危机",
+    title: "你失去了基本周转",
+    description: "现金归零后，接下来的选择将围绕生存、求助与重建展开。",
+  },
+  health: {
+    label: "健康危机",
+    title: "原有生活节奏被迫中断",
+    description: "健康归零不等于人生结束，但你需要进入长期恢复，并重新安排生活与工作。",
+  },
+  happiness: {
+    label: "身心低谷",
+    title: "生活的支撑感正在消失",
+    description: "心气归零后，后续事件会优先呈现现实的支持、修复与重建路径。",
+  },
+  connections: {
+    label: "社会孤立",
+    title: "你暂时失去了社会支持",
+    description: "人脉归零不等于无法重新连接，但求助、合作与信任都需要重新建立。",
+  },
+  career: {
+    label: "事业中断",
+    title: "职业积累暂时归零",
+    description: "这不是永久定义；后续选择将围绕维持生计、转向与重新积累展开。",
+  },
+  assets: {
+    label: "资产清零",
+    title: "你已没有可持有资产",
+    description: "资产清零会压缩你的安全余量，之后的每一项投入都需要更谨慎地取舍。",
+  },
+};
+
+function CrisisDialog({
+  crisis,
+  onContinue,
+}: {
+  crisis: Crisis;
+  onContinue: () => void;
+}) {
+  const effects = Object.entries(crisis.effects).filter(([, value]) => Number(value));
+  return (
+    <div className="crisis-backdrop" role="presentation">
+      <section className="crisis-dialog" role="dialog" aria-modal="true" aria-label="归零事件">
+        <span className="crisis-kicker">LIFE RECORD / CRISIS</span>
+        {crisis.keys.map((key) => {
+          const copy = crisisCopy[key];
+          return (
+            <div className="crisis-entry" key={key}>
+              <span>{copy.label} · 归零事件</span>
+              <h2>{copy.title}</h2>
+              <p>{copy.description}</p>
+            </div>
+          );
+        })}
+        {(crisis.consequences.length > 0 || effects.length > 0) && (
+          <div className="crisis-consequences">
+            <b>本次已结算的后果</b>
+            {crisis.consequences.map((item) => (
+              <p key={item}>{item}</p>
+            ))}
+            <div className="crisis-effect-list">
+              {effects.map(([key, value]) => {
+                const meta = statMeta.find(([id]) => id === key);
+                return (
+                  <span className={Number(value) > 0 ? "positive" : "negative"} key={key}>
+                    {meta?.[1]} {Number(value) > 0 ? "+" : ""}
+                    {value}
+                  </span>
+                );
+              })}
             </div>
           </div>
-          <b>{state[key]}</b>
-        </div>
-      ))}
-    </aside>
+        )}
+        <button className="primary-button crisis-continue" onClick={onContinue}>
+          继续 <ArrowRight size={17} />
+        </button>
+      </section>
+    </div>
   );
 }
 
@@ -756,6 +856,7 @@ function Game({
   const [eventProgress, setEventProgress] = useState<EventStreamProgress | null>(null);
   const [drawer, setDrawer] = useState(false);
   const [result, setResult] = useState<ChoiceResult | null>(null);
+  const [crisis, setCrisis] = useState<Crisis | null>(null);
   const [custom, setCustom] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
   const [error, setError] = useState("");
@@ -863,6 +964,7 @@ function Game({
   const commitChoice = (choice: ChoiceResult) => {
     if (!event) return;
     const nextState = applyEffects(state, choice.effects);
+    const crisisKeys = newlyZeroedCrises(state, nextState);
     const settlementMessage = [
       `玩家选择：${choice.label}`,
       `失败风险：${choice.effectiveRisk}%，本次${choice.riskOccurred ? "触发" : "未触发"}。后续不得把未触发的失败分支改写成已经发生。`,
@@ -914,6 +1016,11 @@ function Game({
     setState(nextState);
     setHistory(nextHistory);
     setResult(choice);
+    setCrisis(
+      crisisKeys.length
+        ? { keys: crisisKeys, effects: choice.effects, consequences: choice.consequences || [] }
+        : null,
+    );
   };
   const choose = (option: GameOption) => {
     const settled = settleChoice(state, profile, option);
@@ -931,6 +1038,7 @@ function Game({
       stateReason: option.stateReason,
       effectiveRisk: settled.effectiveRisk,
       riskOccurred: settled.riskOccurred,
+      consequences: settled.consequences,
     });
   };
   const resolveCustom = async () => {
@@ -957,6 +1065,7 @@ function Game({
         result: `${settled.riskOccurred ? resolved.setback : resolved.result}${settled.consequences.length ? ` 后果：${settled.consequences.join("；")}。` : ""}`,
         effectiveRisk: settled.effectiveRisk,
         riskOccurred: settled.riskOccurred,
+        consequences: settled.consequences,
       });
       setCustomOpen(false);
     } catch (caught) {
@@ -973,6 +1082,10 @@ function Game({
     setResult(null);
     setCustom("");
     fetchEvent(nextState, history);
+  };
+  const continueAfterCrisis = () => {
+    setCrisis(null);
+    next();
   };
   const loadingMessages = [
     "正在翻阅相似的人生卷宗",
@@ -1189,6 +1302,7 @@ function Game({
                   <span>＊</span>{" "}
                   昵称、头像、主页和回答链接均来自知乎原始数据；缺失时不会生成替代身份。
                 </div>
+                {crisis && <CrisisDialog crisis={crisis} onContinue={continueAfterCrisis} />}
               </>
             )
           )}

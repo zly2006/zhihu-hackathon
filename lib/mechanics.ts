@@ -10,6 +10,23 @@ const effectKeys = [
   "assets",
 ] as const;
 
+export const crisisKeys = [
+  "cash",
+  "health",
+  "happiness",
+  "connections",
+  "career",
+  "assets",
+] as const;
+
+export type CrisisKey = (typeof crisisKeys)[number];
+
+export function newlyZeroedCrises(previous: LifeState, next: LifeState): CrisisKey[] {
+  return crisisKeys.filter(
+    (key) => previous[key] > 0 && next[key] === 0 && (key !== "career" || previous.age >= 18),
+  );
+}
+
 export function resourceContext(state: LifeState): ResourceContext {
   const cashBand =
     state.cash < 10 ? "生存线" : state.cash < 25 ? "紧张" : state.cash < 55 ? "稳定" : "宽裕";
