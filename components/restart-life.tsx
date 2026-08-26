@@ -36,12 +36,14 @@ import type {
 } from "@/lib/types";
 import {
   advanceAge,
+  applyDebugState,
   effectiveRiskForOption,
   newlyZeroedCrises,
   projectedLifeEndAge,
+  resourceKeys,
   settleChoice,
 } from "@/lib/mechanics";
-import type { CrisisKey } from "@/lib/mechanics";
+import type { CrisisKey, ResourceKey } from "@/lib/mechanics";
 import { readJsonResponse } from "@/lib/http-response";
 
 type Screen = "landing" | "setup" | "game" | "ending";
@@ -542,17 +544,41 @@ function Setup({
   );
 }
 
-function StatRail({ state }: { state: LifeState }) {
+function StatRail({
+  state,
+  debugOpen,
+  debugDraft,
+  onDebugOpen,
+  onDebugChange,
+  onDebugCancel,
+  onDebugApply,
+}: {
+  state: LifeState;
+  debugOpen: boolean;
+  debugDraft: Record<ResourceKey, number>;
+  onDebugOpen: () => void;
+  onDebugChange: (key: ResourceKey, value: number) => void;
+  onDebugCancel: () => void;
+  onDebugApply: () => void;
+}) {
   return (
     <aside className="stat-rail">
       <div className="rail-title">
         实时状态 <span>LIVE</span>
+        {!debugOpen && (
+          <button className="debug-toggle" onClick={onDebugOpen}>
+            调试
+          </button>
+        )}
       </div>
       {statMeta.map(([key, label, Icon]) => {
         const isZero = state[key] === 0;
         const isWarning = state[key] > 0 && state[key] <= 15;
         return (
-          <div className={`stat-item${isZero ? " is-zero" : isWarning ? " is-warning" : ""}`} key={key}>
+          <div
+            className={`stat-item${isZero ? " is-zero" : isWarning ? " is-warning" : ""}`}
+            key={key}
+          >
             <Icon size={17} />
             <div>
               <span>{label}</span>
@@ -566,10 +592,27 @@ function StatRail({ state }: { state: LifeState }) {
                 </div>
               )}
             </div>
-            <b>{state[key]}</b>
+            {debugOpen ? (
+              <input
+                aria-label={`${label}调试值`}
+                type="number"
+                min="0"
+                max="100"
+                value={debugDraft[key]}
+                onChange={(event) => onDebugChange(key, Number(event.target.value))}
+              />
+            ) : (
+              <b>{state[key]}</b>
+            )}
           </div>
         );
       })}
+      {debugOpen && (
+        <div className="debug-actions">
+          <button onClick={onDebugCancel}>取消</button>
+          <button onClick={onDebugApply}>应用</button>
+        </div>
+      )}
     </aside>
   );
 }
@@ -607,13 +650,7 @@ const crisisCopy: Record<CrisisKey, { label: string; title: string; description:
   },
 };
 
-function CrisisDialog({
-  crisis,
-  onContinue,
-}: {
-  crisis: Crisis;
-  onContinue: () => void;
-}) {
+function CrisisDialog({ crisis, onContinue }: { crisis: Crisis; onContinue: () => void }) {
   const effects = Object.entries(crisis.effects).filter(([, value]) => Number(value));
   return (
     <div className="crisis-backdrop" role="presentation">
@@ -849,6 +886,14 @@ function Game({
   onRestart: () => void;
 }) {
   const [state, setState] = useState(initial);
+  const [debugOpen, setDebugOpen] = useState(false);
+  const [debugDraft, setDebugDraft] = useState<Record<ResourceKey, number>>(
+    () =>
+      Object.fromEntries(resourceKeys.map((key) => [key, initial[key]])) as Record<
+        ResourceKey,
+        number
+      >,
+  );
   const [history, setHistory] = useState<TimelineEntry[]>(initialHistory);
   const [event, setEvent] = useState<GameEvent | null>(null);
   const [loading, setLoading] = useState(true);
@@ -860,6 +905,25 @@ function Game({
   const [custom, setCustom] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
   const [error, setError] = useState("");
+
+  const openDebug = () => {
+    setDebugDraft(
+      Object.fromEntries(resourceKeys.map((key) => [key, state[key]])) as Record<
+        ResourceKey,
+        number
+      >,
+    );
+    setDebugOpen(true);
+  };
+
+  const applyDebug = () => {
+    const applied = applyDebugState(state, debugDraft);
+    setState(applied.state);
+    setDebugOpen(false);
+    if (applied.crisisKeys.length) {
+      setCrisis({ keys: applied.crisisKeys, effects: {}, consequences: [] });
+    }
+  };
 
   const fetchEvent = async (nextState = state, nextHistory = history) => {
     setLoading(true);
@@ -1108,7 +1172,15 @@ function Game({
           </button>
         </header>
         <div className="game-layout">
-          <StatRail state={state} />
+          <StatRail
+            state={state}
+            debugOpen={debugOpen}
+            debugDraft={debugDraft}
+            onDebugOpen={openDebug}
+            onDebugChange={(key, value) => setDebugDraft((draft) => ({ ...draft, [key]: value }))}
+            onDebugCancel={() => setDebugOpen(false)}
+            onDebugApply={applyDebug}
+          />
           <section className="event-stage">
             <div className="loading-file">
               <LoaderCircle className="spin" size={42} />
@@ -1171,7 +1243,15 @@ function Game({
         </button>
       </header>
       <div className="game-layout">
-        <StatRail state={state} />
+        <StatRail
+          state={state}
+          debugOpen={debugOpen}
+          debugDraft={debugDraft}
+          onDebugOpen={openDebug}
+          onDebugChange={(key, value) => setDebugDraft((draft) => ({ ...draft, [key]: value }))}
+          onDebugCancel={() => setDebugOpen(false)}
+          onDebugApply={applyDebug}
+        />
         <section className="event-stage">
           {error ? (
             <div className="error-file">

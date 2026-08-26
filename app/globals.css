@@ -601,6 +601,8 @@ body {
   background: #e3dacb;
 }
 .rail-title {
+  display: flex;
+  align-items: center;
   font-size: 10px;
   letter-spacing: 0.18em;
   font-weight: 700;
@@ -609,7 +611,25 @@ body {
   margin-bottom: 20px;
 }
 .rail-title span {
-  float: right;
+  margin-left: auto;
+  color: var(--red);
+}
+.debug-toggle,
+.debug-actions button {
+  border: 1px solid #756c60;
+  background: #eee5d6;
+  color: #413a31;
+  cursor: pointer;
+  font-size: 9px;
+  letter-spacing: 0.08em;
+}
+.debug-toggle {
+  margin-left: 9px;
+  padding: 3px 6px;
+}
+.debug-toggle:hover,
+.debug-actions button:last-child:hover {
+  border-color: var(--red);
   color: var(--red);
 }
 .stat-item {
@@ -628,6 +648,29 @@ body {
 .stat-item > b {
   font: 700 13px "Shippori Mincho";
   text-align: right;
+}
+.stat-item input {
+  width: 36px;
+  border: 1px solid #aa9d89;
+  background: #fbf6ea;
+  color: var(--ink);
+  font: 700 12px "Shippori Mincho";
+  padding: 3px 2px;
+  text-align: center;
+}
+.debug-actions {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 7px;
+  margin-top: 3px;
+}
+.debug-actions button {
+  padding: 7px 4px;
+}
+.debug-actions button:last-child {
+  border-color: var(--red);
+  background: var(--red);
+  color: #fff9ee;
 }
 .bar {
   height: 3px;
@@ -706,7 +749,9 @@ body {
 .crisis-entry > span {
   display: block;
   color: var(--red);
-  font: 700 10px "Shippori Mincho", serif;
+  font:
+    700 10px "Shippori Mincho",
+    serif;
   letter-spacing: 0.16em;
 }
 .crisis-kicker {
@@ -719,7 +764,9 @@ body {
 }
 .crisis-entry h2 {
   margin: 8px 0 7px;
-  font: 700 25px "Shippori Mincho", serif;
+  font:
+    700 25px "Shippori Mincho",
+    serif;
 }
 .crisis-entry p {
   margin: 0;
@@ -765,12 +812,22 @@ body {
   margin-top: 24px;
 }
 @keyframes crisis-backdrop-in {
-  from { opacity: 0; }
-  to { opacity: 1; }
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
 }
 @keyframes crisis-dialog-in {
-  from { opacity: 0; transform: translateY(12px); }
-  to { opacity: 1; transform: translateY(0); }
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }
 @keyframes crisis-flash {
   50% {
@@ -1469,7 +1526,11 @@ body {
     border-bottom: 1px solid var(--line);
   }
   .stat-rail .rail-title {
-    display: none;
+    flex: 0 0 auto;
+    min-width: 91px;
+    margin: 0;
+    padding: 0;
+    border: 0;
   }
   .stat-item {
     min-width: 70px;
@@ -1478,6 +1539,17 @@ body {
   }
   .stat-item > b {
     display: none;
+  }
+  .stat-item input {
+    display: block;
+  }
+  .debug-actions {
+    flex: 0 0 auto;
+    display: flex;
+    margin: 0;
+  }
+  .debug-actions button {
+    padding: 6px 8px;
   }
   .event-stage {
     height: calc(100% - 64px);

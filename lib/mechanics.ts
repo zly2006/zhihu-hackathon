@@ -1,6 +1,6 @@
 import type { Effect, GameOption, LifeState, Profile, ResourceContext } from "./types";
 
-const effectKeys = [
+export const resourceKeys = [
   "cash",
   "health",
   "happiness",
@@ -9,6 +9,10 @@ const effectKeys = [
   "career",
   "assets",
 ] as const;
+
+export type ResourceKey = (typeof resourceKeys)[number];
+
+const effectKeys = resourceKeys;
 
 export const crisisKeys = [
   "cash",
@@ -25,6 +29,17 @@ export function newlyZeroedCrises(previous: LifeState, next: LifeState): CrisisK
   return crisisKeys.filter(
     (key) => previous[key] > 0 && next[key] === 0 && (key !== "career" || previous.age >= 18),
   );
+}
+
+export function applyDebugState(previous: LifeState, draft: Record<ResourceKey, number>) {
+  const state = { ...previous };
+  for (const key of resourceKeys) {
+    const value = Number(draft[key]);
+    state[key] = Number.isFinite(value)
+      ? Math.max(0, Math.min(100, Math.round(value)))
+      : previous[key];
+  }
+  return { state, crisisKeys: newlyZeroedCrises(previous, state) };
 }
 
 export function resourceContext(state: LifeState): ResourceContext {
