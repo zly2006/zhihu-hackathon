@@ -650,7 +650,15 @@ const crisisCopy: Record<CrisisKey, { label: string; title: string; description:
   },
 };
 
-function CrisisDialog({ crisis, onContinue }: { crisis: Crisis; onContinue: () => void }) {
+function CrisisDialog({
+  crisis,
+  onContinue,
+  onUndo,
+}: {
+  crisis: Crisis;
+  onContinue: () => void;
+  onUndo: () => void;
+}) {
   const effects = Object.entries(crisis.effects).filter(([, value]) => Number(value));
   return (
     <div className="crisis-backdrop" role="presentation">
@@ -687,6 +695,9 @@ function CrisisDialog({ crisis, onContinue }: { crisis: Crisis; onContinue: () =
         )}
         <button className="primary-button crisis-continue" onClick={onContinue}>
           继续 <ArrowRight size={17} />
+        </button>
+        <button className="text-button crisis-undo" onClick={onUndo}>
+          <RotateCcw size={14} /> 撤回刚才的选择
         </button>
       </section>
     </div>
@@ -778,12 +789,14 @@ function ResultPanel({
   result,
   event,
   onNext,
+  onUndo,
   ending,
   precision,
 }: {
   result: ChoiceResult;
   event: GameEvent;
   onNext: () => void;
+  onUndo: () => void;
   ending: boolean;
   precision: Profile["precision"];
 }) {
@@ -868,6 +881,9 @@ function ResultPanel({
         {ending ? "查看人生结卷" : precision === 3 ? "去往三年后" : "去往下一年"}{" "}
         <ArrowRight size={17} />
       </button>
+      <button className="text-button result-undo" onClick={onUndo}>
+        <RotateCcw size={14} /> 撤回刚才的选择
+      </button>
     </div>
   );
 }
@@ -901,6 +917,10 @@ function Game({
   const [eventProgress, setEventProgress] = useState<EventStreamProgress | null>(null);
   const [drawer, setDrawer] = useState(false);
   const [result, setResult] = useState<ChoiceResult | null>(null);
+  const [undoCheckpoint, setUndoCheckpoint] = useState<{
+    state: LifeState;
+    history: TimelineEntry[];
+  } | null>(null);
   const [crisis, setCrisis] = useState<Crisis | null>(null);
   const [custom, setCustom] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
@@ -1027,6 +1047,7 @@ function Game({
 
   const commitChoice = (choice: ChoiceResult) => {
     if (!event) return;
+    setUndoCheckpoint({ state, history });
     const nextState = applyEffects(state, choice.effects);
     const crisisKeys = newlyZeroedCrises(state, nextState);
     const settlementMessage = [
@@ -1086,6 +1107,16 @@ function Game({
         : null,
     );
   };
+  const undoLastChoice = () => {
+    if (!undoCheckpoint) return;
+    setState(undoCheckpoint.state);
+    setHistory(undoCheckpoint.history);
+    setResult(null);
+    setCrisis(null);
+    setUndoCheckpoint(null);
+    setCustom("");
+    setCustomOpen(false);
+  };
   const choose = (option: GameOption) => {
     const settled = settleChoice(state, profile, option);
     const consequence = settled.consequences.length
@@ -1142,6 +1173,7 @@ function Game({
     if (state.age >= projectedLifeEndAge(state, profile) || state.age >= 100)
       return onEnd(state, history);
     const nextState = { ...state, age: advanceAge(state.age, profile.precision) };
+    setUndoCheckpoint(null);
     setState(nextState);
     setResult(null);
     setCustom("");
@@ -1303,6 +1335,7 @@ function Game({
                       result={result}
                       event={event}
                       onNext={next}
+                      onUndo={undoLastChoice}
                       ending={shouldEnd}
                       precision={profile.precision}
                     />
@@ -1382,7 +1415,13 @@ function Game({
                   <span>＊</span>{" "}
                   昵称、头像、主页和回答链接均来自知乎原始数据；缺失时不会生成替代身份。
                 </div>
-                {crisis && <CrisisDialog crisis={crisis} onContinue={continueAfterCrisis} />}
+                {crisis && (
+                  <CrisisDialog
+                    crisis={crisis}
+                    onContinue={continueAfterCrisis}
+                    onUndo={undoLastChoice}
+                  />
+                )}
               </>
             )
           )}

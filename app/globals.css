@@ -811,6 +811,16 @@ body {
 .crisis-continue {
   margin-top: 24px;
 }
+.crisis-undo,
+.result-undo {
+  margin: 12px auto 0;
+  color: var(--muted);
+  font-size: 12px;
+}
+.crisis-undo:hover,
+.result-undo:hover {
+  color: var(--red);
+}
 @keyframes crisis-backdrop-in {
   from {
     opacity: 0;
