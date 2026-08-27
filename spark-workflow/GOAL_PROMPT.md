@@ -12,8 +12,10 @@
 1. 如果 manifest.json 缺失、mode 不是 spark_calibration、批次没有 input_tokens，先报告精确路径并停止。
 2. 单批输入不得超过 manifest.max_input_tokens（默认 8000 Token）。不得通过截断正文来降低大小。
 3. 如果单条回答本身超过上限，标记为 RETRY，并写明“长文本转其他流程”，不要强行处理。
-4. 不连接、读取或写入数据库；不执行迁移；不读取 .env。
-5. 不读取或输出 Cookie、API key、密码、完整 HTML 或 URL。
+4. 绝不一次性读取全量数据。只打开当前批次的精确 input_file；禁止读取 `input/*.jsonl`、整个 input 目录或其他批次。
+5. 校验只流式读取当前批次，禁止把多个批次拼接到内存或上下文。
+6. 不连接、读取或写入数据库；不执行迁移；不读取 .env。
+7. 不读取或输出 Cookie、API key、密码、完整 HTML 或 URL。
 
 【输入】
 每行：
