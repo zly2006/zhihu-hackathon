@@ -119,6 +119,16 @@ function initialState(profile: Profile): LifeState {
   };
 }
 
+function hydrateHistory(profile: Profile, history: TimelineEntry[]) {
+  let cursor = initialState(profile);
+  return history.map((entry) => {
+    const stateBefore = entry.stateBefore || cursor;
+    cursor = applyEffects(cursor, entry.effects, entry.age);
+    cursor = { ...cursor, age: advanceAge(entry.age, profile.precision) };
+    return entry.stateBefore ? entry : { ...entry, stateBefore };
+  });
+}
+
 function applyEffects(state: LifeState, effects: Effect, age = state.age) {
   const next = { ...state, age };
   for (const [key, value] of Object.entries(effects)) {
@@ -1618,7 +1628,7 @@ export function RestartLife({ stats }: { stats: Stats }) {
       const data = JSON.parse(localStorage.getItem("restart-life-save") || "");
       setProfile(data.profile);
       setState(data.state);
-      setHistory(data.history || []);
+      setHistory(hydrateHistory(data.profile, data.history || []));
       setScreen("game");
     } catch {
       setSaved(false);
