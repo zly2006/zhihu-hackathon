@@ -1,81 +1,62 @@
-# Spark 批处理工作流
+# 决策抽取工作流
 
-这个目录是给 GPT-5.3-Codex-Spark Goal 模式使用的本地工作区。
+这个目录负责把知乎回答整理成统一的“决策经历” JSONL。
 
-它只做一件事：把知乎回答提炼成统一的“决策经历” JSONL。它不直接写数据库，不修改原始回答，也不发送 Cookie、数据库密码或原始 HTML。
+## 先说边界
 
-## 目录
+Spark 只做小规模校准和难例复核，不跑全量数据库。模型消耗按 Token 计算，不按“回答条数”计算。
+
+正确分工：
+
+```text
+本地去重/清洗
+  → 便宜模型或 4090 跑全量
+  → Spark 抽样校准、复核难例
+  → 自动校验与去重
+  → 4090 生成 embedding
+```
+
+## Spark 任务边界
+
+- 单批输入上限：8,000 Token；
+- 单个 Goal 只处理清单指定的少量批次；
+- 一条回答只输出一个主决策对象；
+- 缺少真实决策链就 `REJECT`；
+- 不读取数据库，不发送 URL、HTML、Cookie、API key 或密码；
+- 超长回答不截断，转给便宜模型或单独的长文本流程。
+
+`GOAL_PROMPT.md` 是 Spark 的完整提示词。它只允许处理 `mode=spark_calibration` 的清单；全量清单不能直接交给 Spark。
+
+## 文件
 
 ```text
 spark-workflow/
-├── GOAL_PROMPT.md          可直接粘贴到 Spark Goal 的提示词
-├── output.schema.json      每条结果必须满足的 JSON Schema
-├── manifest.example.json   批次清单示例
-├── input/                  本地输入批次，不提交 Git
-├── output/                 Spark 输出，不提交 Git
-└── state/                  断点和失败记录，不提交 Git
+├── GOAL_PROMPT.md              Spark Goal 提示词
+├── output.schema.json          输出 JSON Schema
+├── prepare_token_batches.py    按 Token 自动切批
+├── manifest.example.json       清单示例
+├── input/                      本地输入，不提交 Git
+├── output/                     Spark 输出，不提交 Git
+└── state/                      断点和失败记录，不提交 Git
 ```
 
-## 工作流
+## 生成批次
 
-```text
-准备批次
-  → Spark Goal 读取一个 PENDING 批次
-  → 输出一个同名 JSONL
-  → JSON Schema 和证据校验
-  → 写入断点
-  → 继续下一个批次
-  → 上游导入器写入数据库
-  → 4090 生成情景 embedding
+从本地 SQLite 只读生成新批次：
+
+```bash
+python spark-workflow/prepare_token_batches.py \
+  --db local.db \
+  --output-dir spark-workflow/run-cheap \
+  --max-input-tokens 8000
 ```
 
-每个输入批次建议 20～50 条。输入只保留模型需要的字段：
+脚本按 Token 而不是回答条数切分，不会截断正文，也不会把 URL 或 HTML 放进模型输入。
 
-```json
-{"id":"snapshot-001","question_title":"要不要换工作？","answer_text":"回答正文"}
-```
-
-`id` 是本地数据的稳定主键。知乎 URL、HTML 和作者信息留在本地证据库，通过 `id` 回链，不需要重复发给模型。
-
-## Spark 的处理边界
-
-一条回答只输出一个主决策对象；不能确定它在讲真实决策，就输出 `REJECT`，不补写、不猜测。`ACCEPT` 结果至少要能从原文找到：决策对象、面临的选择、实际行动，以及可观察的结果或明确的结果缺失。
-
-成功标准：
-
-- 输入和输出的 `id` 一一对应，不漏、不重、不改；
-- 每行都是合法 JSON，且通过 [output.schema.json](./output.schema.json)；
-- `evidence_quote` 必须是输入正文的连续原文；
-- `decision_object` 只描述“正在决定什么”，不把背景和结果塞进对象名；
-- `REJECT` 不进入正式知识库，但保留原因；
-- 只有校验通过的批次才能写入 `state/progress.json`。
+如果要让 Spark 处理这个运行目录，把 `spark-workflow/run-cheap` 设为工作目录，再粘贴 `spark-workflow/GOAL_PROMPT.md`。当前根目录的全量 `manifest.json` 仅作历史断点，禁止交给 Spark。
 
 ## 断点规则
 
-Spark 每次只处理一个批次：
+Spark 每次先写 `.part`，校验通过后再改名为 `.jsonl`，最后更新 `state/progress.json`。Goal 中断或限额耗尽后，从第一个 `PENDING`/`RETRY` 批次继续。
 
-1. 读取 `manifest.json`，找第一个 `PENDING` 或 `RETRY` 批次；
-2. 先写 `output/<batch-id>.jsonl.part`；
-3. 校验通过后原子改名为 `.jsonl`；
-4. 再更新 `state/progress.json`；
-5. 失败只写 `state/retries/<batch-id>.json`，不把批次标记为完成。
-
-因此 Goal 中断、额度用完或本机重启后，可以从上一个未完成批次继续，不重复导入。
-
-## 后续交接
-
-Spark 的 JSONL 是“提案文件”，不是数据库事实。校验通过后，由上游数据仓库的导入器完成：
-
-```text
-JSONL → 决策对象/回答关联 → 去重 → 质量门 → 数据库
-```
-
-网页端只读取上游发布后的只读数据，不在这个目录里执行 PostgreSQL 写入或 schema 迁移。
-
-## 注意
-
-- 不把 `input/`、`output/`、`state/` 中的真实数据提交 Git；
-- 不在 Goal 对话中粘贴 Cookie、API key、数据库 DSN 或完整原始 HTML；
-- Spark 是长任务代理，额度或会话中断是正常情况，必须依赖断点文件恢复；
-- GPT-5.3-Codex-Spark 当前通过 ChatGPT Pro/Codex 使用，不作为普通 API worker 调用；具体额度以账号页面为准。
-
+Spark 输出只是提案文件，正式入库仍需经过自动一致性检查和上游导入器。

@@ -1,5 +1,6 @@
 input/*
 !input/.gitkeep
+manifest.json
 output/*
 !output/.gitkeep
 state/*
