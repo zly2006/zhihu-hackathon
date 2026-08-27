@@ -1,0 +1,17 @@
+{
+  "run_id": "spark-decision-object-v1-20260827",
+  "extractor_version": "gpt-5.3-codex-spark:decision-object-v1",
+  "input_dir": "input",
+  "output_dir": "output",
+  "schema": "output.schema.json",
+  "batch_size": 25,
+  "batches": [
+    {
+      "batch_id": "batch-0001",
+      "input_file": "input/batch-0001.jsonl",
+      "records": 25,
+      "sha256": "replace-with-input-file-sha256",
+      "status": "PENDING"
+    }
+  ]
+}

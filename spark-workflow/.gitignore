@@ -1,0 +1,8 @@
+input/*
+!input/.gitkeep
+output/*
+!output/.gitkeep
+state/*
+!state/.gitkeep
+!state/progress.example.json
+state/retries/
