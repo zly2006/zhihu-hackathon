@@ -7,6 +7,15 @@
 - 游戏热路径只读取 `content_snapshot.source_url`、`author_name`、`author_avatar_url`、`author_url_token` 和 `author_profile_url`，禁止重新从 `raw_envelope.payload` 解析作者信息。
 - 不将 PostgreSQL 端口开放或单次 `SELECT 1` 描述为业务完成；必须验证真实召回和 SSE 完成事件。
 
+## 大数据处理与 Token 安全
+
+- **禁止一次性读取全量数据。** 不得用 `input/*.jsonl`、整个目录、`SELECT *` 或“读完再处理”的方式把全库加载进内存或模型上下文。
+- 所有模型任务必须先读取清单，再只打开当前批次的精确 `input_file`；禁止跨批次拼接上下文。
+- 批次必须按序列化后的 Token 数切分，不能只按回答条数估算。Spark 单批默认上限为 8,000 Token；缺少 Token 计数或超过上限时必须停止并转其他流程。
+- 输入、校验和导出都要流式处理当前批次；完成一个批次后再更新断点，不能预读后续批次。
+- 超长单条回答不得静默截断或强行发送给 Spark，应转给便宜模型、4090 或专门的长文本流程。
+- Spark 只用于抽样校准和难例复核；全量数据必须使用便宜模型或本地模型处理。启动任务前应确认批次 ID、记录数和 `input_tokens`，防止意外耗光额度。
+
 ## 验证
 
 代码修改至少运行：
