@@ -1092,6 +1092,39 @@ body {
 .timeline-item {
   position: relative;
   padding: 0 0 23px 10px;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  font: inherit;
+}
+.timeline-item.is-rewindable {
+  cursor: pointer;
+}
+.timeline-item.is-rewindable:hover,
+.timeline-item.is-rewindable:focus-visible {
+  padding: 9px 8px 23px 10px;
+  margin: -9px -8px 0 0;
+  background: #f1e8d8;
+  outline: 1px solid var(--red);
+}
+.timeline-item > em {
+  display: block;
+  margin-top: 6px;
+  color: var(--red);
+  font-size: 9px;
+  font-style: normal;
+  opacity: 0;
+  transform: translateX(-4px);
+  transition:
+    opacity 150ms ease,
+    transform 150ms ease;
+}
+.timeline-item.is-rewindable:hover > em,
+.timeline-item.is-rewindable:focus-visible > em {
+  opacity: 1;
+  transform: translateX(0);
 }
 .timeline-item > i {
   position: absolute;

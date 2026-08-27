@@ -123,6 +123,7 @@ export type EventStreamProgress = {
 export type TimelineEntry = {
   age: number;
   year: number;
+  stateBefore?: LifeState;
   title: string;
   choice: string;
   result: string;
