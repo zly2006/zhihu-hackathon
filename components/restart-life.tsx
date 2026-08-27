@@ -650,7 +650,15 @@ const crisisCopy: Record<CrisisKey, { label: string; title: string; description:
   },
 };
 
-function CrisisDialog({ crisis, onContinue }: { crisis: Crisis; onContinue: () => void }) {
+function CrisisDialog({
+  crisis,
+  onContinue,
+  onUndo,
+}: {
+  crisis: Crisis;
+  onContinue: () => void;
+  onUndo: () => void;
+}) {
   const effects = Object.entries(crisis.effects).filter(([, value]) => Number(value));
   return (
     <div className="crisis-backdrop" role="presentation">
@@ -688,12 +696,21 @@ function CrisisDialog({ crisis, onContinue }: { crisis: Crisis; onContinue: () =
         <button className="primary-button crisis-continue" onClick={onContinue}>
           继续 <ArrowRight size={17} />
         </button>
+        <button className="text-button crisis-undo" onClick={onUndo}>
+          <RotateCcw size={14} /> 撤回刚才的选择
+        </button>
       </section>
     </div>
   );
 }
 
-function TimelineRail({ history }: { history: TimelineEntry[] }) {
+function TimelineRail({
+  history,
+  onRewind,
+}: {
+  history: TimelineEntry[];
+  onRewind?: (index: number) => void;
+}) {
   return (
     <aside className="timeline-rail">
       <div className="rail-title">
@@ -703,14 +720,26 @@ function TimelineRail({ history }: { history: TimelineEntry[] }) {
         {history
           .slice()
           .reverse()
-          .map((item, index) => (
-            <div className="timeline-item" key={`${item.eventId}-${index}`}>
-              <i />
-              <span>{item.age} 岁</span>
-              <b>{item.choice}</b>
-              <p>{item.title}</p>
-            </div>
-          ))}
+          .map((item, reversedIndex) => {
+            const historyIndex = history.length - 1 - reversedIndex;
+            const canRewind = Boolean(onRewind && item.stateBefore);
+            return (
+              <button
+                className={`timeline-item${canRewind ? " is-rewindable" : ""}`}
+                key={`${item.eventId}-${historyIndex}`}
+                type="button"
+                disabled={!canRewind}
+                title={canRewind ? "点击回到这个人生节点" : "旧存档缺少节点快照，无法回到这里"}
+                onClick={() => canRewind && onRewind?.(historyIndex)}
+              >
+                <i />
+                <span>{item.age} 岁</span>
+                <b>{item.choice}</b>
+                <p>{item.title}</p>
+                {canRewind && <em>回到这里</em>}
+              </button>
+            );
+          })}
         {!history.length && (
           <p className="timeline-empty">
             第一笔还没写下。
@@ -778,12 +807,14 @@ function ResultPanel({
   result,
   event,
   onNext,
+  onUndo,
   ending,
   precision,
 }: {
   result: ChoiceResult;
   event: GameEvent;
   onNext: () => void;
+  onUndo: () => void;
   ending: boolean;
   precision: Profile["precision"];
 }) {
@@ -868,6 +899,9 @@ function ResultPanel({
         {ending ? "查看人生结卷" : precision === 3 ? "去往三年后" : "去往下一年"}{" "}
         <ArrowRight size={17} />
       </button>
+      <button className="text-button result-undo" onClick={onUndo}>
+        <RotateCcw size={14} /> 撤回刚才的选择
+      </button>
     </div>
   );
 }
@@ -901,6 +935,10 @@ function Game({
   const [eventProgress, setEventProgress] = useState<EventStreamProgress | null>(null);
   const [drawer, setDrawer] = useState(false);
   const [result, setResult] = useState<ChoiceResult | null>(null);
+  const [undoCheckpoint, setUndoCheckpoint] = useState<{
+    state: LifeState;
+    history: TimelineEntry[];
+  } | null>(null);
   const [crisis, setCrisis] = useState<Crisis | null>(null);
   const [custom, setCustom] = useState("");
   const [customOpen, setCustomOpen] = useState(false);
@@ -1027,6 +1065,7 @@ function Game({
 
   const commitChoice = (choice: ChoiceResult) => {
     if (!event) return;
+    setUndoCheckpoint({ state, history });
     const nextState = applyEffects(state, choice.effects);
     const crisisKeys = newlyZeroedCrises(state, nextState);
     const settlementMessage = [
@@ -1043,6 +1082,7 @@ function Game({
       {
         age: state.age,
         year: profile.birthYear + state.age,
+        stateBefore: state,
         title: event.title,
         choice: choice.label,
         result: choice.result,
@@ -1085,6 +1125,31 @@ function Game({
         ? { keys: crisisKeys, effects: choice.effects, consequences: choice.consequences || [] }
         : null,
     );
+  };
+  const undoLastChoice = () => {
+    if (!undoCheckpoint) return;
+    setState(undoCheckpoint.state);
+    setHistory(undoCheckpoint.history);
+    setResult(null);
+    setCrisis(null);
+    setUndoCheckpoint(null);
+    setCustom("");
+    setCustomOpen(false);
+  };
+  const rewindToNode = (historyIndex: number) => {
+    const entry = history[historyIndex];
+    if (!entry?.stateBefore) return;
+    const restoredState = entry.stateBefore;
+    const restoredHistory = history.slice(0, historyIndex);
+    setState(restoredState);
+    setHistory(restoredHistory);
+    setResult(null);
+    setCrisis(null);
+    setUndoCheckpoint(null);
+    setCustom("");
+    setCustomOpen(false);
+    setDrawer(false);
+    void fetchEvent(restoredState, restoredHistory);
   };
   const choose = (option: GameOption) => {
     const settled = settleChoice(state, profile, option);
@@ -1142,6 +1207,7 @@ function Game({
     if (state.age >= projectedLifeEndAge(state, profile) || state.age >= 100)
       return onEnd(state, history);
     const nextState = { ...state, age: advanceAge(state.age, profile.precision) };
+    setUndoCheckpoint(null);
     setState(nextState);
     setResult(null);
     setCustom("");
@@ -1223,7 +1289,7 @@ function Game({
               </div>
             </div>
           </section>
-          <TimelineRail history={history} />
+          <TimelineRail history={history} onRewind={rewindToNode} />
         </div>
       </main>
     );
@@ -1303,6 +1369,7 @@ function Game({
                       result={result}
                       event={event}
                       onNext={next}
+                      onUndo={undoLastChoice}
                       ending={shouldEnd}
                       precision={profile.precision}
                     />
@@ -1382,12 +1449,18 @@ function Game({
                   <span>＊</span>{" "}
                   昵称、头像、主页和回答链接均来自知乎原始数据；缺失时不会生成替代身份。
                 </div>
-                {crisis && <CrisisDialog crisis={crisis} onContinue={continueAfterCrisis} />}
+                {crisis && (
+                  <CrisisDialog
+                    crisis={crisis}
+                    onContinue={continueAfterCrisis}
+                    onUndo={undoLastChoice}
+                  />
+                )}
               </>
             )
           )}
         </section>
-        <TimelineRail history={history} />
+        <TimelineRail history={history} onRewind={rewindToNode} />
       </div>
       {drawer && event && <SourceDrawer event={event} onClose={() => setDrawer(false)} />}
     </main>
