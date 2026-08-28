@@ -1,4 +1,42 @@
-import type { Effect, GameOption, LifeState, Profile, ResourceContext } from "./types";
+import type {
+  Effect,
+  EraContext,
+  EraMechanism,
+  GameOption,
+  LifeState,
+  Profile,
+  ResourceContext,
+} from "./types";
+
+function eraRiskAdjustment(
+  context: EraContext | null | undefined,
+  option: { eraContextId?: string | null; eraMechanism?: EraMechanism },
+) {
+  if (
+    !context ||
+    option.eraContextId !== context.id ||
+    !option.eraMechanism ||
+    option.eraMechanism === "none"
+  )
+    return 0;
+  return context.adjustments?.[option.eraMechanism].risk || 0;
+}
+
+function eraEffectAdjustment(
+  context: EraContext | null | undefined,
+  option: { eraContextId?: string | null; eraMechanism?: EraMechanism },
+  riskOccurred: boolean,
+) {
+  if (
+    !context ||
+    option.eraContextId !== context.id ||
+    !option.eraMechanism ||
+    option.eraMechanism === "none"
+  )
+    return {};
+  const adjustment = context.adjustments?.[option.eraMechanism];
+  return adjustment ? (riskOccurred ? adjustment.setback : adjustment.success) : {};
+}
 
 export const resourceKeys = [
   "cash",
@@ -94,7 +132,12 @@ function resourceCostPenalty(cost: number, available: number, critical: number, 
   return Math.min(18, Math.round(relativeBurden + absoluteBurden + scarcityBurden));
 }
 
-export function effectiveRiskForOption(state: LifeState, profile: Profile, option: GameOption) {
+export function effectiveRiskForOption(
+  state: LifeState,
+  profile: Profile,
+  option: GameOption,
+  eraContext?: EraContext | null,
+) {
   const cashCost = Math.max(0, -Number(option.effects.cash || 0));
   const healthCost = Math.max(0, -Number(option.effects.health || 0));
   const cashPenalty = resourceCostPenalty(cashCost, state.cash, 10, 25);
@@ -107,15 +150,26 @@ export function effectiveRiskForOption(state: LifeState, profile: Profile, optio
       3,
       Math.min(
         95,
-        option.baseRisk + cashPenalty + healthPenalty + fitAdjustment - talentProtection,
+        option.baseRisk +
+          cashPenalty +
+          healthPenalty +
+          fitAdjustment +
+          eraRiskAdjustment(eraContext, option) -
+          talentProtection,
       ),
     ),
   );
 }
 
-export function calibrateOptionRisks(state: LifeState, profile: Profile, options: GameOption[]) {
+export function calibrateOptionRisks(
+  state: LifeState,
+  profile: Profile,
+  options: GameOption[],
+  eraContext?: EraContext | null,
+) {
   const calibrated = options.map((option) => ({ ...option }));
-  const risks = () => calibrated.map((option) => effectiveRiskForOption(state, profile, option));
+  const risks = () =>
+    calibrated.map((option) => effectiveRiskForOption(state, profile, option, eraContext));
   const averageRisk = () => {
     const values = risks();
     return values.reduce((sum, value) => sum + value, 0) / values.length;
@@ -135,7 +189,12 @@ export function calibrateOptionRisks(state: LifeState, profile: Profile, options
   const safestIndex = values.indexOf(Math.min(...values));
   while (values[safestIndex] > 30 && calibrated[safestIndex].baseRisk > 5) {
     calibrated[safestIndex].baseRisk -= 1;
-    values[safestIndex] = effectiveRiskForOption(state, profile, calibrated[safestIndex]);
+    values[safestIndex] = effectiveRiskForOption(
+      state,
+      profile,
+      calibrated[safestIndex],
+      eraContext,
+    );
   }
   return calibrated;
 }
@@ -145,14 +204,20 @@ export function settleChoice(
   profile: Profile,
   option: GameOption,
   roll = Math.random() * 100,
+  eraContext?: EraContext | null,
 ) {
   const context = resourceContext(state);
-  const effectiveRisk = effectiveRiskForOption(state, profile, option);
+  const effectiveRisk = effectiveRiskForOption(state, profile, option, eraContext);
   const riskOccurred = roll < effectiveRisk;
   const branchEffects = riskOccurred ? option.setbackEffects : option.effects;
   const raw = Object.fromEntries(
     effectKeys.map((key) => [key, Number(branchEffects[key] || 0)]),
   ) as Required<Effect>;
+  const eraEffects = eraEffectAdjustment(eraContext, option, riskOccurred);
+  for (const [key, amount] of Object.entries(eraEffects)) {
+    const typedKey = key as keyof Omit<LifeState, "age">;
+    raw[typedKey] += Number(amount || 0);
+  }
 
   if (raw.knowledge > 0) raw.knowledge *= context.developmentConversion;
   if (raw.career > 0) raw.career *= context.developmentConversion;

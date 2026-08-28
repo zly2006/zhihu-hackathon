@@ -901,6 +901,30 @@ body {
   position: relative;
   background: #f3ecde;
 }
+.era-context-card {
+  margin: 20px 0 24px;
+  padding: 13px 15px;
+  border-left: 3px solid var(--blue);
+  background: #e7eee9;
+}
+.era-context-card > span {
+  display: block;
+  color: var(--blue);
+  font-size: 9px;
+  letter-spacing: 0.12em;
+  font-weight: 700;
+}
+.era-context-card > b {
+  display: block;
+  margin-top: 4px;
+  font-size: 13px;
+}
+.era-context-card > p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 10px;
+  line-height: 1.7;
+}
 .event-background label {
   position: absolute;
   left: 15px;
@@ -1810,6 +1834,9 @@ body {
   gap: 5px;
   margin-top: 5px;
   font-size: 8px;
+}
+.option-card .era-option-tag {
+  color: var(--blue);
 }
 .option-card .option-effects > b {
   color: #6d6559;

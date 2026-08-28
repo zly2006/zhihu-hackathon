@@ -34,6 +34,7 @@ import type {
   Stats,
   TimelineEntry,
 } from "@/lib/types";
+import { eraMechanismLabel } from "@/lib/era";
 import {
   advanceAge,
   applyDebugState,
@@ -61,6 +62,8 @@ type ChoiceResult = {
   customAction?: string;
   modelEnhanced?: boolean;
   consequences?: string[];
+  eraContextId?: string | null;
+  eraMechanism?: GameOption["eraMechanism"];
 };
 type Crisis = {
   keys: CrisisKey[];
@@ -841,6 +844,7 @@ function ResultPanel({
         <span className={result.riskOccurred ? "risk-hit" : "risk-safe"}>
           失败风险 {result.effectiveRisk}% · {result.riskOccurred ? "本次触发" : "本次未触发"}
         </span>
+        {result.eraContextId && <span>时代策略 · {eraMechanismLabel(result.eraMechanism)}</span>}
       </div>
       <p>{result.result}</p>
       <small className="state-reason">状态影响：{result.stateReason}</small>
@@ -1027,6 +1031,14 @@ function Game({
               id: event.id,
               title: event.title,
               chapter: event.chapter,
+              eraContext: event.eraContext
+                ? {
+                    id: event.eraContext.id,
+                    title: event.eraContext.title,
+                    year: event.eraContext.year,
+                    ageFrame: event.eraContext.ageFrame,
+                  }
+                : null,
               background: event.background,
               dilemma: event.dilemma,
               options: event.options.map((option) => ({
@@ -1098,6 +1110,7 @@ function Game({
         result: choice.result,
         effects: choice.effects,
         eventId: event.id,
+        eraContextId: event.eraContext?.id,
         experienceIds: choice.experienceIds,
         eventExperienceIds: event.experiences.map((experience) => experience.id),
         selectedOptionId: choice.optionId,
@@ -1162,7 +1175,8 @@ function Game({
     void fetchEvent(restoredState, restoredHistory);
   };
   const choose = (option: GameOption) => {
-    const settled = settleChoice(state, profile, option);
+    if (!event) return;
+    const settled = settleChoice(state, profile, option, undefined, event.eraContext);
     const consequence = settled.consequences.length
       ? ` 后果：${settled.consequences.join("；")}。`
       : "";
@@ -1175,6 +1189,8 @@ function Game({
       strategyTag: option.strategyTag,
       stateFit: option.stateFit,
       stateReason: option.stateReason,
+      eraContextId: option.eraContextId,
+      eraMechanism: option.eraMechanism,
       effectiveRisk: settled.effectiveRisk,
       riskOccurred: settled.riskOccurred,
       consequences: settled.consequences,
@@ -1190,16 +1206,24 @@ function Game({
         body: JSON.stringify({ event, state, action: custom }),
       });
       const resolved = await readJsonResponse<CustomActionResponse>(response, "自由行动");
-      const settled = settleChoice(state, profile, {
-        ...resolved,
-        id: "A",
-        description: resolved.result,
-        tone: "自",
-      });
+      const settled = settleChoice(
+        state,
+        profile,
+        {
+          ...resolved,
+          id: "A",
+          description: resolved.result,
+          tone: "自",
+        },
+        undefined,
+        event.eraContext,
+      );
       commitChoice({
         ...resolved,
         optionId: "CUSTOM",
         customAction: resolved.sanitizedAction,
+        eraContextId: resolved.eraContextId,
+        eraMechanism: resolved.eraMechanism,
         effects: settled.effects,
         result: `${settled.riskOccurred ? resolved.setback : resolved.result}${settled.consequences.length ? ` 后果：${settled.consequences.join("；")}。` : ""}`,
         effectiveRisk: settled.effectiveRisk,
@@ -1356,6 +1380,15 @@ function Game({
                     <span>AI 编剧 · 真实证据约束</span>
                     <h1>{event.title}</h1>
                   </header>
+                  {event.eraContext && (
+                    <div className="era-context-card">
+                      <span>
+                        时代语境 · {event.eraContext.startYear}—{event.eraContext.endYear}
+                      </span>
+                      <b>{event.eraContext.title}</b>
+                      <p>{event.eraContext.ageFrame}</p>
+                    </div>
+                  )}
                   <div className="event-background">
                     <label>此前的人生</label>
                     <p>{event.background}</p>
@@ -1391,7 +1424,12 @@ function Game({
                           option.experienceIds.includes(item.id),
                         );
                         const knownAuthors = matched.filter((item) => item.authorKnown);
-                        const shownRisk = effectiveRiskForOption(state, profile, option);
+                        const shownRisk = effectiveRiskForOption(
+                          state,
+                          profile,
+                          option,
+                          event.eraContext,
+                        );
                         return (
                           <button
                             className="option-card"
@@ -1405,6 +1443,11 @@ function Game({
                               <small className="option-mechanics">
                                 <strong>{option.strategyTag}</strong>
                                 <em>{option.stateFit}</em>
+                                {option.eraContextId && (
+                                  <strong className="era-option-tag">
+                                    时代 · {eraMechanismLabel(option.eraMechanism)}
+                                  </strong>
+                                )}
                                 <i>失败风险 {shownRisk}%</i>
                               </small>
                               <small className="state-reason">{option.stateReason}</small>

@@ -3,8 +3,10 @@ import { callGameModel, type ModelMessage, type ModelProgress } from "./llm";
 import { retrieveExperiences } from "./database";
 import { EVENT_STYLE_ACKNOWLEDGEMENT, EVENT_STYLE_REFERENCE } from "./event-style-reference";
 import { calibrateOptionRisks, resourceContext } from "./mechanics";
+import { selectEraContext } from "./era";
 import type {
   Effect,
+  EraMechanism,
   EventStreamProgress,
   GameEvent,
   GameOption,
@@ -118,6 +120,13 @@ function requireStateFit(value: unknown, field: string): GameOption["stateFit"] 
   return value;
 }
 
+function requireEraMechanism(value: unknown, field: string): EraMechanism {
+  if (value !== "none" && value !== "protect" && value !== "adapt" && value !== "leverage") {
+    throw new Error(`${field} 必须是 none、protect、adapt 或 leverage`);
+  }
+  return value;
+}
+
 type ModelEvent = {
   title?: unknown;
   background?: unknown;
@@ -191,7 +200,7 @@ function compactHistory(history: TimelineEntry[]) {
       const effects = Object.entries(item.effects)
         .map(([key, value]) => `${key}${Number(value) >= 0 ? "+" : ""}${value}`)
         .join("，");
-      return `${index + 1}. ${item.year}年，${item.age}岁：${item.title}；玩家选择：${item.choice}；实际结果：${item.result}；状态变化：${effects || "无"}`;
+      return `${index + 1}. ${item.year}年，${item.age}岁：${item.title}；时代语境：${item.eraContextId || "无"}；玩家选择：${item.choice}；实际结果：${item.result}；状态变化：${effects || "无"}`;
     })
     .join("\n");
 }
@@ -272,6 +281,7 @@ export async function generateEvent(
     .slice(-4)
     .map((item) => `${item.eventId}:${item.selectedOptionId || "legacy"}`)
     .join(":");
+  const eraContext = selectEraContext(profile, state, history);
   const excludedExperienceIds = [
     ...new Set(history.flatMap((item) => item.eventExperienceIds || item.experienceIds)),
   ];
@@ -281,6 +291,7 @@ export async function generateEvent(
     historyKey,
     state,
     excludedExperienceIds,
+    eraContext,
   );
   const retrievalMs = Math.round(performance.now() - generationStarted);
   if (!retrieved.items.length) throw new Error("数据库没有召回可用的人生经历");
@@ -310,6 +321,10 @@ export async function generateEvent(
     resources.incomeOpportunityRequired && resources.recoveryOpportunityRequired
       ? "6. 增收选项和恢复健康选项必须是两个不同选项，不能用一个低风险万能选项同时解决现金与健康危机。"
       : "6. 当前状态不需要拆分增收与恢复路径。",
+    eraContext
+      ? `7. 当前时代语境是“${eraContext.title}”（${eraContext.year}年，相关度${eraContext.relevance}）。恰好一个选项必须标记 eraContextId 为“${eraContext.id}”，并使用 protect、adapt、leverage 三种时代行动机制之一；另外两个选项的 eraContextId 必须是 NONE、eraMechanism 必须是 none。时代选项必须符合${eraContext.ageFrame}`
+      : "7. 当前没有足够相关的特殊时代语境；三个选项的 eraContextId 必须是 NONE、eraMechanism 必须是 none。",
+    "8. 每个选项都必须输出 eraContextId 和 eraMechanism 字段；时代选项只能有一个，时代选项的数值修正由程序根据时代机制结算，不能把时代背景写成玩家必然经历。",
     "输出前必须自行逐项检查以上数值和数量条件；不能忽略、解释或放宽任何一项。",
   ].join("\n");
   const realismRequirements = [
@@ -346,9 +361,22 @@ export async function generateEvent(
     `- 最后逐个检查 experienceNumbers 都在 1 到 ${retrieved.items.length}，三个选项没有复用同一序号，strategyTag 也没有重复。`,
     "以上任何一项不满足，都在第一次输出 JSON 前直接改正，不要先交一份明知需要修正的结果。",
   ].join("\n");
-  const userPrompt = `${describeLifeState(state)}\n\n${describeEffectScale(profile, state)}\n\n资源规则:${JSON.stringify(resources)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续对话中已经选择的路径及其现实后果；程序给出的当前状态是数值事实，优先级高于历史摘要。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内，明说两个分支都要承担的前期投入","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内风险未触发且核心目标兑现的成功结果","setbackEffects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"setback":"60字内风险触发后的替代失败结果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}\n\n${realismRequirements}\n\n${firstPassChecklist}`;
+  const eraPrompt = eraContext
+    ? `时代语境（程序选定，不代表玩家必然经历）：${JSON.stringify({
+        id: eraContext.id,
+        title: eraContext.title,
+        year: eraContext.year,
+        period: eraContext.startYear + "-" + eraContext.endYear,
+        summary: eraContext.summary,
+        ageFrame: eraContext.ageFrame,
+        keywords: eraContext.keywords,
+        possibleMechanisms: eraContext.mechanisms,
+      })}`
+    : "时代语境：当前年份没有足够相关的已配置时代事件，不要自行编造特殊历史背景。";
+  const userPrompt = `${describeLifeState(state)}\n\n${describeEffectScale(profile, state)}\n\n${eraPrompt}\n\n资源规则:${JSON.stringify(resources)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续对话中已经选择的路径及其现实后果；程序给出的当前状态是数值事实，优先级高于历史摘要。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内，明说两个分支都要承担的前期投入","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内风险未触发且核心目标兑现的成功结果","setbackEffects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"setback":"60字内风险触发后的替代失败结果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}\n\n${realismRequirements}\n\n${firstPassChecklist}`;
+  const finalPrompt = `${userPrompt}\n\n输出字段补充：每个选项必须额外返回 eraContextId（当前时代 id 或 NONE）和 eraMechanism（none、protect、adapt、leverage）。`;
   const promptChars =
-    userPrompt.length +
+    finalPrompt.length +
     prefixMessages.reduce((total, message) => total + message.content.length, 0);
   onProgress?.({
     stage: "prompt",
@@ -363,7 +391,7 @@ export async function generateEvent(
     EVENT_WRITER_SYSTEM,
     // 这里刻意只在提示词中声称会检查“全部分完/平均分配”等可疑模式，运行时不做对应校验。
     // 目的是影响模型判断，同时保留自主分类空间；分不清的 case 应留空，不能被代码机械塞入分支。
-    userPrompt,
+    finalPrompt,
     {
       signal,
       prefixMessages,
@@ -432,6 +460,11 @@ export async function generateEvent(
         stateFit: requireStateFit(option.stateFit, `options[${index}].stateFit`),
         stateReason: requireText(option.stateReason, `options[${index}].stateReason`, 80),
         setback: requireText(option.setback, `options[${index}].setback`, 140),
+        eraContextId:
+          option.eraContextId === "NONE" || option.eraContextId === null
+            ? null
+            : requireText(option.eraContextId, `options[${index}].eraContextId`, 40),
+        eraMechanism: requireEraMechanism(option.eraMechanism, `options[${index}].eraMechanism`),
       };
     });
     for (const [index, option] of validatedOptions.entries()) {
@@ -446,6 +479,28 @@ export async function generateEvent(
     const effectSignatures = validatedOptions.map((option) => JSON.stringify(option.effects));
     if (new Set(effectSignatures).size !== effectSignatures.length)
       throw new Error("不同选项不能返回完全相同的效果数值");
+    const eraOptionCount = validatedOptions.filter(
+      (option) => option.eraContextId === eraContext?.id,
+    ).length;
+    if (eraContext ? eraOptionCount !== 1 : eraOptionCount !== 0)
+      throw new Error(
+        eraContext ? "时代语境选项必须恰好有一个" : "当前没有时代语境，不能标记时代选项",
+      );
+    if (
+      validatedOptions.some(
+        (option) => option.eraContextId && option.eraContextId !== eraContext?.id,
+      )
+    )
+      throw new Error("选项引用了当前不存在的时代语境");
+    if (validatedOptions.some((option) => option.eraMechanism !== "none" && !option.eraContextId))
+      throw new Error("非时代选项的 eraMechanism 必须是 none");
+    if (
+      eraContext &&
+      validatedOptions.some(
+        (option) => option.eraContextId === eraContext.id && option.eraMechanism === "none",
+      )
+    )
+      throw new Error("时代选项必须使用 protect、adapt 或 leverage");
     if (
       resources.incomeOpportunityRequired &&
       !validatedOptions.some(
@@ -537,7 +592,7 @@ export async function generateEvent(
         evidenceCount: retrieved.items.length,
         promptChars,
       });
-      modeled = await callGameModel<ModelEvent>("修正人生事件", EVENT_WRITER_SYSTEM, userPrompt, {
+      modeled = await callGameModel<ModelEvent>("修正人生事件", EVENT_WRITER_SYSTEM, finalPrompt, {
         signal,
         prefixMessages,
         appendMessages: [...appendMessages],
@@ -569,7 +624,7 @@ export async function generateEvent(
     }
   }
   if (!options) throw new Error("模型结果未通过现实约束校验");
-  options = calibrateOptionRisks(state, profile, options);
+  options = calibrateOptionRisks(state, profile, options, eraContext);
   const anchor = retrieved.items[0];
   const totalMs = Math.round(performance.now() - generationStarted);
   const modelMetrics = finalModelProgress as ModelProgress | null;
@@ -582,6 +637,7 @@ export async function generateEvent(
     year: profile.birthYear + state.age,
     chapter: chapterFor(state.age),
     domain: retrieved.domain,
+    eraContext,
     title: requireText(modeled.title, "title", 30),
     background: requireText(modeled.background, "background", 180),
     dilemma: requireText(modeled.dilemma, "dilemma", 260),
@@ -591,7 +647,7 @@ export async function generateEvent(
     evidenceCount: retrieved.items.length,
     modelEnhanced: true,
     modelConversation: [
-      { role: "user", content: userPrompt },
+      { role: "user", content: finalPrompt },
       ...appendMessages,
       { role: "assistant", content: latestModelContent },
     ],
@@ -639,10 +695,12 @@ export async function resolveCustomAction(event: GameEvent, action: string, stat
     stateFit?: unknown;
     stateReason?: unknown;
     setback?: unknown;
+    eraContextId?: unknown;
+    eraMechanism?: unknown;
   }>(
     "裁决玩家自由选择",
     "你是现实主义人生模拟器的裁判。只输出 JSON。认可玩家创造性，但必须结合当前现金、健康与真实经历计算代价和风险。",
-    `事件:${JSON.stringify({ background: event.background, dilemma: event.dilemma })}\n玩家状态:${JSON.stringify(state)}\n资源规则:${JSON.stringify(event.resourceContext)}\n经过安全清洗的玩家选择:${JSON.stringify(sanitized)}\n真实经历:${JSON.stringify(event.experiences.map((item, index) => ({ number: index + 1, author: item.author, background: item.excerpt, action: item.action, outcome: item.outcome })))}\n选择与玩家行动最接近、确实提供支持的至少3条真实经历序号，不得编造。收益、代价和 baseRisk 必须与行动机制及证据相称；现金或健康可以降到 0，不得人为保底，归零后果由游戏结算。风险是互斥分支：result 与 effects 表示风险未触发且核心目标兑现；setback 与 setbackEffects 表示风险触发后的替代失败结局，不能先结算成功收益再追加惩罚。两个分支都必付的投入要分别写进两组 effects，并在结果文字中说明。返回 {"label":"12字内概括","result":"100字内成功结果","effects":{"cash":0,"health":0,"happiness":0,"knowledge":0,"connections":0,"career":0,"assets":0},"setback":"风险触发后的失败结果","setbackEffects":{"cash":0,"health":0,"happiness":0,"knowledge":0,"connections":0,"career":0,"assets":0},"experienceNumbers":[1,2,3],"strategyTag":"具体行动机制","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"当前状态影响"}`,
+    `事件:${JSON.stringify({ background: event.background, dilemma: event.dilemma })}\n玩家状态:${JSON.stringify(state)}\n时代语境:${JSON.stringify(event.eraContext || null)}\n资源规则:${JSON.stringify(event.resourceContext)}\n经过安全清洗的玩家选择:${JSON.stringify(sanitized)}\n真实经历:${JSON.stringify(event.experiences.map((item, index) => ({ number: index + 1, author: item.author, background: item.excerpt, action: item.action, outcome: item.outcome })))}\n选择与玩家行动最接近、确实提供支持的至少3条真实经历序号，不得编造。收益、代价和 baseRisk 必须与行动机制及证据相称；现金或健康可以降到 0，不得人为保底，归零后果由游戏结算。风险是互斥分支：result 与 effects 表示风险未触发且核心目标兑现；setback 与 setbackEffects 表示风险触发后的替代失败结局，不能先结算成功收益再追加惩罚。两个分支都必付的投入要分别写进两组 effects，并在结果文字中说明。如果玩家选择明确利用当前时代语境，返回该时代的 eraContextId 和 protect、adapt、leverage 之一；否则返回 eraContextId 为 NONE、eraMechanism 为 none。返回 {"label":"12字内概括","result":"100字内成功结果","effects":{"cash":0,"health":0,"happiness":0,"knowledge":0,"connections":0,"career":0,"assets":0},"setback":"风险触发后的失败结果","setbackEffects":{"cash":0,"health":0,"happiness":0,"knowledge":0,"connections":0,"career":0,"assets":0},"experienceNumbers":[1,2,3],"strategyTag":"具体行动机制","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"当前状态影响","eraContextId":"时代id或NONE","eraMechanism":"none|protect|adapt|leverage"}`,
   );
   const availableIds = new Set(event.experiences.map((item) => item.id));
   const effects = requireEffects(modeled.effects, "effects");
@@ -667,6 +725,11 @@ export async function resolveCustomAction(event: GameEvent, action: string, stat
     stateFit: requireStateFit(modeled.stateFit, "stateFit"),
     stateReason: requireText(modeled.stateReason, "stateReason", 80),
     setback: requireText(modeled.setback, "setback", 140),
+    eraContextId:
+      modeled.eraContextId === "NONE" || modeled.eraContextId === null
+        ? null
+        : requireText(modeled.eraContextId, "eraContextId", 40),
+    eraMechanism: requireEraMechanism(modeled.eraMechanism, "eraMechanism"),
     sanitizedAction: sanitizedText,
     modelEnhanced: true,
   };
