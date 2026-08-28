@@ -686,12 +686,10 @@ body {
 .stat-item.is-warning > b,
 .stat-item.is-warning svg {
   color: var(--red);
-  animation: crisis-flash 1s steps(2, end) infinite;
 }
 .stat-item.is-warning .bar i {
   position: relative;
-  box-shadow: 0 0 14px var(--red);
-  animation: crisis-flash 1s steps(2, end) infinite;
+  box-shadow: 0 0 8px rgba(189, 54, 40, 0.55);
 }
 .stat-item.is-warning .bar i:after {
   content: "";
@@ -702,8 +700,7 @@ body {
   height: 11px;
   border-radius: 50%;
   background: #f17463;
-  box-shadow: 0 0 0 4px rgba(189, 54, 40, 0.24);
-  animation: crisis-beacon 1s ease-out infinite;
+  box-shadow: 0 0 0 3px rgba(189, 54, 40, 0.2);
 }
 .stat-item.is-zero > b,
 .stat-item.is-zero svg {
@@ -839,29 +836,10 @@ body {
     transform: translateY(0);
   }
 }
-@keyframes crisis-flash {
-  50% {
-    filter: brightness(1.35);
-    opacity: 0.28;
-  }
-}
 @media (prefers-reduced-motion: reduce) {
-  .stat-item.is-warning > b,
-  .stat-item.is-warning svg,
-  .stat-item.is-warning .bar i,
-  .stat-item.is-warning .bar i:after,
   .crisis-backdrop,
   .crisis-dialog {
     animation: none;
-  }
-}
-@keyframes crisis-beacon {
-  70% {
-    transform: scale(2.5);
-    opacity: 0;
-  }
-  100% {
-    opacity: 0;
   }
 }
 .event-stage {
