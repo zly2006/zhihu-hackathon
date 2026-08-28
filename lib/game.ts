@@ -149,8 +149,9 @@ function describePlayer(profile: Profile) {
 
 function describeLifeState(state: LifeState) {
   return [
+    "重要口径：以下所有状态值都是 0 到 100 的游戏指数，不是人民币金额、人数、年龄或现实单位。现金指数 5 表示现金储备处于极低档位，不表示家里只有 5 元；叙事中只能写现金余量低、预算紧张等定性描述，除非真实证据明确给出金额，否则不得自行编造金额。",
     `当前年龄：${state.age}岁`,
-    `当前现金：${state.cash}`,
+    `当前现金储备指数：${state.cash}/100`,
     `当前健康：${state.health}`,
     `当前幸福：${state.happiness}`,
     `当前知识：${state.knowledge}`,
@@ -160,13 +161,103 @@ function describeLifeState(state: LifeState) {
   ].join("\n");
 }
 
+const scenarioAnchors = [
+  "网课",
+  "停课",
+  "学校",
+  "学习",
+  "作业",
+  "考试",
+  "高考",
+  "升学",
+  "老师",
+  "家长",
+  "设备",
+  "流量",
+  "毕业",
+  "实习",
+  "求职",
+  "工作",
+  "职业",
+  "岗位",
+  "收入",
+  "裁员",
+  "远程",
+  "创业",
+  "家庭",
+  "照护",
+  "就医",
+  "治疗",
+  "隔离",
+  "健康",
+  "退休",
+  "养老",
+  "疫情",
+  "非典",
+  "双减",
+  "培训",
+  "金融危机",
+  "互联网",
+];
+
+function narrativeTexts(candidate: ModelEvent) {
+  const options = Array.isArray(candidate.options) ? candidate.options : [];
+  return {
+    situation: [candidate.title, candidate.background, candidate.dilemma, candidate.detail]
+      .filter((value): value is string => typeof value === "string")
+      .join(" "),
+    options: options.map((rawOption) => {
+      if (!rawOption || typeof rawOption !== "object" || Array.isArray(rawOption)) return "";
+      const option = rawOption as Record<string, unknown>;
+      return [option.label, option.description, option.result, option.setback, option.stateReason]
+        .filter((value): value is string => typeof value === "string")
+        .join(" ");
+    }),
+  };
+}
+
+function validateNarrativeHygiene(
+  candidate: ModelEvent,
+  state: LifeState,
+  eraContext: GameEvent["eraContext"],
+) {
+  const texts = narrativeTexts(candidate);
+  const allText = [texts.situation, ...texts.options].join("\n");
+  const invalidCashUnit =
+    /(?:现金|现金储备|家庭现金|现金余额)[^。！？\n]{0,12}\d+(?:\.\d+)?\s*(?:元|块|万元|块钱)|\d+(?:\.\d+)?\s*(?:元|块|万元|块钱)[^。！？\n]{0,8}(?:现金|现金储备)/;
+  if (invalidCashUnit.test(allText)) {
+    throw new Error("状态指数被误写成现实金额或带货币单位");
+  }
+  const situationAnchorCount = scenarioAnchors.filter((anchor) =>
+    texts.situation.includes(anchor),
+  ).length;
+  if (situationAnchorCount < 1) {
+    throw new Error("事件没有明确的现实情境锚点");
+  }
+  const contextAnchors = scenarioAnchors.filter((anchor) => texts.situation.includes(anchor));
+  const eraAnchors = eraContext?.keywords || [];
+  for (const [index, optionText] of texts.options.entries()) {
+    const aligned = [...contextAnchors, ...eraAnchors].some((anchor) =>
+      optionText.includes(anchor),
+    );
+    if (!aligned) throw new Error(`options[${index}] 与当前事件情境脱节`);
+  }
+  if (
+    state.cash >= 25 &&
+    /家里|家庭|父母/.test(texts.situation) &&
+    /现金只有|只有\s*\d+\s*(?:元|块)/.test(allText)
+  ) {
+    throw new Error("家庭资源叙述缺少现实依据");
+  }
+}
+
 function describeEffectScale(profile: Profile, state: LifeState) {
   const horizon =
     profile.precision === 1
       ? "本幕只覆盖 1 年。普通生活变化通常应小而渐进；只有明确的重大转折才接近单项 6 点以上。"
       : "本幕覆盖 3 年。effects 表示三年累计后的净变化，可以体现持续积累，也必须计入同期消耗和自然回落。";
   const labels: Record<keyof Omit<LifeState, "age">, string> = {
-    cash: "现金",
+    cash: "现金储备指数",
     health: "健康",
     happiness: "幸福",
     knowledge: "知识",
@@ -309,23 +400,26 @@ export async function generateEvent(
     "以下是程序在生成前根据当前状态计算出的硬约束，返回结果必须逐项满足：",
     "1. 必须且只能返回三个选项，三个 strategyTag 必须互不相同。",
     "2. 每个选项的 effects 和 setbackEffects 都必须包含完整七个字段，每个字段都是 -12 到 12 的数字。",
+    "3. 所有状态值都是 0 到 100 的游戏指数，不是人民币金额、人数或现实单位。现金指数 5 只能写成现金储备很低、家庭预算紧张，绝不能写成家里只有 5 元、5 块或 5 万元；除非召回证据明确给出金额，否则不要生成具体金额。",
     resources.incomeOpportunityRequired
       ? state.age < 18
-        ? "3. 至少一个选项必须通过家长调整、减少家庭支出、公共支持或年龄合适的资源交换缓解家庭现金压力，并满足 effects.cash 为 3 到 8、baseRisk 不高于 50；禁止让未成年玩家打工、创业或承担养家责任。"
-        : "3. 至少一个选项必须同时满足 effects.cash 为 3 到 8，且 baseRisk 不高于 50。"
-      : "3. 当前状态不要求强制提供增收选项。",
+        ? "4. 至少一个选项必须通过家长调整、减少家庭支出、公共支持或年龄合适的资源交换缓解家庭现金压力，并满足 effects.cash 为 3 到 8、baseRisk 不高于 50；禁止让未成年玩家打工、创业或承担养家责任。"
+        : "4. 至少一个选项必须同时满足 effects.cash 为 3 到 8，且 baseRisk 不高于 50。"
+      : "4. 当前状态不要求强制提供增收选项。",
     resources.recoveryOpportunityRequired
-      ? "4. 至少一个选项的 effects.health 必须大于或等于 4。"
-      : "4. 当前状态不要求强制提供恢复选项。",
-    `5. experienceNumbers 只能引用 1 到 ${retrieved.items.length}；每个选项至少一个序号，同一序号最多归入一个选项。`,
+      ? "5. 至少一个选项的 effects.health 必须大于或等于 4。"
+      : "5. 当前状态不要求强制提供恢复选项。",
+    `6. experienceNumbers 只能引用 1 到 ${retrieved.items.length}；每个选项至少一个序号，同一序号最多归入一个选项。`,
     resources.incomeOpportunityRequired && resources.recoveryOpportunityRequired
-      ? "6. 增收选项和恢复健康选项必须是两个不同选项，不能用一个低风险万能选项同时解决现金与健康危机。"
-      : "6. 当前状态不需要拆分增收与恢复路径。",
+      ? "7. 增收选项和恢复健康选项必须是两个不同选项，不能用一个低风险万能选项同时解决现金与健康危机。"
+      : "7. 当前状态不需要拆分增收与恢复路径。",
     eraContext
-      ? `7. 当前时代语境是“${eraContext.title}”（${eraContext.year}年，相关度${eraContext.relevance}）。恰好一个选项必须标记 eraContextId 为“${eraContext.id}”，并使用 protect、adapt、leverage 三种时代行动机制之一；另外两个选项的 eraContextId 必须是 NONE、eraMechanism 必须是 none。时代选项必须符合${eraContext.ageFrame}`
-      : "7. 当前没有足够相关的特殊时代语境；三个选项的 eraContextId 必须是 NONE、eraMechanism 必须是 none。",
-    "8. 每个选项都必须输出 eraContextId 和 eraMechanism 字段；时代选项只能有一个，时代选项的数值修正由程序根据时代机制结算，不能把时代背景写成玩家必然经历。",
-    "输出前必须自行逐项检查以上数值和数量条件；不能忽略、解释或放宽任何一项。",
+      ? `8. 当前时代语境是“${eraContext.title}”（${eraContext.year}年，相关度${eraContext.relevance}）。恰好一个选项必须标记 eraContextId 为“${eraContext.id}”，并使用 protect、adapt、leverage 三种时代行动机制之一；另外两个选项的 eraContextId 必须是 NONE、eraMechanism 必须是 none。时代选项必须符合${eraContext.ageFrame}`
+      : "8. 当前没有足够相关的特殊时代语境；三个选项的 eraContextId 必须是 NONE、eraMechanism 必须是 none。",
+    "9. 每个选项都必须输出 eraContextId 和 eraMechanism 字段；时代选项只能有一个，时代选项的数值修正由程序根据时代机制结算，不能把时代背景写成玩家必然经历。",
+    "10. 事件的 background、dilemma、detail 必须描述同一件具体事情，明确人物、现实约束和核心取舍；三个选项都必须直接回应核心取舍，不能出现与问题无关的泛泛选择。",
+    "11. 如果情境是网课卡顿、设备不足、停课或父母工作受影响，选项必须围绕设备/网络、家庭分工、学校支持、学习安排或健康节奏展开；如果情境是求职/收入/工作，不能突然给出无关的学习或医疗选项。",
+    "输出前必须自行逐项检查以上常识、语境、数值口径和数量条件；不能忽略、解释或放宽任何一项。",
   ].join("\n");
   const realismRequirements = [
     "现实性推导要求：",
@@ -374,7 +468,7 @@ export async function generateEvent(
       })}`
     : "时代语境：当前年份没有足够相关的已配置时代事件，不要自行编造特殊历史背景。";
   const userPrompt = `${describeLifeState(state)}\n\n${describeEffectScale(profile, state)}\n\n${eraPrompt}\n\n资源规则:${JSON.stringify(resources)}\n证据束（共${retrieved.items.length}条，使用行首序号引用）:\n${evidence}\n请生成一幕发生在${profile.birthYear + state.age}年、${state.age}岁的事件。选项必须明确受当前现金和健康影响，stateReason要具体引用玩家数值或资源档位。只把实际行动与某个选项明显相符的经历序号放入该分支；分不清、只是背景相似或行动机制不一致的经历可以不分。三个分支的经历数量应由证据自然决定，允许不同，也不要求覆盖全部${retrieved.items.length}条。每条经历最多归入一个最相近分支，不得编造序号。系统最后会特别检查“恰好全部分完”或“三支数量恰好相等”等不符合自然证据分布的可疑结果，请避免为了整齐而硬分。延续对话中已经选择的路径及其现实后果；程序给出的当前状态是数值事实，优先级高于历史摘要。返回 {"title":"12字内","background":"80字内","dilemma":"120字内","detail":"60字内","options":[三个 {"label":"8字内","description":"30字内，明说两个分支都要承担的前期投入","tone":"单字","strategyTag":"具体行动机制，三个不得重复","baseRisk":5到85,"stateFit":"顺势|可行|吃力","stateReason":"30字内，解释当前现金健康为何影响此选择","effects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"result":"70字内风险未触发且核心目标兑现的成功结果","setbackEffects":{"cash":-12到12,"health":-12到12,"happiness":-12到12,"knowledge":-12到12,"connections":-12到12,"career":-12到12,"assets":-12到12},"setback":"60字内风险触发后的替代失败结果","experienceNumbers":[只列明显相关且互不重复的序号]}]}\n\n${hardConstraints}\n\n${realismRequirements}\n\n${firstPassChecklist}`;
-  const finalPrompt = `${userPrompt}\n\n输出字段补充：每个选项必须额外返回 eraContextId（当前时代 id 或 NONE）和 eraMechanism（none、protect、adapt、leverage）。`;
+  const finalPrompt = `${userPrompt}\n\n输出字段补充：每个选项必须额外返回 eraContextId（当前时代 id 或 NONE）和 eraMechanism（none、protect、adapt、leverage）。再次提醒：state 中的 cash 等字段是游戏指数，不是现实金额；请在输出前做一次“人物年龄—时代—事件—选项”一致性检查。`;
   const promptChars =
     finalPrompt.length +
     prefixMessages.reduce((total, message) => total + message.content.length, 0);
@@ -533,6 +627,7 @@ export async function generateEvent(
     requireText(candidate.background, "background", 180);
     requireText(candidate.dilemma, "dilemma", 260);
     requireText(candidate.detail, "detail", 160);
+    validateNarrativeHygiene(candidate, state, eraContext);
     return validatedOptions;
   };
 
@@ -567,6 +662,15 @@ export async function generateEvent(
     }
     if (message.includes("experienceNumbers 引用了不存在的经历序号")) {
       return `这是程序检测到的结构错误：experienceNumbers 只能使用 1 到 ${retrieved.items.length} 的整数。删除所有越界序号，并重新检查三个选项；不得把数据库 id、年份或其他数字当作经历序号。`;
+    }
+    if (message === "状态指数被误写成现实金额或带货币单位") {
+      return "这是程序检测到的常识错误：cash 是 0 到 100 的游戏指数，不是人民币。把‘现金5元’等具体金额改为‘现金储备很低’或‘家庭预算紧张’，不要凭空编造家庭金额。";
+    }
+    if (message === "事件没有明确的现实情境锚点") {
+      return "这是程序检测到的叙事错误：请补充一个具体、可观察的现实情境，并让 background、dilemma、detail 围绕同一件事展开。";
+    }
+    if (message.includes("与当前事件情境脱节")) {
+      return "这是程序检测到的语境错误：每个选项都必须直接回应当前 dilemma 的人物、问题和资源约束。网课问题就围绕设备网络、家庭分工、学校支持、学习安排或健康节奏；不要输出无关选项。";
     }
     return `这是程序检测到的硬约束：${message}。必须修正后再输出，并逐字段自检；不能解释、忽略或仅口头承诺。`;
   };

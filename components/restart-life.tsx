@@ -94,7 +94,7 @@ type BrowserTestWindow = Window & {
 
 const defaultTalents = { insight: 3, charm: 3, grit: 3, learning: 3, luck: 3 };
 const statMeta = [
-  ["cash", "现金", WalletCards],
+  ["cash", "现金储备", WalletCards],
   ["health", "健康", Heart],
   ["happiness", "心气", Sparkles],
   ["knowledge", "见识", BookOpen],
@@ -584,6 +584,7 @@ function StatRail({
           </button>
         )}
       </div>
+      <p className="rail-note">所有数值均为 0—100 的游戏指数，不代表现实金额或单位</p>
       {statMeta.map(([key, label, Icon]) => {
         const isZero = state[key] === 0;
         const isWarning = state[key] > 0 && state[key] <= 15;
@@ -1399,7 +1400,7 @@ function Game({
                   </div>
                   <p className="event-detail">{event.detail}</p>
                   <div className="resource-pressure">
-                    <span>现金：{event.resourceContext.cashBand}</span>
+                    <span>现金储备：{event.resourceContext.cashBand}</span>
                     <span>健康：{event.resourceContext.healthBand}</span>
                     <span>风险按各选项的资源代价分别计算</span>
                     <span>
