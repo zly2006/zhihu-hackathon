@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import { Pool } from "pg";
-import type { Experience, LifeState, Profile, Stats } from "./types";
+import type { EraContext, Experience, LifeState, Profile, Stats } from "./types";
 
 type CandidateRow = {
   id: string;
@@ -51,21 +51,42 @@ function hashNumber(value: string) {
   return Number.parseInt(createHash("sha256").update(value).digest("hex").slice(0, 8), 16);
 }
 
-function stageSearch(age: number, profile: Profile, state: LifeState) {
+function stageSearch(
+  age: number,
+  profile: Profile,
+  state: LifeState,
+  eraContext?: EraContext | null,
+) {
   const incomeTerms = state.cash < 22 ? ["收入", "赚钱", "兼职", "副业"] : [];
-  if (state.health < 28)
-    return { domain: "health_life", terms: ["健康", "恢复", "治疗", "休息", "工作强度"] };
-  if (age < 6)
-    return { domain: "family_relationship", terms: ["家庭", "父母", "孩子", ...incomeTerms] };
-  if (age < 13) return { domain: "education", terms: ["学习", "学校", "兴趣"] };
-  if (age < 18) return { domain: "education", terms: ["高考", "专业", "学习"] };
-  if (age < 23) return { domain: "education", terms: ["大学", "考研", "专业", "就业"] };
-  if (age < 29)
-    return { domain: "career", terms: ["工作", "转行", "职业", "创业", ...incomeTerms] };
-  if (age < 36) return { domain: "career", terms: ["买房", "结婚", "工作", "创业"] };
-  if (age < 46) return { domain: "career", terms: ["职业", "家庭", "健康", "投资"] };
-  if (age < 56) return { domain: "health_life", terms: ["健康", "生活", "家庭", "工作"] };
-  return { domain: "health_life", terms: ["退休", "养老", "健康", "生活"] };
+  const baseStage =
+    age < 6
+      ? { domain: "family_relationship", terms: ["家庭", "父母", "孩子", ...incomeTerms] }
+      : age < 13
+        ? { domain: "education", terms: ["学习", "学校", "兴趣"] }
+        : age < 18
+          ? { domain: "education", terms: ["高考", "专业", "学习"] }
+          : age < 23
+            ? { domain: "education", terms: ["大学", "考研", "专业", "就业"] }
+            : age < 29
+              ? { domain: "career", terms: ["工作", "转行", "职业", "创业", ...incomeTerms] }
+              : age < 36
+                ? { domain: "career", terms: ["买房", "结婚", "工作", "创业"] }
+                : age < 46
+                  ? { domain: "career", terms: ["职业", "家庭", "健康", "投资"] }
+                  : age < 56
+                    ? { domain: "health_life", terms: ["健康", "生活", "家庭", "工作"] }
+                    : { domain: "health_life", terms: ["退休", "养老", "健康", "生活"] };
+  if (state.health < 28) {
+    return {
+      domain: "health_life",
+      terms: ["健康", "恢复", "治疗", "休息", "工作强度", ...(eraContext?.keywords || [])],
+    };
+  }
+  if (!eraContext) return baseStage;
+  return {
+    domain: eraContext.domain,
+    terms: [...new Set([...eraContext.keywords, ...baseStage.terms])],
+  };
 }
 
 function decodeVector(payload: Buffer) {
@@ -105,8 +126,9 @@ export async function retrieveExperiences(
   historyKey: string,
   state: LifeState,
   excludedExperienceIds: string[] = [],
+  eraContext?: EraContext | null,
 ) {
-  const stage = stageSearch(age, profile, state);
+  const stage = stageSearch(age, profile, state, eraContext);
   const excludedIds = new Set(excludedExperienceIds);
   const excludedUrls = new Set<string>();
   if (excludedExperienceIds.length) {

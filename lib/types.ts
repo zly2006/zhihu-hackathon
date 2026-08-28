@@ -28,6 +28,29 @@ export type LifeState = {
 
 export type Effect = Partial<Omit<LifeState, "age">>;
 
+export type EraMechanism = "none" | "protect" | "adapt" | "leverage";
+
+export type EraSettlementAdjustments = Record<
+  Exclude<EraMechanism, "none">,
+  { risk: number; success: Effect; setback: Effect }
+>;
+
+export type EraContext = {
+  id: string;
+  title: string;
+  startYear: number;
+  endYear: number;
+  year: number;
+  domain: string;
+  summary: string;
+  ageFrame: string;
+  relevance: number;
+  intensity: "背景" | "显著" | "强烈";
+  keywords: string[];
+  mechanisms: string[];
+  adjustments?: EraSettlementAdjustments;
+};
+
 export type ModelConversationMessage = {
   role: "assistant" | "user";
   content: string;
@@ -71,6 +94,8 @@ export type GameOption = {
   stateFit: "顺势" | "可行" | "吃力";
   stateReason: string;
   setback: string;
+  eraContextId?: string | null;
+  eraMechanism?: EraMechanism;
 };
 
 export type GameEvent = {
@@ -89,6 +114,7 @@ export type GameEvent = {
   modelEnhanced: boolean;
   timeShift?: string;
   resourceContext: ResourceContext;
+  eraContext?: EraContext | null;
   generationMetrics?: {
     retrievalMs: number;
     promptChars: number;
@@ -131,6 +157,7 @@ export type TimelineEntry = {
   eventId: string;
   experienceIds: string[];
   eventExperienceIds?: string[];
+  eraContextId?: string;
   selectedOptionId: "A" | "B" | "C" | "CUSTOM";
   customAction?: string;
   modelConversation?: ModelConversationMessage[];
