@@ -216,6 +216,19 @@ function narrativeTexts(candidate: ModelEvent) {
   };
 }
 
+function contextWords(text: string) {
+  const hanRuns = text.match(/[\p{Script=Han}]+/gu) || [];
+  const words = new Set<string>();
+  for (const run of hanRuns) {
+    for (let index = 0; index + 1 < run.length; index += 1) {
+      const bigram = run.slice(index, index + 2);
+      if (!/^(?:一个|一些|自己|现在|还是|因为|所以|但是|可以|没有|什么|怎么|这个|那个|已经|不过|如果|就是|这样|那样|他们|我们|你们|不是|而是|以及|或者|然后|并且|关于|对于|由于|为了|通过|根据|其中|这些|那些|每个|每天|一起|可能|能够|需要|应该|成为|进行|作为|把|被|让|给|在|和|与|或|的|了|着|过|等|这|那|会|要|能|都|很|也|又|还|就)$/u.test(bigram))
+        words.add(bigram);
+    }
+  }
+  return words;
+}
+
 function validateNarrativeHygiene(
   candidate: ModelEvent,
   state: LifeState,
@@ -234,13 +247,15 @@ function validateNarrativeHygiene(
   if (situationAnchorCount < 1) {
     throw new Error("事件没有明确的现实情境锚点");
   }
-  const contextAnchors = scenarioAnchors.filter((anchor) => texts.situation.includes(anchor));
+  const situationWords = contextWords(texts.situation);
   const eraAnchors = eraContext?.keywords || [];
   for (const [index, optionText] of texts.options.entries()) {
-    const aligned = [...contextAnchors, ...eraAnchors].some((anchor) =>
-      optionText.includes(anchor),
-    );
-    if (!aligned) throw new Error(`options[${index}] 与当前事件情境脱节`);
+    const sharedSituationWords = [...situationWords].filter((word) => optionText.includes(word));
+    const aligned =
+      sharedSituationWords.length >= 2 ||
+      [...eraAnchors].some((anchor) => optionText.includes(anchor));
+    if (!aligned)
+      throw new Error(`options[${index}] 与当前事件情境脱节（情境锚点：${texts.situation.slice(0, 80)}）`);
   }
   if (
     state.cash >= 25 &&
@@ -670,7 +685,8 @@ export async function generateEvent(
       return "这是程序检测到的叙事错误：请补充一个具体、可观察的现实情境，并让 background、dilemma、detail 围绕同一件事展开。";
     }
     if (message.includes("与当前事件情境脱节")) {
-      return "这是程序检测到的语境错误：每个选项都必须直接回应当前 dilemma 的人物、问题和资源约束。网课问题就围绕设备网络、家庭分工、学校支持、学习安排或健康节奏；不要输出无关选项。";
+      const situation = message.match(/情境锚点：([^）]*)/)?.[1] || "当前事件";
+      return `这是程序检测到的语境错误：每个选项都必须直接回应当前 dilemma 的人物、问题和资源约束。当前事件是“${situation}”，请让三个选项围绕这件事的核心取舍展开，并复用事件里的关键人物、物品或场景词；不要输出与这件事无关的选项。`;
     }
     return `这是程序检测到的硬约束：${message}。必须修正后再输出，并逐字段自检；不能解释、忽略或仅口头承诺。`;
   };
