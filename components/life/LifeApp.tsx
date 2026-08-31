@@ -2,30 +2,40 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Character } from "@/lib/domain/character";
-import type { Chapter, ChapterChoice, DecisionResolution, GameSave } from "@/lib/domain/chapter";
+import type {
+  Chapter,
+  ChapterChoice,
+  ChapterDecision,
+  DecisionResolution,
+  GameSave,
+} from "@/lib/domain/chapter";
 import type { ChapterSpan } from "@/lib/domain/shared";
 import type { WorldState } from "@/lib/domain/world";
 import type { WorldSimulationOutput } from "@/lib/domain/simulation";
-import type { EvidenceBundle } from "@/lib/domain/experience";
+import type { EvidenceBundle, LifeExperience } from "@/lib/domain/experience";
 import type { NpcDraft, ProtagonistDraft } from "@/lib/game/character-factory";
 import { parseGameSave } from "@/lib/game/save";
 import { ProtagonistSetup } from "./ProtagonistSetup";
 import { NpcSetup } from "./NpcSetup";
 import { CharacterPanel, RelationshipPanel } from "./CharacterPanel";
 import { DecisionPanel, type ChapterSelection } from "./DecisionPanel";
-import { NovelReader } from "./NovelReader";
+import { TimelinePanel } from "./TimelinePanel";
+import { ChapterSummary } from "./ChapterSummary";
 
 const SAVE_KEY = "restart-life-save-v1";
 
-type Screen = "landing" | "setup" | "npc_setup" | "chapter_start" | "decision";
+type Screen = "landing" | "setup" | "npc_setup" | "chapter_start" | "decision" | "chapter_summary";
 
 type ProgressEvent = { stage?: string; message?: string };
 
 type SimulateResult = {
+  chapterId: string;
   evidenceBundle: EvidenceBundle;
   resolution: DecisionResolution;
   simulation: WorldSimulationOutput;
   worldStateAfter: WorldState;
+  stateBeforeHash: string;
+  stateAfterHash: string;
 };
 
 async function readJsonResponse<T>(response: Response): Promise<T> {
@@ -79,7 +89,7 @@ const pageStyle: React.CSSProperties = {
 };
 
 const cardStyle: React.CSSProperties = {
-  maxWidth: 820,
+  maxWidth: 860,
   margin: "0 auto",
   background: "#ffffff",
   border: "1px solid #e5e7eb",
@@ -87,11 +97,9 @@ const cardStyle: React.CSSProperties = {
   padding: 28,
 };
 
-const anchorLabel: Record<string, string> = {
-  favorable: "顺遂",
-  mixed: "有得有失",
-  setback: "受挫",
-};
+function persist(save: GameSave) {
+  window.localStorage.setItem(SAVE_KEY, JSON.stringify(save));
+}
 
 export function LifeApp() {
   const [screen, setScreen] = useState<Screen>("landing");
@@ -109,9 +117,8 @@ export function LifeApp() {
   const [simulating, setSimulating] = useState(false);
   const [simProgress, setSimProgress] = useState("");
   const [simResult, setSimResult] = useState<SimulateResult | null>(null);
-
+  const [chapter, setChapter] = useState<Chapter | null>(null);
   const [preWorld, setPreWorld] = useState<WorldState | null>(null);
-  const [novel, setNovel] = useState<Chapter["novel"] | null>(null);
   const [novelLoading, setNovelLoading] = useState(false);
 
   useEffect(() => {
@@ -150,7 +157,7 @@ export function LifeApp() {
           body: JSON.stringify({ protagonist, npcs: finalNpcs }),
         });
         const data = await readJsonResponse<{ gameSave: GameSave }>(response);
-        window.localStorage.setItem(SAVE_KEY, JSON.stringify(data.gameSave));
+        persist(data.gameSave);
         setSave(data.gameSave);
         setScreen("chapter_start");
       } catch (err) {
@@ -192,7 +199,7 @@ export function LifeApp() {
       setChoice(generated.choice);
       setSelection(null);
       setSimResult(null);
-      setNovel(null);
+      setChapter(null);
       setScreen("decision");
     } catch (err) {
       setError(err instanceof Error ? err.message : "选择生成失败");
@@ -200,40 +207,6 @@ export function LifeApp() {
       setLoading(false);
     }
   }, [save, span]);
-
-  const generateNovel = useCallback(
-    async (version: number) => {
-      if (!preWorld || !simResult) return;
-      setNovelLoading(true);
-      try {
-        const featuredEvidence = [
-          ...simResult.evidenceBundle.decisionSimilar,
-          ...simResult.evidenceBundle.outcomeContrasts,
-          ...simResult.evidenceBundle.backgroundSimilar,
-        ].slice(0, 5);
-        const relevantMemories = Object.values(preWorld.memories).slice(-3);
-        const response = await fetch("/api/chapter/novel", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            stateBefore: preWorld,
-            events: simResult.simulation.events,
-            relevantMemories,
-            featuredEvidence,
-            span,
-            version,
-          }),
-        });
-        const data = await readJsonResponse<{ novel: Chapter["novel"] }>(response);
-        setNovel(data.novel);
-      } catch (err) {
-        setError(err instanceof Error ? err.message : "小说生成失败");
-      } finally {
-        setNovelLoading(false);
-      }
-    },
-    [preWorld, simResult, span],
-  );
 
   const handleSelect = useCallback(
     async (next: ChapterSelection) => {
@@ -260,14 +233,44 @@ export function LifeApp() {
           throw new Error((payload as { error?: string } | null)?.error || "世界推演失败");
         }
         const result = await readSseComplete<SimulateResult>(response, setSimProgress);
-        const updatedSave: GameSave = {
+        setSimResult(result);
+
+        // 自动存档节点 4：canonical simulation 完成
+        const saveAfterSim: GameSave = {
           ...save,
           worldState: result.worldStateAfter,
           savedAt: new Date().toISOString(),
         };
-        setSave(updatedSave);
-        window.localStorage.setItem(SAVE_KEY, JSON.stringify(updatedSave));
-        setSimResult(result);
+        setSave(saveAfterSim);
+        persist(saveAfterSim);
+
+        // 生成小说（自动存档节点 5）
+        setNovelLoading(true);
+        try {
+          const novel = await fetchNovel(result, worldBefore, span, 1);
+          const chapter = assembleChapter({ choice, selection: next, span, worldBefore, result, novel });
+          setChapter(chapter);
+          const finalSave: GameSave = {
+            ...saveAfterSim,
+            chapters: { ...saveAfterSim.chapters, [chapter.id]: chapter },
+            events: {
+              ...saveAfterSim.events,
+              ...Object.fromEntries(result.simulation.events.map((event) => [event.id, event])),
+            },
+            experienceCache: {
+              ...saveAfterSim.experienceCache,
+              ...Object.fromEntries(allEvidence(result.evidenceBundle).map((e) => [e.id, e])),
+            },
+            savedAt: new Date().toISOString(),
+          };
+          setSave(finalSave);
+          persist(finalSave);
+          setScreen("chapter_summary");
+        } catch (err) {
+          setError(err instanceof Error ? err.message : "小说生成失败");
+        } finally {
+          setNovelLoading(false);
+        }
       } catch (err) {
         setError(err instanceof Error ? err.message : "世界推演失败");
       } finally {
@@ -277,23 +280,36 @@ export function LifeApp() {
     [save, choice, span],
   );
 
-  // 模拟完成后自动生成小说（canonical events 已固定）
-  useEffect(() => {
-    if (simResult && !novel && !novelLoading) {
-      void generateNovel(1);
+  const handleRegenerateNovel = useCallback(async () => {
+    if (!chapter || !simResult || !preWorld) return;
+    setNovelLoading(true);
+    setError("");
+    try {
+      const novel = await fetchNovel(simResult, preWorld, span, chapter.novel.version + 1);
+      const updatedChapter: Chapter = { ...chapter, novel };
+      setChapter(updatedChapter);
+      setSave((prev) => {
+        if (!prev) return prev;
+        const next: GameSave = {
+          ...prev,
+          chapters: { ...prev.chapters, [updatedChapter.id]: updatedChapter },
+          savedAt: new Date().toISOString(),
+        };
+        persist(next);
+        return next;
+      });
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "小说重写失败");
+    } finally {
+      setNovelLoading(false);
     }
-  }, [simResult, novel, novelLoading, generateNovel]);
-
-  const handleRegenerateNovel = useCallback(() => {
-    if (!novel) return;
-    void generateNovel(novel.version + 1);
-  }, [novel, generateNovel]);
+  }, [chapter, simResult, preWorld, span]);
 
   const handleNextChapter = useCallback(() => {
     setChoice(null);
     setSelection(null);
     setSimResult(null);
-    setNovel(null);
+    setChapter(null);
     setPreWorld(null);
     setScreen("chapter_start");
   }, []);
@@ -351,36 +367,43 @@ export function LifeApp() {
   if (screen === "decision" && choice) {
     return (
       <div style={pageStyle}>
-        <div style={{ ...cardStyle, maxWidth: 860 }}>
+        <div style={cardStyle}>
           {!selection && <DecisionPanel choice={choice} onSelect={handleSelect} />}
-
           {selection && simulating && (
             <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>{simProgress}</div>
           )}
-
-          {selection && simResult && !novel && novelLoading && (
+          {selection && !simulating && novelLoading && (
             <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>正在把本章写成小说…</div>
           )}
-
-          {selection && simResult && novel && (
-            <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
-                <span style={{ fontSize: 13, color: "#6b7280" }}>
-                  本章结果：{anchorLabel[simResult.resolution.outcomeAnchor]} · 有效风险{" "}
-                  {simResult.resolution.effectiveRisk} · 参考 {simResult.evidenceBundle.total} 条知乎真实经历
-                </span>
-              </div>
-              <NovelReader novel={novel} onRegenerate={handleRegenerateNovel} regenerating={novelLoading} />
-              {error && <div style={{ color: "#dc2626", marginTop: 12, fontSize: 14 }}>{error}</div>}
-              <button onClick={handleNextChapter} style={{ ...primaryButton, marginTop: 24, width: "100%" }}>
-                进入下一章
-              </button>
-            </div>
-          )}
-
           {selection && !simulating && !simResult && error && (
             <div style={{ color: "#dc2626", fontSize: 14, marginTop: 12 }}>{error}</div>
           )}
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === "chapter_summary" && chapter && simResult) {
+    const events = chapter.simulationEventIds
+      .map((id) => save?.events[id])
+      .filter((event): event is NonNullable<typeof event> => Boolean(event));
+    const evidence = chapter.evidence.featuredExperienceIds
+      .map((id) => save?.experienceCache[id])
+      .filter((e): e is LifeExperience => Boolean(e));
+    return (
+      <div style={pageStyle}>
+        <div style={{ ...cardStyle, maxWidth: 860 }}>
+          <ChapterSummary
+            chapter={chapter}
+            events={events}
+            resolution={simResult.resolution}
+            evidence={evidence}
+            evidenceTotal={simResult.evidenceBundle.total}
+            onRegenerate={handleRegenerateNovel}
+            onNextChapter={handleNextChapter}
+            regenerating={novelLoading}
+          />
+          {error && <div style={{ color: "#dc2626", marginTop: 12, fontSize: 14 }}>{error}</div>}
         </div>
       </div>
     );
@@ -390,6 +413,7 @@ export function LifeApp() {
   const world = save?.worldState;
   const characters = world ? Object.values(world.characters) : [];
   const relationships = world ? Object.values(world.relationships) : [];
+  const pastChapters = save ? Object.values(save.chapters).sort((a, b) => a.index - b.index) : [];
   return (
     <div style={pageStyle}>
       <div style={{ ...cardStyle, maxWidth: 1000 }}>
@@ -406,6 +430,7 @@ export function LifeApp() {
           <div style={{ display: "grid", gap: 24 }}>
             <CharacterPanel characters={characters} />
             <RelationshipPanel relationships={relationships} characters={world.characters} />
+            {pastChapters.length > 0 && <TimelinePanel chapters={pastChapters} />}
             <div style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 12 }}>
               <div style={{ display: "flex", alignItems: "center", gap: 16, justifyContent: "space-between", flexWrap: "wrap" }}>
                 <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
@@ -439,6 +464,100 @@ export function LifeApp() {
       </div>
     </div>
   );
+}
+
+async function fetchNovel(
+  result: SimulateResult,
+  worldBefore: WorldState,
+  span: ChapterSpan,
+  version: number,
+): Promise<Chapter["novel"]> {
+  const featuredEvidence = [
+    ...result.evidenceBundle.decisionSimilar,
+    ...result.evidenceBundle.outcomeContrasts,
+    ...result.evidenceBundle.backgroundSimilar,
+  ].slice(0, 5);
+  const relevantMemories = Object.values(worldBefore.memories).slice(-3);
+  const response = await fetch("/api/chapter/novel", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      stateBefore: worldBefore,
+      events: result.simulation.events,
+      relevantMemories,
+      featuredEvidence,
+      span,
+      version,
+    }),
+  });
+  const data = await readJsonResponse<{ novel: Chapter["novel"] }>(response);
+  return data.novel;
+}
+
+function allEvidence(bundle: EvidenceBundle): LifeExperience[] {
+  return [
+    ...bundle.backgroundSimilar,
+    ...bundle.decisionSimilar,
+    ...bundle.relationshipRelevant,
+    ...bundle.outcomeContrasts,
+  ];
+}
+
+function assembleChapter(args: {
+  choice: ChapterChoice;
+  selection: ChapterSelection;
+  span: ChapterSpan;
+  worldBefore: WorldState;
+  result: SimulateResult;
+  novel: Chapter["novel"];
+}): Chapter {
+  const { choice, selection, span, worldBefore, result, novel } = args;
+  const selectedOption = choice.options.find((option) => option.id === selection.optionId);
+  const decision: ChapterDecision = {
+    id: choice.id,
+    promptTitle: choice.promptTitle,
+    context: choice.context,
+    options: choice.options,
+    selectedOptionId: selection.optionId,
+    customAction: selection.customAction,
+    normalizedAction:
+      selection.optionId === "CUSTOM"
+        ? (selection.customAction ?? "").trim()
+        : (selectedOption?.label ?? "").trim(),
+  };
+  const evidence = allEvidence(result.evidenceBundle);
+  const featured = [
+    ...result.evidenceBundle.decisionSimilar,
+    ...result.evidenceBundle.outcomeContrasts,
+    ...result.evidenceBundle.backgroundSimilar,
+  ].slice(0, 5);
+  return {
+    id: result.chapterId,
+    index: worldBefore.chapterIds.length,
+    startYear: worldBefore.currentYear,
+    endYear: worldBefore.currentYear + span,
+    span,
+    stateBeforeHash: result.stateBeforeHash,
+    decision,
+    resolution: result.resolution,
+    evidence: {
+      experienceIds: evidence.map((e) => e.id),
+      featuredExperienceIds: featured.map((e) => e.id),
+    },
+    simulationEventIds: result.simulation.events.map((event) => event.id),
+    stateAfterHash: result.stateAfterHash,
+    novel,
+    summary: {
+      keyEvents: result.simulation.chapterSummary.keyEvents,
+      characterChanges: result.simulation.chapterSummary.characterChanges,
+      relationshipChanges: result.simulation.chapterSummary.relationshipChanges,
+      openThreads: result.worldStateAfter.openThreads
+        .filter((thread) => thread.status === "open")
+        .map((thread) => thread.label),
+    },
+    memoryIds: result.simulation.newMemories.map((memory) => memory.id),
+    createdAt: new Date().toISOString(),
+  };
 }
 
 const primaryButton: React.CSSProperties = {

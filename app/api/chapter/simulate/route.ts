@@ -9,6 +9,7 @@ import { selectRelevantMemories } from "@/lib/game/memory-selector";
 import { runWorldSimulator } from "@/lib/game/world-simulator";
 import { validateSimulationOutput, type ValidationContext } from "@/lib/game/simulation-validator";
 import { reduceWorldState } from "@/lib/game/world-reducer";
+import { hashState } from "@/lib/game/hash";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -150,6 +151,8 @@ export async function POST(request: Request) {
           resolution,
           simulation: output,
           worldStateAfter,
+          stateBeforeHash: hashState(worldState),
+          stateAfterHash: hashState(worldStateAfter),
         });
       } catch (error) {
         console.error("world simulation failed", error);
