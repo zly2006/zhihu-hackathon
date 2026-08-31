@@ -26,6 +26,14 @@ export type ChapterDecision = {
   normalizedAction: string;
 };
 
+// 待选决策：Choice Generator 的产物（玩家尚未选择），选择后组装成完整 ChapterDecision。
+export type ChapterChoice = {
+  id: string;
+  promptTitle: string;
+  context: string;
+  options: ChapterDecision["options"];
+};
+
 // DecisionResolution（方案 §17）：结果倾向由程序计算并持久化。
 // 同一存档、同一章节、同一选择必须得到同一个随机结果（确定性随机）。
 export type DecisionResolution = {
