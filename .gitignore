@@ -4,3 +4,6 @@ node_modules/
 *.tsbuildinfo
 npm-debug.log*
 .DS_Store
+.workbuddy/
+.superpowers/
+docs/superpowers/
