@@ -2,11 +2,10 @@
 
 import { useCallback, useEffect, useState } from "react";
 import type { Character } from "@/lib/domain/character";
-import type { ChapterChoice, GameSave } from "@/lib/domain/chapter";
+import type { Chapter, ChapterChoice, DecisionResolution, GameSave } from "@/lib/domain/chapter";
 import type { ChapterSpan } from "@/lib/domain/shared";
 import type { WorldState } from "@/lib/domain/world";
 import type { WorldSimulationOutput } from "@/lib/domain/simulation";
-import type { DecisionResolution } from "@/lib/domain/chapter";
 import type { EvidenceBundle } from "@/lib/domain/experience";
 import type { NpcDraft, ProtagonistDraft } from "@/lib/game/character-factory";
 import { parseGameSave } from "@/lib/game/save";
@@ -14,6 +13,7 @@ import { ProtagonistSetup } from "./ProtagonistSetup";
 import { NpcSetup } from "./NpcSetup";
 import { CharacterPanel, RelationshipPanel } from "./CharacterPanel";
 import { DecisionPanel, type ChapterSelection } from "./DecisionPanel";
+import { NovelReader } from "./NovelReader";
 
 const SAVE_KEY = "restart-life-save-v1";
 
@@ -34,7 +34,6 @@ async function readJsonResponse<T>(response: Response): Promise<T> {
   return payload;
 }
 
-// 通用 SSE 读取器：progress 走 onProgress，complete 返回 data，error 抛异常
 async function readSseComplete<T>(response: Response, onProgress: (message: string) => void): Promise<T> {
   if (!response.body) throw new Error("服务未返回流式响应");
   const reader = response.body.getReader();
@@ -110,6 +109,10 @@ export function LifeApp() {
   const [simulating, setSimulating] = useState(false);
   const [simProgress, setSimProgress] = useState("");
   const [simResult, setSimResult] = useState<SimulateResult | null>(null);
+
+  const [preWorld, setPreWorld] = useState<WorldState | null>(null);
+  const [novel, setNovel] = useState<Chapter["novel"] | null>(null);
+  const [novelLoading, setNovelLoading] = useState(false);
 
   useEffect(() => {
     setHasSave(Boolean(window.localStorage.getItem(SAVE_KEY)));
@@ -189,6 +192,7 @@ export function LifeApp() {
       setChoice(generated.choice);
       setSelection(null);
       setSimResult(null);
+      setNovel(null);
       setScreen("decision");
     } catch (err) {
       setError(err instanceof Error ? err.message : "选择生成失败");
@@ -197,18 +201,54 @@ export function LifeApp() {
     }
   }, [save, span]);
 
+  const generateNovel = useCallback(
+    async (version: number) => {
+      if (!preWorld || !simResult) return;
+      setNovelLoading(true);
+      try {
+        const featuredEvidence = [
+          ...simResult.evidenceBundle.decisionSimilar,
+          ...simResult.evidenceBundle.outcomeContrasts,
+          ...simResult.evidenceBundle.backgroundSimilar,
+        ].slice(0, 5);
+        const relevantMemories = Object.values(preWorld.memories).slice(-3);
+        const response = await fetch("/api/chapter/novel", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({
+            stateBefore: preWorld,
+            events: simResult.simulation.events,
+            relevantMemories,
+            featuredEvidence,
+            span,
+            version,
+          }),
+        });
+        const data = await readJsonResponse<{ novel: Chapter["novel"] }>(response);
+        setNovel(data.novel);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "小说生成失败");
+      } finally {
+        setNovelLoading(false);
+      }
+    },
+    [preWorld, simResult, span],
+  );
+
   const handleSelect = useCallback(
     async (next: ChapterSelection) => {
       if (!save || !choice) return;
       setSelection(next);
       setSimulating(true);
       setSimProgress("正在推演本章世界…");
+      const worldBefore = save.worldState;
+      setPreWorld(worldBefore);
       try {
         const response = await fetch("/api/chapter/simulate", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
-            worldState: save.worldState,
+            worldState: worldBefore,
             choice,
             selection: next,
             span,
@@ -237,10 +277,24 @@ export function LifeApp() {
     [save, choice, span],
   );
 
+  // 模拟完成后自动生成小说（canonical events 已固定）
+  useEffect(() => {
+    if (simResult && !novel && !novelLoading) {
+      void generateNovel(1);
+    }
+  }, [simResult, novel, novelLoading, generateNovel]);
+
+  const handleRegenerateNovel = useCallback(() => {
+    if (!novel) return;
+    void generateNovel(novel.version + 1);
+  }, [novel, generateNovel]);
+
   const handleNextChapter = useCallback(() => {
     setChoice(null);
     setSelection(null);
     setSimResult(null);
+    setNovel(null);
+    setPreWorld(null);
     setScreen("chapter_start");
   }, []);
 
@@ -297,40 +351,28 @@ export function LifeApp() {
   if (screen === "decision" && choice) {
     return (
       <div style={pageStyle}>
-        <div style={cardStyle}>
+        <div style={{ ...cardStyle, maxWidth: 860 }}>
           {!selection && <DecisionPanel choice={choice} onSelect={handleSelect} />}
 
           {selection && simulating && (
             <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>{simProgress}</div>
           )}
 
-          {selection && simResult && (
+          {selection && simResult && !novel && novelLoading && (
+            <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>正在把本章写成小说…</div>
+          )}
+
+          {selection && simResult && novel && (
             <div>
-              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
-                <h2 style={{ margin: 0, fontSize: 20 }}>
-                  本章结果：{anchorLabel[simResult.resolution.outcomeAnchor]}
-                </h2>
-                <span style={{ color: "#6b7280", fontSize: 13 }}>
-                  有效风险 {simResult.resolution.effectiveRisk}
+              <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 16 }}>
+                <span style={{ fontSize: 13, color: "#6b7280" }}>
+                  本章结果：{anchorLabel[simResult.resolution.outcomeAnchor]} · 有效风险{" "}
+                  {simResult.resolution.effectiveRisk} · 参考 {simResult.evidenceBundle.total} 条知乎真实经历
                 </span>
               </div>
-              <div style={{ marginTop: 16, display: "grid", gap: 8 }}>
-                {simResult.simulation.events.map((event) => (
-                  <div key={event.id} style={{ border: "1px solid #e5e7eb", borderRadius: 10, padding: 12 }}>
-                    <div style={{ fontSize: 13, color: "#6b7280" }}>
-                      {event.year}
-                      {event.month ? `.${String(event.month).padStart(2, "0")}` : ""}
-                    </div>
-                    <strong>{event.title}</strong>
-                    <div style={{ fontSize: 14, color: "#374151", marginTop: 4 }}>{event.summary}</div>
-                  </div>
-                ))}
-              </div>
-              <div style={{ marginTop: 12, fontSize: 13, color: "#6b7280" }}>
-                本章推演参考了 {simResult.evidenceBundle.total} 条知乎真实经历
-              </div>
+              <NovelReader novel={novel} onRegenerate={handleRegenerateNovel} regenerating={novelLoading} />
               {error && <div style={{ color: "#dc2626", marginTop: 12, fontSize: 14 }}>{error}</div>}
-              <button onClick={handleNextChapter} style={{ ...primaryButton, marginTop: 20, width: "100%" }}>
+              <button onClick={handleNextChapter} style={{ ...primaryButton, marginTop: 24, width: "100%" }}>
                 进入下一章
               </button>
             </div>
@@ -356,7 +398,8 @@ export function LifeApp() {
             {world && world.chapterIds.length > 0 ? `第 ${world.chapterIds.length + 1} 章` : "第一章"} · 开始
           </h2>
           <span style={{ color: "#6b7280", fontSize: 14 }}>
-            {world?.currentYear} 年 · 主角 {protagonist?.identity.name ?? ""} {world?.characters[world.protagonistId]?.state.age ?? 18} 岁
+            {world?.currentYear} 年 · 主角 {protagonist?.identity.name ?? ""}{" "}
+            {world?.characters[world.protagonistId]?.state.age ?? 18} 岁
           </span>
         </div>
         {world && (
