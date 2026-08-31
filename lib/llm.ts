@@ -27,6 +27,8 @@ type CallOptions = {
   appendMessages?: ModelMessage[];
   onCompletedMessage?: (content: string) => void;
   slowRetryAttempt?: number;
+  maxTokens?: number;
+  timeoutMs?: number;
 };
 function environment(name: string) {
   return process.env[name];
@@ -117,7 +119,7 @@ export async function callGameModel<T>(
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
   options.signal?.addEventListener("abort", abortFromCaller, { once: true });
-  const timeout = setTimeout(() => controller.abort(), 90_000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 90_000);
   const retryAttempt = options.slowRetryAttempt || 0;
   let httpStatus: number | null = null;
   let rawHttpResponse = "";
@@ -192,7 +194,7 @@ export async function callGameModel<T>(
         model,
         messages,
         temperature: 0.65,
-        max_tokens: 3200,
+        max_tokens: options.maxTokens ?? 3200,
         ...providerOptions,
         stream: true,
         stream_options: { include_usage: true },

@@ -529,6 +529,8 @@ export async function runWorldSimulator(
     appendMessages: options.correction
       ? [{ role: "user", content: options.correction }]
       : undefined,
+    maxTokens: 8000,
+    timeoutMs: 180_000,
   });
   return buildSimulationOutput(modeled, input);
 }

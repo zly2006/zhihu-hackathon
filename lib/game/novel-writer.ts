@@ -161,6 +161,9 @@ export function parseNovel(
 
 export async function writeNovel(input: NovelWriterInput, version = 1): Promise<Chapter["novel"]> {
   const prompt = buildNovelPrompt(input);
-  const modeled = await callGameModel<ModelNovel>("chapter-novel", NOVEL_SYSTEM, prompt);
+  const modeled = await callGameModel<ModelNovel>("chapter-novel", NOVEL_SYSTEM, prompt, {
+    maxTokens: 8000,
+    timeoutMs: 180_000,
+  });
   return parseNovel(modeled, new Date().toISOString(), version, input.startYear, input.endYear);
 }
