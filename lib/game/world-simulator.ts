@@ -3,6 +3,9 @@
 // 输出结构化 WorldSimulationOutput（SimulationEvent[] + 记忆 + 目标/Hook/线程更新）。
 // 职责边界（方案 §17.2.3）：程序只确定 effectiveRisk / outcomeAnchor / uncertaintySeed，
 // World Simulator 负责把结果锚点解释成一组合理的事件与状态变化。
+//
+// 关键设计：模型只引用短别名（C1/R1/E1/T1/G1/H1/I1），服务端负责映射回真实 id，
+// 避免模型抄写/截断长 UUID 导致的引用失效。
 
 import { randomUUID } from "node:crypto";
 import { callGameModel } from "../llm";
@@ -20,23 +23,7 @@ import type { LifeExperience } from "../domain/experience";
 
 // ---- 模型原始输出（服务器负责补齐 id 与引用） ----
 
-type ModelEvent = {
-  year?: unknown;
-  month?: unknown;
-  title?: unknown;
-  summary?: unknown;
-  domain?: unknown;
-  participantIds?: unknown;
-  causes?: unknown;
-  characterChanges?: unknown;
-  relationshipChanges?: unknown;
-  evidenceIds?: unknown;
-  importance?: unknown;
-  visibility?: unknown;
-  createsThreadLabels?: unknown;
-  resolvesThreadIds?: unknown;
-};
-
+type ModelEvent = Record<string, unknown>;
 type ModelSimulation = {
   events?: unknown;
   newMemories?: unknown;
@@ -57,8 +44,9 @@ function requireText(value: unknown, field: string, maximum: number): string {
   return value.trim().slice(0, maximum);
 }
 
-function requireStringArray(value: unknown, field: string, maximum: number): string[] {
-  if (!Array.isArray(value)) throw new Error(`大模型返回字段 ${field} 必须是数组`);
+// 可选数组：字段缺失或非数组时返回空数组，不抛错（模型可省略无变化的字段）
+function optionalStringArray(value: unknown, maximum: number): string[] {
+  if (!Array.isArray(value)) return [];
   return value
     .filter((item): item is string => typeof item === "string")
     .map((item) => item.trim())
@@ -73,73 +61,174 @@ function requireNumber(value: unknown, field: string, min: number, max: number):
   return value;
 }
 
+// ---- 别名映射（避免模型抄写长 UUID） ----
+
+type AliasMaps = {
+  character: Record<string, string>; // 别名 -> 真实 id
+  relationship: Record<string, string>;
+  evidence: Record<string, string>;
+  thread: Record<string, string>;
+  goal: Record<string, string>;
+  hook: Record<string, string>;
+  issue: Record<string, string>;
+};
+
+function assignAliases(ids: string[], prefix: string): Record<string, string> {
+  const map: Record<string, string> = {};
+  ids.forEach((id, index) => {
+    map[`${prefix}${index + 1}`] = id;
+  });
+  return map;
+}
+
+function reverseAlias(map: Record<string, string>, id: string, prefix: string): string {
+  const entry = Object.entries(map).find(([, value]) => value === id);
+  return entry ? entry[0] : `${prefix}?`;
+}
+
+function buildAliasMaps(input: WorldSimulationInput) {
+  const characterIds = [
+    input.protagonistId,
+    ...input.characters.filter((c) => c.id !== input.protagonistId).map((c) => c.id),
+  ];
+  const relationshipIds = input.relationships.map((r) => r.id);
+  const evidenceIds = [
+    ...input.evidenceBundle.backgroundSimilar,
+    ...input.evidenceBundle.decisionSimilar,
+    ...input.evidenceBundle.relationshipRelevant,
+    ...input.evidenceBundle.outcomeContrasts,
+  ].map((e) => e.id);
+  const threadIds = input.openThreads.map((t) => t.id);
+  const goalIds = input.characters.flatMap((c) => c.state.currentGoals.map((g) => g.id));
+  const hookIds = input.characters.flatMap((c) => c.core.hooks.map((h) => h.id));
+  const issueIds = input.relationships.flatMap((r) => r.unresolvedIssues.map((i) => i.id));
+
+  const maps: AliasMaps = {
+    character: assignAliases(characterIds, "C"),
+    relationship: assignAliases(relationshipIds, "R"),
+    evidence: assignAliases(evidenceIds, "E"),
+    thread: assignAliases(threadIds, "T"),
+    goal: assignAliases(goalIds, "G"),
+    hook: assignAliases(hookIds, "H"),
+    issue: assignAliases(issueIds, "I"),
+  };
+
+  const characterById = (id: string) => input.characters.find((c) => c.id === id);
+
+  return {
+    maps,
+    charAlias: (id: string) => reverseAlias(maps.character, id, "C"),
+    relAlias: (id: string) => reverseAlias(maps.relationship, id, "R"),
+    threadAlias: (id: string) => reverseAlias(maps.thread, id, "T"),
+    goalAlias: (id: string) => reverseAlias(maps.goal, id, "G"),
+    hookAlias: (id: string) => reverseAlias(maps.hook, id, "H"),
+    issueAlias: (id: string) => reverseAlias(maps.issue, id, "I"),
+    characterById,
+  };
+}
+
+function resolveAlias(alias: string, map: Record<string, string>, field: string): string {
+  const id = map[alias];
+  if (!id) throw new Error(`${field} 引用了未知别名 ${alias}，只能使用给定别名`);
+  return id;
+}
+
 // ---- Prompt 组装 ----
 
-function describeCharacter(character: Character): string {
-  const stats = character.state.stats;
-  const lines = [
-    `【${character.id}】${character.identity.name}（${character.role === "protagonist" ? "主角" : "NPC"}，${character.state.age} 岁，${character.state.year} 年）`,
-    `城市/职业：${character.state.city || "未知"} / ${character.state.occupation || "未定"}`,
-    `性格：${character.core.personalityTraits.join("、") || "未设定"}`,
-    `价值观：${character.core.values.join("、") || "未设定"}`,
-    `状态：现金${stats.cash}，健康${stats.health}，幸福${stats.happiness}，知识${stats.knowledge}，人脉${stats.connections}，事业${stats.career}，资产${stats.assets}`,
-    `目标：${character.state.currentGoals.map((g) => `${g.label}(${g.id})`).join("、") || "无"}`,
-    `困境：${character.state.currentDilemmas.join("、") || "无"}`,
-  ];
-  if (character.role === "npc" && character.privateState) {
-    lines.push(
-      `隐藏目标：${character.privateState.hiddenGoals.join("、") || "无"}`,
-      `隐藏隐忧：${character.privateState.hiddenConcerns.join("、") || "无"}`,
-      `私人信念：${character.privateState.privateBeliefs.join("、") || "无"}`,
-    );
-  }
-  return lines.join("\n");
+function describeRelationship(rel: Relationship, alias: string, characterById: (id: string) => Character | undefined, issueAlias: (id: string) => string): string {
+  const a = characterById(rel.characterAId);
+  const b = characterById(rel.characterBId);
+  const issues = rel.unresolvedIssues.map((i) => `${i.description}（${issueAlias(i.id)}）`).join("、") || "无";
+  return `【${alias}】${a?.identity.name ?? "?"}↔${b?.identity.name ?? "?"}（${rel.type}）：亲密${rel.scores.closeness}，信任${rel.scores.trust}，冲突${rel.scores.conflict}，承诺${rel.scores.commitment}；未解决：${issues}`;
 }
 
-function describeRelationship(rel: Relationship, world: WorldSimulationInput): string {
-  const a = world.characters.find((c) => c.id === rel.characterAId);
-  const b = world.characters.find((c) => c.id === rel.characterBId);
-  const issues = rel.unresolvedIssues.map((i) => `${i.description}(${i.id})`).join("、") || "无";
-  return `【${rel.id}】${a?.identity.name ?? "?"}↔${b?.identity.name ?? "?"}（${rel.type}）：亲密${rel.scores.closeness}，信任${rel.scores.trust}，冲突${rel.scores.conflict}，承诺${rel.scores.commitment}；未解决：${issues}`;
-}
-
-function describeEvidence(experiences: LifeExperience[]): string {
+function describeEvidence(experiences: LifeExperience[], evidenceToAlias: Record<string, string>): string {
   if (!experiences.length) return "（无召回证据）";
   return experiences
-    .map((exp, index) => {
+    .map((exp) => {
       const outcome = exp.outcomes.shortTerm[0]?.description ?? "";
-      return `${index + 1}. [${exp.id}] ${exp.source.title}｜背景:${exp.situation.trigger.slice(0, 60)}｜行动:${exp.decision.action.slice(0, 60)}｜结果:${outcome.slice(0, 60)}`;
+      return `${reverseAlias(evidenceToAlias, exp.id, "E")}. ${exp.source.title}｜背景:${exp.situation.trigger.slice(0, 60)}｜行动:${exp.decision.action.slice(0, 60)}｜结果:${outcome.slice(0, 60)}`;
     })
     .join("\n");
 }
 
 const SIMULATOR_SYSTEM =
-  "你是中文互动人生小说的世界模拟器。只输出严格 JSON，不写 Markdown。你不是在写小说，而是在决定这一章结构化发生什么。你只能改变程序允许的 delta，不能改写已经发生的历史事实。知乎证据只是个案参考，不代表同样行动必然成功。NPC 是独立的人，不会为了服务主角而自动服从。禁止在未来年份伪造真实政策、公司、价格或名人的行为。";
+  "你是中文互动人生小说的世界模拟器。只输出严格 JSON，不写 Markdown。你不是在写小说，而是在决定这一章结构化发生什么。你只能改变程序允许的 delta，不能改写已经发生的历史事实。知乎证据只是个案参考，不代表同样行动必然成功。NPC 是独立的人，不会为了服务主角而自动服从。禁止在未来年份伪造真实政策、公司、价格或名人的行为。引用任何人物、关系、证据、线索、目标、Hook、矛盾时，只能使用程序给出的短别名（如 C1、R1、E3、T1、G1、H1、I1），绝不使用长字符串 id。";
 
 export function buildSimulatorPrompt(input: WorldSimulationInput): string {
   const { chapter, decision, resolution, evidenceBundle } = input;
-  const characterIds = input.characters.map((c) => c.id);
-  const relationshipIds = input.relationships.map((r) => r.id);
-  const threadIds = input.openThreads.map((t) => t.id);
-  const evidenceIds = evidenceBundle.backgroundSimilar
-    .concat(evidenceBundle.decisionSimilar, evidenceBundle.relationshipRelevant, evidenceBundle.outcomeContrasts)
-    .map((e) => e.id);
+  const { maps, charAlias, relAlias, threadAlias, goalAlias, hookAlias, issueAlias, characterById } = buildAliasMaps(input);
+
+  const characterLines = input.characters.map((c) => describeCharacterWithAlias(c, charAlias(c.id), goalAlias)).join("\n\n");
+  const relationshipLines = input.relationships
+    .map((rel) => describeRelationship(rel, relAlias(rel.id), characterById, issueAlias))
+    .join("\n") || "无";
+  const threadLines = input.openThreads
+    .map((t) => `【${threadAlias(t.id)}】${t.label}：${t.description}（紧急度 ${t.urgency}）`)
+    .join("\n") || "无";
+  const memoryLines = input.relevantMemories
+    .map((m) => `- ${m.year}年 ${m.type}：${m.summary}（重要度${m.importance}）`)
+    .join("\n") || "无";
+  const allEvidence = [
+    ...evidenceBundle.backgroundSimilar,
+    ...evidenceBundle.decisionSimilar,
+    ...evidenceBundle.relationshipRelevant,
+    ...evidenceBundle.outcomeContrasts,
+  ];
+  const evidenceLines = describeEvidence(allEvidence, maps.evidence);
+
+  const characterIdList = Object.entries(maps.character)
+    .map(([alias, id]) => `${alias}=${characterById(id)?.identity.name ?? "?"}`)
+    .join("，");
+  const relationshipIdList = Object.entries(maps.relationship)
+    .map(([alias, id]) => {
+      const rel = input.relationships.find((r) => r.id === id);
+      const a = rel ? characterById(rel.characterAId)?.identity.name : "?";
+      const b = rel ? characterById(rel.characterBId)?.identity.name : "?";
+      return `${alias}=${a}↔${b}`;
+    })
+    .join("，");
+  const evidenceIdList = Object.keys(maps.evidence).join("，") || "无";
+  const threadIdList = Object.entries(maps.thread)
+    .map(([alias, id]) => `${alias}=${input.openThreads.find((t) => t.id === id)?.label ?? "?"}`)
+    .join("，") || "无";
+  const goalIdList = Object.entries(maps.goal)
+    .map(([alias, id]) => {
+      const owner = input.characters.find((c) => c.state.currentGoals.some((g) => g.id === id));
+      const goal = owner?.state.currentGoals.find((g) => g.id === id);
+      return `${alias}=${owner?.identity.name ?? "?"}的「${goal?.label ?? "?"}」`;
+    })
+    .join("，") || "无";
+  const hookIdList = Object.entries(maps.hook)
+    .map(([alias, id]) => {
+      const owner = input.characters.find((c) => c.core.hooks.some((h) => h.id === id));
+      const hook = owner?.core.hooks.find((h) => h.id === id);
+      return `${alias}=${owner?.identity.name ?? "?"}的「${hook?.label ?? "?"}」`;
+    })
+    .join("，") || "无";
+  const issueIdList = Object.entries(maps.issue)
+    .map(([alias, id]) => {
+      const rel = input.relationships.find((r) => r.unresolvedIssues.some((i) => i.id === id));
+      const issue = rel?.unresolvedIssues.find((i) => i.id === id);
+      return `${alias}=${issue?.description ?? "?"}`;
+    })
+    .join("，") || "无";
 
   const sections = [
     `# 本章信息`,
     `章节 ${chapter.id}，时间跨度 ${chapter.span} 年，从 ${chapter.startYear} 年到 ${chapter.endYear} 年。`,
     ``,
     `# 人物（含 NPC 隐藏状态，仅供你决定 NPC 自主行为，不得直接泄露给主角）`,
-    input.characters.map(describeCharacter).join("\n\n"),
+    characterLines,
     ``,
     `# 关系`,
-    input.relationships.map((rel) => describeRelationship(rel, input)).join("\n") || "无",
+    relationshipLines,
     ``,
     `# 未解决线索`,
-    input.openThreads.map((t) => `【${t.id}】${t.label}：${t.description}（紧急度 ${t.urgency}）`).join("\n") || "无",
+    threadLines,
     ``,
     `# 相关记忆`,
-    input.relevantMemories.map((m) => `【${m.id}】${m.year}年 ${m.type}：${m.summary}（重要度${m.importance}）`).join("\n") || "无",
+    memoryLines,
     ``,
     `# 本章决策`,
     `标题：${decision.promptTitle}`,
@@ -155,34 +244,32 @@ export function buildSimulatorPrompt(input: WorldSimulationInput): string {
         : "setback = 受挫：主目标受挫，但必须保留现实可恢复性，不等于人生毁灭。",
     ``,
     `# 知乎现实参照（个案，非因果）`,
-    describeEvidence([
-      ...evidenceBundle.backgroundSimilar,
-      ...evidenceBundle.decisionSimilar,
-      ...evidenceBundle.relationshipRelevant,
-      ...evidenceBundle.outcomeContrasts,
-    ]),
+    evidenceLines,
     ``,
     `# 时代背景`,
     input.eraContext ? `${input.eraContext.title}：${input.eraContext.summary}` : "按常规当代社会背景处理，不得编造真实政策或事件。",
     ``,
-    `# 合法引用 id`,
-    `角色 id：${characterIds.join(", ")}`,
-    `关系 id：${relationshipIds.join(", ")}`,
-    `知乎证据 id：${evidenceIds.join(", ")}`,
-    `已有线索 id：${threadIds.join(", ") || "无"}`,
+    `# 合法引用别名（只能引用这些短别名，禁止使用长 id）`,
+    `角色：${characterIdList}`,
+    `关系：${relationshipIdList}`,
+    `知乎证据：${evidenceIdList}`,
+    `线索：${threadIdList}`,
+    `目标：${goalIdList}`,
+    `Hook：${hookIdList}`,
+    `矛盾：${issueIdList}`,
   ];
 
   const hardConstraints = [
     `# 结构硬约束（必须逐项满足）`,
     `1. ${chapter.span} 年章节必须生成 ${chapter.span === 1 ? "2 到 4" : "4 到 8"} 个事件；importance≥70 的重大事件最多 2 个。`,
-    `2. 每个事件的 year 必须在 ${chapter.startYear} 到 ${chapter.endYear} 之间；month 可选（1-12 或 null）。`,
-    `3. participantIds 只能引用上述角色 id；relationshipChanges 的 relationshipId 只能引用上述关系 id；evidenceIds 只能引用上述知乎证据 id。`,
-    `4. characterChanges 的 statDelta 只能是 7 个字段（cash/health/happiness/knowledge/connections/career/assets）的部分子集，每个是 -100 到 100 的有限数字；不要给每个事件都塞满 7 项。`,
+    `2. 每个事件的 year 必须在 ${chapter.startYear} 到 ${chapter.endYear} 之间；month 可选（1-12 或省略）。`,
+    `3. 所有 id 引用只能使用上述短别名：participantIds/characterId 用 C#，relationshipId 用 R#，evidenceIds 用 E#，relatedCharacterIds 用 C#，resolvesThreadIds/resolveIds/dormantIds 用 T#，resolveGoalIds 用 G#，resolveHookIds 用 H#，resolveIssueId 用 I#。`,
+    `4. characterChanges 的 statDelta 只能是 cash/health/happiness/knowledge/connections/career/assets 的部分子集，每个是 -100 到 100 的有限数字；不要给每个事件都塞满 7 项。`,
     `5. relationshipChanges 的 scoreDelta 只能是 closeness/trust/conflict/commitment 的子集，每个绝对值 ≤ 20。`,
     `6. 关系类型变化（typeChange）必须发生在 importance≥60 的明显事件中。`,
-    `7. 每章必须产生 3 到 6 条 newMemories，每条 memory 的 year 在章节区间内、characterId 合法、importance 0-100、emotionalValence 取 -2/-1/0/1/2。`,
+    `7. 每章必须产生 3 到 6 条 newMemories，每条 year 在章节区间内、characterId 用 C#、importance 0-100、emotionalValence 取 -2/-1/0/1/2。`,
     `8. newMemories 的 type 只能是 event/relationship/achievement/setback/promise/conflict/reflection。`,
-    `9. goalUpdates/hookUpdates/threadUpdates 引用的 id 必须合法；threadUpdates.create 是新建线索（给 label/description/domain/urgency，不要给 id），resolveIds/dormantIds 只能引用已有线索 id。`,
+    `9. 可选字段（如 characterChanges、relationshipChanges、evidenceIds、causes、createsThreadLabels、resolvesThreadIds、goalUpdates、hookUpdates）在无变化时省略或给空数组 []。`,
   ].join("\n");
 
   const worldRules = [
@@ -197,19 +284,37 @@ export function buildSimulatorPrompt(input: WorldSimulationInput): string {
 
   const outputSpec = [
     `# 输出 JSON 格式（只输出 JSON）`,
-    `{"events":[{"year":数字,"month":1到12或null,"title":"16字内","summary":"120字内","domain":"${VALID_DOMAINS.join("|")}之一","participantIds":["角色id"],"causes":[{"type":"player_choice|prior_event|relationship|npc_goal|era|other","refId":"可选id","description":"原因"}],"characterChanges":[{"characterId":"角色id","statDelta":{"cash":-8到8},"cityChange":{"from":"旧","to":"新"},"occupationChange":{"from":"旧","to":"新"},"socialIdentityChange":{"from":"旧","to":"新"},"resolveGoalIds":["目标id"],"description":"变化描述"}],"relationshipChanges":[{"relationshipId":"关系id","scoreDelta":{"conflict":-20到20},"typeChange":{"from":"friend","to":"partner"},"addIssue":"新增未解决矛盾","resolveIssueId":"已有矛盾id","description":"变化描述"}],"evidenceIds":["证据id"],"importance":0到100,"visibility":"known_to_protagonist|partially_known","createsThreadLabels":["新线索标签"],"resolvesThreadIds":["已有线索id"]}],"newMemories":[{"characterId":"角色id","year":数字,"type":"event","summary":"记忆摘要","relatedCharacterIds":["角色id"],"domains":["${VALID_DOMAINS.join("|")}之一"],"importance":0到100,"emotionalValence":-2到2,"permanentFact":true或false}],"goalUpdates":[{"characterId":"角色id","add":[{"label":"新目标","horizon":"short|medium|long","priority":0到100}],"resolveGoalIds":["目标id"]}],"hookUpdates":[{"characterId":"角色id","add":[{"label":"新Hook","description":"描述"}],"resolveHookIds":["hook id"]}],"threadUpdates":{"create":[{"label":"线索标签","description":"描述","domain":"${VALID_DOMAINS.join("|")}之一","relatedCharacterIds":["角色id"],"urgency":0到100}],"resolveIds":["线索id"],"dormantIds":["线索id"]},"chapterSummary":{"keyEvents":["..."],"characterChanges":["..."],"relationshipChanges":["..."],"unresolvedQuestions":["..."]}}`,
+    `{"events":[{"year":数字,"month":1到12或省略,"title":"16字内","summary":"120字内","domain":"${VALID_DOMAINS.join("|")}之一","participantIds":["C#"],"causes":[{"type":"player_choice|prior_event|relationship|npc_goal|era|other","refId":"可选别名","description":"原因"}],"characterChanges":[{"characterId":"C#","statDelta":{"cash":-8到8},"cityChange":{"from":"旧","to":"新"},"occupationChange":{"from":"旧","to":"新"},"socialIdentityChange":{"from":"旧","to":"新"},"resolveGoalIds":["G#"],"description":"变化描述"}],"relationshipChanges":[{"relationshipId":"R#","scoreDelta":{"conflict":-20到20},"typeChange":{"from":"friend","to":"partner"},"addIssue":"新增未解决矛盾","resolveIssueId":"I#","description":"变化描述"}],"evidenceIds":["E#"],"importance":0到100,"visibility":"known_to_protagonist|partially_known","createsThreadLabels":["新线索标签"],"resolvesThreadIds":["T#"]}],"newMemories":[{"characterId":"C#","year":数字,"type":"event","summary":"记忆摘要","relatedCharacterIds":["C#"],"domains":["${VALID_DOMAINS.join("|")}之一"],"importance":0到100,"emotionalValence":-2到2,"permanentFact":true或false}],"goalUpdates":[{"characterId":"C#","add":[{"label":"新目标","horizon":"short|medium|long","priority":0到100}]}],"hookUpdates":[{"characterId":"C#","add":[{"label":"新Hook","description":"描述"}],"resolveHookIds":["H#"]}],"threadUpdates":{"create":[{"label":"线索标签","description":"描述","domain":"${VALID_DOMAINS.join("|")}之一","relatedCharacterIds":["C#"],"urgency":0到100}],"resolveIds":["T#"],"dormantIds":["T#"]},"chapterSummary":{"keyEvents":["..."],"characterChanges":["..."],"relationshipChanges":["..."],"unresolvedQuestions":["..."]}}`,
     ``,
-    `注意：characterChanges/relationshipChanges 只写实际发生变化的事件；statDelta 只写变化字段，没变化的字段省略；不要机械地给所有字段填 0。`,
+    `注意：只写实际发生变化的事件；statDelta 只写变化字段，没变化的字段省略；所有引用只用短别名。`,
   ].join("\n");
 
   return [sections.join("\n"), hardConstraints, worldRules, outputSpec].join("\n\n");
 }
 
-// ---- 模型输出 → WorldSimulationOutput ----
-
-function parseModelSimulation(modeled: ModelSimulation): ModelSimulation {
-  return modeled;
+// 供 describeCharacter 使用的目标别名（内联辅助）
+function describeCharacterWithAlias(character: Character, charAlias: string, goalAlias: (id: string) => string): string {
+  const stats = character.state.stats;
+  const lines = [
+    `【${charAlias}】${character.identity.name}（${character.role === "protagonist" ? "主角" : "NPC"}，${character.state.age} 岁，${character.state.year} 年）`,
+    `城市/职业：${character.state.city || "未知"} / ${character.state.occupation || "未定"}`,
+    `性格：${character.core.personalityTraits.join("、") || "未设定"}`,
+    `价值观：${character.core.values.join("、") || "未设定"}`,
+    `状态：现金${stats.cash}，健康${stats.health}，幸福${stats.happiness}，知识${stats.knowledge}，人脉${stats.connections}，事业${stats.career}，资产${stats.assets}`,
+    `目标：${character.state.currentGoals.map((g) => `${g.label}（${goalAlias(g.id)}）`).join("、") || "无"}`,
+    `困境：${character.state.currentDilemmas.join("、") || "无"}`,
+  ];
+  if (character.role === "npc" && character.privateState) {
+    lines.push(
+      `隐藏目标：${character.privateState.hiddenGoals.join("、") || "无"}`,
+      `隐藏隐忧：${character.privateState.hiddenConcerns.join("、") || "无"}`,
+      `私人信念：${character.privateState.privateBeliefs.join("、") || "无"}`,
+    );
+  }
+  return lines.join("\n");
 }
+
+// ---- 模型输出 → WorldSimulationOutput ----
 
 export function buildSimulationOutput(
   modeled: ModelSimulation,
@@ -217,6 +322,15 @@ export function buildSimulationOutput(
   newId: () => string = randomUUID,
 ): WorldSimulationOutput {
   const { chapter } = input;
+  const { maps } = buildAliasMaps(input);
+  const C = (alias: string, field: string) => resolveAlias(alias, maps.character, field);
+  const R = (alias: string, field: string) => resolveAlias(alias, maps.relationship, field);
+  const E = (alias: string, field: string) => resolveAlias(alias, maps.evidence, field);
+  const T = (alias: string, field: string) => resolveAlias(alias, maps.thread, field);
+  const G = (alias: string, field: string) => resolveAlias(alias, maps.goal, field);
+  const H = (alias: string, field: string) => resolveAlias(alias, maps.hook, field);
+  const I = (alias: string, field: string) => resolveAlias(alias, maps.issue, field);
+
   const rawEvents = Array.isArray(modeled.events) ? modeled.events : [];
   const threadCreates: StoryThread[] = [];
 
@@ -225,7 +339,7 @@ export function buildSimulationOutput(
     const domain = requireText(e.domain, `events[${index}].domain`, 20) as LifeDomain;
     if (!VALID_DOMAINS.includes(domain)) throw new Error(`events[${index}].domain 非法: ${domain}`);
 
-    const createsThreadLabels = requireStringArray(e.createsThreadLabels, `events[${index}].createsThreadLabels`, 3);
+    const createsThreadLabels = optionalStringArray(e.createsThreadLabels, 3);
     const createsThreadIds: string[] = [];
     for (const label of createsThreadLabels) {
       const thread: StoryThread = {
@@ -244,17 +358,14 @@ export function buildSimulationOutput(
     const characterChanges = (Array.isArray(e.characterChanges) ? e.characterChanges : []).map(
       (rawChange, changeIndex): SimulationEvent["characterChanges"][number] => {
         const change = (rawChange ?? {}) as Record<string, unknown>;
-        const statDelta = change.statDelta
-          ? (change.statDelta as Record<string, number>)
-          : undefined;
         return {
-          characterId: requireText(change.characterId, `events[${index}].characterChanges[${changeIndex}].characterId`, 40),
-          statDelta,
+          characterId: C(String(change.characterId ?? ""), `events[${index}].characterChanges[${changeIndex}].characterId`),
+          statDelta: change.statDelta ? (change.statDelta as Record<string, number>) : undefined,
           cityChange: change.cityChange as { from: string; to: string } | undefined,
           occupationChange: change.occupationChange as { from: string; to: string } | undefined,
           socialIdentityChange: change.socialIdentityChange as { from: string; to: string } | undefined,
           resolveGoalIds: change.resolveGoalIds
-            ? (change.resolveGoalIds as string[]).map((id) => String(id))
+            ? (change.resolveGoalIds as unknown[]).map((id, i) => G(String(id), `events[${index}].characterChanges[${changeIndex}].resolveGoalIds[${i}]`))
             : undefined,
           description: requireText(change.description, `events[${index}].characterChanges[${changeIndex}].description`, 200),
         };
@@ -265,15 +376,25 @@ export function buildSimulationOutput(
       (rawChange, changeIndex): SimulationEvent["relationshipChanges"][number] => {
         const change = (rawChange ?? {}) as Record<string, unknown>;
         return {
-          relationshipId: requireText(change.relationshipId, `events[${index}].relationshipChanges[${changeIndex}].relationshipId`, 40),
+          relationshipId: R(String(change.relationshipId ?? ""), `events[${index}].relationshipChanges[${changeIndex}].relationshipId`),
           scoreDelta: change.scoreDelta as Record<string, number>,
           typeChange: change.typeChange as { from: Relationship["type"]; to: Relationship["type"] } | undefined,
           addIssue: change.addIssue ? String(change.addIssue) : undefined,
-          resolveIssueId: change.resolveIssueId ? String(change.resolveIssueId) : undefined,
+          resolveIssueId: change.resolveIssueId ? I(String(change.resolveIssueId), `events[${index}].relationshipChanges[${changeIndex}].resolveIssueId`) : undefined,
           description: requireText(change.description, `events[${index}].relationshipChanges[${changeIndex}].description`, 200),
         };
       },
     );
+
+    const causes = (Array.isArray(e.causes) ? e.causes : []).map((rawCause) => {
+      const cause = (rawCause ?? {}) as Record<string, unknown>;
+      const refAlias = cause.refId ? String(cause.refId) : undefined;
+      return {
+        type: requireText(cause.type, `events[${index}].causes.type`, 20) as SimulationEvent["causes"][number]["type"],
+        refId: refAlias ? resolveRef(refAlias, maps) : undefined,
+        description: requireText(cause.description, `events[${index}].causes.description`, 120),
+      };
+    });
 
     return {
       id: `event-${newId()}`,
@@ -284,22 +405,15 @@ export function buildSimulationOutput(
       title: requireText(e.title, `events[${index}].title`, 32),
       summary: requireText(e.summary, `events[${index}].summary`, 240),
       domain,
-      participantIds: (Array.isArray(e.participantIds) ? e.participantIds : []).map((id) => String(id)),
-      causes: (Array.isArray(e.causes) ? e.causes : []).map((rawCause) => {
-        const cause = (rawCause ?? {}) as Record<string, unknown>;
-        return {
-          type: requireText(cause.type, `events[${index}].causes.type`, 20) as SimulationEvent["causes"][number]["type"],
-          refId: cause.refId ? String(cause.refId) : undefined,
-          description: requireText(cause.description, `events[${index}].causes.description`, 120),
-        };
-      }),
+      participantIds: (Array.isArray(e.participantIds) ? e.participantIds : []).map((id, i) => C(String(id), `events[${index}].participantIds[${i}]`)),
+      causes,
       characterChanges,
       relationshipChanges,
-      evidenceIds: (Array.isArray(e.evidenceIds) ? e.evidenceIds : []).map((id) => String(id)),
+      evidenceIds: (Array.isArray(e.evidenceIds) ? e.evidenceIds : []).map((id, i) => E(String(id), `events[${index}].evidenceIds[${i}]`)),
       importance: requireNumber(e.importance, `events[${index}].importance`, 0, 100),
       visibility: requireText(e.visibility, `events[${index}].visibility`, 20) as SimulationEvent["visibility"],
       createsThreadIds,
-      resolvesThreadIds: (Array.isArray(e.resolvesThreadIds) ? e.resolvesThreadIds : []).map((id) => String(id)),
+      resolvesThreadIds: (Array.isArray(e.resolvesThreadIds) ? e.resolvesThreadIds : []).map((id, i) => T(String(id), `events[${index}].resolvesThreadIds[${i}]`)),
     };
   });
 
@@ -310,12 +424,12 @@ export function buildSimulationOutput(
       if (!VALID_MEMORY_TYPES.includes(type)) throw new Error(`newMemories[${index}].type 非法: ${type}`);
       return {
         id: `mem-${newId()}`,
-        characterId: requireText(memory.characterId, `newMemories[${index}].characterId`, 40),
+        characterId: C(String(memory.characterId ?? ""), `newMemories[${index}].characterId`),
         year: requireNumber(memory.year, `newMemories[${index}].year`, 1900, 2200),
         chapterId: chapter.id,
         type: type as CharacterMemory["type"],
         summary: requireText(memory.summary, `newMemories[${index}].summary`, 240),
-        relatedCharacterIds: (Array.isArray(memory.relatedCharacterIds) ? memory.relatedCharacterIds : []).map((id) => String(id)),
+        relatedCharacterIds: (Array.isArray(memory.relatedCharacterIds) ? memory.relatedCharacterIds : []).map((id, i) => C(String(id), `newMemories[${index}].relatedCharacterIds[${i}]`)),
         domains: (Array.isArray(memory.domains) ? memory.domains : []).map((d) => String(d) as LifeDomain),
         importance: requireNumber(memory.importance, `newMemories[${index}].importance`, 0, 100),
         emotionalValence: requireNumber(memory.emotionalValence, `newMemories[${index}].emotionalValence`, -2, 2) as CharacterMemory["emotionalValence"],
@@ -329,7 +443,7 @@ export function buildSimulationOutput(
     (rawUpdate, index): WorldSimulationOutput["goalUpdates"][number] => {
       const update = (rawUpdate ?? {}) as Record<string, unknown>;
       return {
-        characterId: requireText(update.characterId, `goalUpdates[${index}].characterId`, 40),
+        characterId: C(String(update.characterId ?? ""), `goalUpdates[${index}].characterId`),
         add: (Array.isArray(update.add) ? update.add : []).map((rawGoal) => {
           const goal = (rawGoal ?? {}) as Record<string, unknown>;
           return {
@@ -349,7 +463,7 @@ export function buildSimulationOutput(
     (rawUpdate, index): WorldSimulationOutput["hookUpdates"][number] => {
       const update = (rawUpdate ?? {}) as Record<string, unknown>;
       return {
-        characterId: requireText(update.characterId, `hookUpdates[${index}].characterId`, 40),
+        characterId: C(String(update.characterId ?? ""), `hookUpdates[${index}].characterId`),
         add: (Array.isArray(update.add) ? update.add : []).map((rawHook) => {
           const hook = (rawHook ?? {}) as Record<string, unknown>;
           return {
@@ -359,7 +473,7 @@ export function buildSimulationOutput(
             status: "active" as const,
           };
         }),
-        resolveIds: (Array.isArray(update.resolveHookIds) ? update.resolveHookIds : []).map((id) => String(id)),
+        resolveIds: (Array.isArray(update.resolveHookIds) ? update.resolveHookIds : []).map((id, i) => H(String(id), `hookUpdates[${index}].resolveHookIds[${i}]`)),
       };
     },
   );
@@ -372,7 +486,7 @@ export function buildSimulationOutput(
       label: requireText(thread.label, "threadUpdates.create.label", 60),
       description: requireText(thread.description, "threadUpdates.create.description", 200),
       domain: requireText(thread.domain, "threadUpdates.create.domain", 20) as LifeDomain,
-      relatedCharacterIds: (Array.isArray(thread.relatedCharacterIds) ? thread.relatedCharacterIds : []).map((id) => String(id)),
+      relatedCharacterIds: (Array.isArray(thread.relatedCharacterIds) ? thread.relatedCharacterIds : []).map((id, i) => C(String(id), `threadUpdates.create.relatedCharacterIds[${i}]`)),
       urgency: requireNumber(thread.urgency, "threadUpdates.create.urgency", 0, 100),
       status: "open" as const,
     };
@@ -387,16 +501,23 @@ export function buildSimulationOutput(
     hookUpdates,
     threadUpdates: {
       create: [...threadCreates, ...extraThreads],
-      resolveIds: (Array.isArray(threadRaw.resolveIds) ? threadRaw.resolveIds : []).map((id) => String(id)),
-      dormantIds: (Array.isArray(threadRaw.dormantIds) ? threadRaw.dormantIds : []).map((id) => String(id)),
+      resolveIds: (Array.isArray(threadRaw.resolveIds) ? threadRaw.resolveIds : []).map((id, i) => T(String(id), `threadUpdates.resolveIds[${i}]`)),
+      dormantIds: (Array.isArray(threadRaw.dormantIds) ? threadRaw.dormantIds : []).map((id, i) => T(String(id), `threadUpdates.dormantIds[${i}]`)),
     },
     chapterSummary: {
-      keyEvents: requireStringArray(summaryRaw.keyEvents, "chapterSummary.keyEvents", 20),
-      characterChanges: requireStringArray(summaryRaw.characterChanges, "chapterSummary.characterChanges", 20),
-      relationshipChanges: requireStringArray(summaryRaw.relationshipChanges, "chapterSummary.relationshipChanges", 20),
-      unresolvedQuestions: requireStringArray(summaryRaw.unresolvedQuestions, "chapterSummary.unresolvedQuestions", 20),
+      keyEvents: optionalStringArray(summaryRaw.keyEvents, 20),
+      characterChanges: optionalStringArray(summaryRaw.characterChanges, 20),
+      relationshipChanges: optionalStringArray(summaryRaw.relationshipChanges, 20),
+      unresolvedQuestions: optionalStringArray(summaryRaw.unresolvedQuestions, 20),
     },
   };
+}
+
+function resolveRef(refAlias: string, maps: AliasMaps): string {
+  for (const map of [maps.character, maps.thread, maps.goal, maps.hook, maps.issue, maps.relationship]) {
+    if (map[refAlias]) return map[refAlias];
+  }
+  return refAlias;
 }
 
 export async function runWorldSimulator(
@@ -409,5 +530,5 @@ export async function runWorldSimulator(
       ? [{ role: "user", content: options.correction }]
       : undefined,
   });
-  return buildSimulationOutput(parseModelSimulation(modeled), input);
+  return buildSimulationOutput(modeled, input);
 }

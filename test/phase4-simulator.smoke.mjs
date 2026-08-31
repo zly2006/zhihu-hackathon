@@ -113,13 +113,13 @@ const newId = () => `id-${++idCounter}`;
 
 const model = {
   events: [
-    { year: 2033, month: 3, title: "调整", summary: "项目调整", domain: "career", participantIds: ["p1"], causes: [{ type: "player_choice", description: "留下" }], characterChanges: [{ characterId: "p1", statDelta: { career: -4 }, description: "晋升失败" }], relationshipChanges: [], evidenceIds: ["e1"], importance: 50, visibility: "known_to_protagonist", createsThreadLabels: ["晋升瓶颈"], resolvesThreadIds: [] },
-    { year: 2034, month: null, title: "讨论", summary: "定居讨论", domain: "relocation", participantIds: ["p1", "n1"], causes: [{ type: "relationship", description: "分歧" }], characterChanges: [], relationshipChanges: [{ relationshipId: "r1", scoreDelta: { conflict: 8 }, description: "分歧" }], evidenceIds: [], importance: 60, visibility: "known_to_protagonist", createsThreadLabels: [], resolvesThreadIds: [] },
+    { year: 2033, month: 3, title: "调整", summary: "项目调整", domain: "career", participantIds: ["C1"], causes: [{ type: "player_choice", description: "留下" }], characterChanges: [{ characterId: "C1", statDelta: { career: -4 }, description: "晋升失败" }], relationshipChanges: [], evidenceIds: ["E1"], importance: 50, visibility: "known_to_protagonist", createsThreadLabels: ["晋升瓶颈"], resolvesThreadIds: [] },
+    { year: 2034, month: null, title: "讨论", summary: "定居讨论", domain: "relocation", participantIds: ["C1", "C2"], causes: [{ type: "relationship", description: "分歧" }], characterChanges: [], relationshipChanges: [{ relationshipId: "R1", scoreDelta: { conflict: 8 }, description: "分歧" }], evidenceIds: [], importance: 60, visibility: "known_to_protagonist", createsThreadLabels: [], resolvesThreadIds: [] },
   ],
   newMemories: [
-    { characterId: "p1", year: 2033, type: "setback", summary: "晋升失败", relatedCharacterIds: [], domains: ["career"], importance: 60, emotionalValence: -1, permanentFact: true },
-    { characterId: "p1", year: 2034, type: "conflict", summary: "定居分歧", relatedCharacterIds: ["n1"], domains: ["relocation"], importance: 65, emotionalValence: -1, permanentFact: false },
-    { characterId: "n1", year: 2034, type: "relationship", summary: "想回老家", relatedCharacterIds: ["p1"], domains: ["relocation"], importance: 55, emotionalValence: 0, permanentFact: false },
+    { characterId: "C1", year: 2033, type: "setback", summary: "晋升失败", relatedCharacterIds: [], domains: ["career"], importance: 60, emotionalValence: -1, permanentFact: true },
+    { characterId: "C1", year: 2034, type: "conflict", summary: "定居分歧", relatedCharacterIds: ["C2"], domains: ["relocation"], importance: 65, emotionalValence: -1, permanentFact: false },
+    { characterId: "C2", year: 2034, type: "relationship", summary: "想回老家", relatedCharacterIds: ["C1"], domains: ["relocation"], importance: 55, emotionalValence: 0, permanentFact: false },
   ],
   goalUpdates: [],
   hookUpdates: [],
@@ -130,6 +130,9 @@ const model = {
 const mapped = simulator.buildSimulationOutput(model, input, newId);
 check("映射后事件数 2", mapped.events.length === 2);
 check("映射后事件有 id 且 chapterId 正确", mapped.events[0].id.startsWith("event-") && mapped.events[0].chapterId === "c1");
+check("别名 C1 解析为真实角色 id p1", mapped.events[0].participantIds.includes("p1") && mapped.events[0].characterChanges[0].characterId === "p1");
+check("别名 C2/R1 解析为真实 id", mapped.events[1].participantIds.includes("n1") && mapped.events[1].relationshipChanges[0].relationshipId === "r1");
+check("别名 E1 解析为真实证据 id", mapped.events[0].evidenceIds.includes("e1"));
 check("映射后记忆有 id", mapped.newMemories.length === 3 && mapped.newMemories[0].id.startsWith("mem-"));
 check("映射后 createsThreadLabels 转线程 id", mapped.events[0].createsThreadIds.length === 1 && mapped.threadUpdates.create.length === 1);
 check("映射输出通过 validator", !throws(() => validator.validateSimulationOutput(mapped, vctx)));
