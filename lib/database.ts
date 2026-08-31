@@ -293,3 +293,153 @@ export async function retrieveExperiences(
     items: distinct.map(({ row, score }) => toExperience(row, score)),
   };
 }
+
+// ---------------------------------------------------------------------------
+// 新版 Evidence 召回（Phase 3）：为 EvidenceBundle 提供候选，供 evidence-retriever 分类。
+// 保留旧 retrieveExperiences 不动，避免影响旧 /api/event 流程。
+// ---------------------------------------------------------------------------
+
+export type EvidenceCandidate = {
+  id: string;
+  title: string;
+  url: string;
+  context: string;
+  decision: string;
+  action: string;
+  outcome: string;
+  confidence: number;
+  blockingKey: string;
+  authorName: string | null;
+  authorAvatarUrl: string | null;
+  authorUrlToken: string | null;
+  authorProfileUrl: string | null;
+  similarity: number;
+};
+
+const EVIDENCE_SELECT = `
+  SELECT c.id, s.title, s.source_url url, i.external_id, c.context, c.decision,
+         c.action, c.outcome, c.confidence, e.blocking_key, e.vector,
+         s.author_name, s.author_avatar_url author_avatar, s.author_url_token author_token,
+         s.author_profile_url
+`;
+
+function toEvidenceCandidate(row: CandidateRow, similarity: number): EvidenceCandidate {
+  const authorName = compact(row.author_name || "");
+  return {
+    id: row.id,
+    title: compact(row.title).slice(0, 72) || "一段匿名人生经历",
+    url: row.url,
+    context: compact(row.context),
+    decision: compact(row.decision),
+    action: compact(row.action).slice(0, 120),
+    outcome: compact(row.outcome).slice(0, 130),
+    confidence: row.confidence,
+    blockingKey: row.blocking_key,
+    authorName: authorName || null,
+    authorAvatarUrl: row.author_avatar || null,
+    authorUrlToken: row.author_token || null,
+    authorProfileUrl: row.author_profile_url || null,
+    similarity: Math.max(0, Math.min(1, similarity)),
+  };
+}
+
+export async function retrieveEvidenceCandidates(opts: {
+  domain: string;
+  terms: string[];
+  anchorSeed: string;
+  limit?: number;
+  excludedExperienceIds?: string[];
+}): Promise<EvidenceCandidate[]> {
+  const limit = opts.limit ?? 18;
+  const excludedIds = new Set(opts.excludedExperienceIds ?? []);
+  const excludedUrls = new Set<string>();
+  if (excludedIds.size) {
+    const rows = await db().query<{ url: string }>(
+      `
+      SELECT DISTINCT s.source_url url
+      FROM decision_episode_candidate c
+      JOIN content_snapshot s ON s.id = c.content_snapshot_id
+      WHERE c.id::text = ANY($1::text[])
+      `,
+      [[...excludedIds]],
+    );
+    for (const row of rows.rows) excludedUrls.add(row.url);
+  }
+
+  const statements = opts.terms
+    .map((_, index) => `(c.context LIKE $${index * 2 + 2} OR c.decision LIKE $${index * 2 + 3})`)
+    .join(" OR ");
+  const termParams = opts.terms.flatMap((term) => [`%${term}%`, `%${term}%`]);
+
+  let anchors = (
+    await db().query<CandidateRow>(
+      `
+      ${EVIDENCE_SELECT}
+      FROM decision_episode_candidate c
+      JOIN candidate_embedding e ON e.candidate_id = c.id AND e.status = 'READY'
+      JOIN content_snapshot s ON s.id = c.content_snapshot_id
+      JOIN content_item i ON i.id = s.content_item_id
+      WHERE c.review_status != 'REJECTED' AND c.confidence >= 80
+        AND e.blocking_key = $1 AND (${statements})
+        AND s.author_name IS NOT NULL
+      LIMIT 180
+      `,
+      [opts.domain, ...termParams],
+    )
+  ).rows;
+  anchors = anchors.filter((row) => !excludedIds.has(row.id) && !excludedUrls.has(row.url));
+
+  if (!anchors.length) {
+    anchors = (
+      await db().query<CandidateRow>(
+        `
+        ${EVIDENCE_SELECT}
+        FROM decision_episode_candidate c
+        JOIN candidate_embedding e ON e.candidate_id = c.id AND e.status = 'READY'
+        JOIN content_snapshot s ON s.id = c.content_snapshot_id
+        JOIN content_item i ON i.id = s.content_item_id
+        WHERE c.review_status != 'REJECTED' AND c.confidence >= 80 AND e.blocking_key = $1
+          AND s.author_name IS NOT NULL
+        LIMIT 180
+        `,
+        [opts.domain],
+      )
+    ).rows.filter((row) => !excludedIds.has(row.id) && !excludedUrls.has(row.url));
+  }
+
+  if (!anchors.length) return [];
+
+  const anchor = anchors[hashNumber(opts.anchorSeed) % anchors.length];
+  const candidates = (
+    await db().query<CandidateRow>(
+      `
+      ${EVIDENCE_SELECT}
+      FROM candidate_embedding e
+      JOIN decision_episode_candidate c ON c.id = e.candidate_id
+      JOIN content_snapshot s ON s.id = c.content_snapshot_id
+      JOIN content_item i ON i.id = s.content_item_id
+      WHERE e.status = 'READY' AND e.embedding_version = 'bge-large-zh-v1.5:scenario-text-v2'
+        AND e.blocking_key = $1 AND c.review_status != 'REJECTED' AND c.confidence >= 75
+        AND s.author_name IS NOT NULL
+      LIMIT 420
+      `,
+      [anchor.blocking_key],
+    )
+  ).rows;
+
+  const anchorVector = decodeVector(anchor.vector);
+  const neighbors = candidates
+    .filter((row) => row.id !== anchor.id && !excludedIds.has(row.id) && !excludedUrls.has(row.url))
+    .map((row) => ({ row, score: cosine(anchorVector, decodeVector(row.vector)) }))
+    .sort((left, right) => right.score - left.score);
+
+  const distinct: { row: CandidateRow; score: number }[] = [{ row: anchor, score: 1 }];
+  const urls = new Set([anchor.url]);
+  for (const item of neighbors) {
+    if (urls.has(item.row.url)) continue;
+    urls.add(item.row.url);
+    distinct.push(item);
+    if (distinct.length === limit) break;
+  }
+  return distinct.map(({ row, score }) => toEvidenceCandidate(row, score));
+}
