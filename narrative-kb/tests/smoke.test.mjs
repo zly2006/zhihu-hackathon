@@ -67,3 +67,17 @@ test("SQLite 数据库结构：五张表 + 索引", () => {
   assert.ok(count > 0, "fragment 应有数据");
   db.close();
 });
+
+test("契约函数：narrativeSearch / narrativeScene 对齐执行说明书 §11 输出", async () => {
+  const dbPath = join(root, "data", "narrative-kb.sqlite");
+  if (!existsSync(dbPath)) return; // 未入库时跳过
+  const { narrativeSearch, narrativeScene } = await import("../pipeline/contract.mjs");
+  const search = narrativeSearch({ event: "创业失败" });
+  assert.ok(search.scene_pattern.length > 0, "scene_pattern 应有数据");
+  assert.ok(Array.isArray(search.choice_pattern), "choice_pattern 应为数组");
+  assert.ok(search.emotion_curve && search.emotion_curve.curve, "emotion_curve 应有 curve");
+  const scene = narrativeScene({ event: "城市选择", relationship: "恋人" });
+  assert.ok("scene_structure" in scene, "scene 应含 scene_structure");
+  assert.ok("dialogue_style" in scene, "scene 应含 dialogue_style");
+  assert.ok(Array.isArray(scene.choices), "scene.choices 应为数组");
+});

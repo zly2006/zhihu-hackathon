@@ -56,9 +56,9 @@ function main() {
       console.log(`SKIP ${page.title}：文本过短 ${text.length}`);
       continue;
     }
-    // 长文按 5000 字切段
+    // 长文按 2000 字切段（与 extract 的 MAX_CHAPTER_CHARS 对齐）
     const segments = [];
-    for (let i = 0; i < text.length; i += 5000) segments.push(text.slice(i, i + 5000));
+    for (let i = 0; i < text.length; i += 2000) segments.push(text.slice(i, i + 2000));
     segments.forEach((segment, index) => {
       const key = `${page.sourceId}#${index}`;
       if (existingKeys.has(key)) return;

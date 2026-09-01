@@ -28,7 +28,20 @@ node narrative-kb/pipeline/embed.mjs
 node narrative-kb/pipeline/ingest.mjs
 node narrative-kb/pipeline/search.mjs "创业失败"
 node narrative-kb/pipeline/search.mjs "毕业选择" --conflictType 价值观冲突   # 见 search.mjs 参数
+
+# 服务契约（对齐《执行说明书》§11 两个端点；阶段 3 游戏侧 query adapter 按此接入）
+node narrative-kb/pipeline/contract.mjs search "创业失败"     # → {scene_pattern, choice_pattern, emotion_curve}
+node narrative-kb/pipeline/contract.mjs scene "城市选择"       # → {scene_structure, dialogue_style, choices}
 ```
+
+## 服务契约（执行说明书 §11）
+
+| 端点契约 | 输入 | 输出 | 本仓库实现 |
+|---|---|---|---|
+| `POST /api/narrative/search` | `{event, stage}` | `{scene_pattern, choice_pattern, emotion_curve}` | `pipeline/contract.mjs#narrativeSearch`（词法向量召回 + 结构化聚合） |
+| `POST /api/narrative/scene` | `{event, characters, relationship}` | `{scene_structure, dialogue_style, choices}` | `pipeline/contract.mjs#narrativeScene` |
+
+> v0 为数据侧契约封装；游戏侧接入（阶段 3）以 query adapter 复用，narrative-kb 独立 FastAPI 服务化为后续演进。
 
 ## 数据源与权利（v0）
 
