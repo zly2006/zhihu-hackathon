@@ -12,8 +12,34 @@ assets:
   - id: urban-background
     kind: scene-background
     path: docs/ui-prototypes/galgame-style-lab/assets/urban-background.png
+    scene_id: urban-home-apartment-night-v1
+    family: home
     theme: urban
-    approved: false
+    approved: true
+  - id: urban-home-apartment-day-v1
+    kind: scene-background
+    path: docs/ui-prototypes/galgame-style-lab/assets/urban-home-apartment-day-v1.png
+    scene_id: urban-home-apartment-day-v1
+    family: home
+    theme: urban
+    generated_by: built-in-imagegen
+    approved: true
+  - id: urban-work-office-day-v1
+    kind: scene-background
+    path: docs/ui-prototypes/galgame-style-lab/assets/urban-work-office-day-v1.png
+    scene_id: urban-work-office-day-v1
+    family: work
+    theme: urban
+    generated_by: built-in-imagegen
+    approved: true
+  - id: urban-public-cafe-rain-v1
+    kind: scene-background
+    path: docs/ui-prototypes/galgame-style-lab/assets/urban-public-cafe-rain-v1.png
+    scene_id: urban-public-cafe-rain-v1
+    family: public
+    theme: urban
+    generated_by: built-in-imagegen
+    approved: true
   - id: urban-linyu
     kind: character-portrait
     path: docs/ui-prototypes/galgame-style-lab/assets/urban-linyu.png

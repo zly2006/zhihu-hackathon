@@ -1,0 +1,66 @@
+{
+  "version": 1,
+  "corpus": "restart-life-scene-batch-01",
+  "scenes": [
+    {
+      "id": "urban-home-apartment-night-v1",
+      "familyId": "home",
+      "label": "都市公寓 · 夜",
+      "assetPath": "docs/ui-prototypes/galgame-style-lab/assets/urban-background.png",
+      "timeOfDay": "night",
+      "weather": "clear",
+      "eraMin": 2015,
+      "eraMax": 2035,
+      "narrativeTags": ["relationship-talk", "private-decision", "moving", "financial-pressure", "quiet-night"],
+      "backgroundPositionDesktop": "center center",
+      "backgroundPositionMobile": "44% center",
+      "portraitLight": "cool-left + warm-right-rim",
+      "status": "existing"
+    },
+    {
+      "id": "urban-home-apartment-day-v1",
+      "familyId": "home",
+      "label": "都市公寓 · 日",
+      "assetPath": "docs/ui-prototypes/galgame-style-lab/assets/urban-home-apartment-day-v1.png",
+      "timeOfDay": "day",
+      "weather": "cloudy",
+      "eraMin": 2015,
+      "eraMax": 2035,
+      "narrativeTags": ["daily-life", "family-visit", "remote-work", "packing", "recovery", "weekend"],
+      "backgroundPositionDesktop": "center center",
+      "backgroundPositionMobile": "44% center",
+      "portraitLight": "soft-left-daylight",
+      "status": "generated"
+    },
+    {
+      "id": "urban-work-office-day-v1",
+      "familyId": "work",
+      "label": "现代办公室 · 日",
+      "assetPath": "docs/ui-prototypes/galgame-style-lab/assets/urban-work-office-day-v1.png",
+      "timeOfDay": "day",
+      "weather": "clear",
+      "eraMin": 2015,
+      "eraMax": 2035,
+      "narrativeTags": ["interview", "career-choice", "team-conflict", "promotion", "layoff", "overtime", "training"],
+      "backgroundPositionDesktop": "center center",
+      "backgroundPositionMobile": "48% center",
+      "portraitLight": "soft-left-daylight + top-fill",
+      "status": "generated"
+    },
+    {
+      "id": "urban-public-cafe-rain-v1",
+      "familyId": "public",
+      "label": "临窗咖啡馆 · 雨夜",
+      "assetPath": "docs/ui-prototypes/galgame-style-lab/assets/urban-public-cafe-rain-v1.png",
+      "timeOfDay": "evening",
+      "weather": "rain",
+      "eraMin": 2015,
+      "eraMax": 2035,
+      "narrativeTags": ["date", "reunion", "confession", "breakup", "friend-talk", "waiting", "chance-encounter"],
+      "backgroundPositionDesktop": "center center",
+      "backgroundPositionMobile": "46% center",
+      "portraitLight": "cool-left-window + warm-right-key",
+      "status": "generated"
+    }
+  ]
+}

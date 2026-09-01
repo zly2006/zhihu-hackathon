@@ -214,11 +214,15 @@
 </head>
 <body data-device="desktop">
   <div class="lab-strip">
-    <div><strong>已选方案 1 · 四边面板结构预览</strong><small>当前只验证布局与对白选项；场景库确认后再生成。</small></div>
+    <div><strong>已选方案 1 · 四边面板结构预览</strong><small>场景库已确认（3 族 4 张），可切换背景预览。</small></div>
     <div class="lab-actions">
       <button class="lab-button" data-action="device" data-value="desktop" data-device="desktop" aria-pressed="true">桌面</button>
       <button class="lab-button" data-action="device" data-value="mobile" data-device="mobile" aria-pressed="false">手机</button>
       <button class="lab-button" data-action="immersive" aria-pressed="false">◫ 沉浸模式</button>
+      <button class="lab-button" data-action="scene" data-scene="urban-home-apartment-night-v1" aria-pressed="true">公寓·夜</button>
+      <button class="lab-button" data-action="scene" data-scene="urban-home-apartment-day-v1" aria-pressed="false">公寓·日</button>
+      <button class="lab-button" data-action="scene" data-scene="urban-work-office-day-v1" aria-pressed="false">办公室·日</button>
+      <button class="lab-button" data-action="scene" data-scene="urban-public-cafe-rain-v1" aria-pressed="false">咖啡馆·雨夜</button>
     </div>
   </div>
 
@@ -246,7 +250,7 @@
       </aside>
 
       <section class="scene-stage" aria-label="深圳出租屋对话场景">
-        <div class="scene-meta"><i></i>2029.08 · 深圳 · 出租屋 · 夜</div>
+        <div class="scene-meta"><i></i><span class="scene-meta-text">2029.08 · 深圳 · 出租屋 · 夜</span></div>
         <div class="character" role="img" aria-label="林雨，30 岁，神情担忧"></div>
         <div class="dialogue-box">
           <span class="speaker-name">林雨</span>
@@ -308,9 +312,35 @@
       toggle.setAttribute("aria-label",(collapsed?"展开":"收起")+(panel==="timeline"?"时间线":"角色状态")+"面板");
     };
     if(shell.clientWidth<900)setPanelCollapsed("timeline",true);
+    let currentSceneId="urban-home-apartment-night-v1";
+    const sceneStage=document.querySelector(".scene-stage"),sceneMeta=document.querySelector(".scene-meta-text");
+    const sceneDefaults={
+      "urban-home-apartment-night-v1":{asset:"urban-background.png",desktop:"center center",mobile:"44% center",label:"2029.08 · 深圳 · 出租屋 · 夜",aria:"深圳出租屋对话场景"},
+      "urban-home-apartment-day-v1":{asset:"urban-home-apartment-day-v1.png",desktop:"center center",mobile:"44% center",label:"2029.09 · 深圳 · 出租屋 · 日",aria:"深圳出租屋白天场景"},
+      "urban-work-office-day-v1":{asset:"urban-work-office-day-v1.png",desktop:"center center",mobile:"48% center",label:"2029.10 · 深圳 · 公司办公室 · 日",aria:"深圳公司办公室场景"},
+      "urban-public-cafe-rain-v1":{asset:"urban-public-cafe-rain-v1.png",desktop:"center center",mobile:"46% center",label:"2029.11 · 深圳 · 咖啡馆 · 雨夜",aria:"临窗咖啡馆雨夜场景"}
+    };
+    let sceneCatalog=null;
+    fetch("scene-catalog.json").then(r=>r.ok?r.json():null).then(data=>{if(data&&Array.isArray(data.scenes))sceneCatalog=data}).catch(()=>{});
+    const applyScene=(id)=>{
+      const entry=sceneCatalog&&sceneCatalog.scenes.find(s=>s.id===id)||null;
+      const def=sceneDefaults[id]||sceneDefaults["urban-home-apartment-night-v1"];
+      const asset=entry?entry.assetPath.split("/").pop():def.asset;
+      const pos=(body.dataset.device==="mobile")
+        ?(entry?entry.backgroundPositionMobile:def.mobile)
+        :(entry?entry.backgroundPositionDesktop:def.desktop);
+      currentSceneId=id;
+      sceneStage.style.backgroundImage=`url("assets/${asset}")`;
+      sceneStage.style.backgroundPosition=pos;
+      sceneStage.setAttribute("aria-label",def.aria);
+      if(sceneMeta)sceneMeta.textContent=def.label;
+      document.querySelectorAll('[data-action="scene"]').forEach(item=>item.setAttribute("aria-pressed",String(item.dataset.scene===id)));
+    };
+    document.querySelectorAll('[data-action="scene"]').forEach(button=>button.addEventListener("click",()=>applyScene(button.dataset.scene)));
     document.querySelectorAll('[data-action="device"]').forEach(button=>button.addEventListener("click",()=>{
       body.dataset.device=button.dataset.value;
       document.querySelectorAll('[data-action="device"]').forEach(item=>item.setAttribute("aria-pressed",String(item===button)));
+      applyScene(currentSceneId);
     }));
     document.querySelector('[data-action="immersive"]').addEventListener("click",event=>{
       const active=!shell.classList.contains("immersive");
