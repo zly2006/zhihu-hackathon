@@ -35,21 +35,28 @@ function resourceScarcityPenalty(cash: number, health: number): number {
   return penalty;
 }
 
+// 天赋保护（V1.3 归一化）：Talents 现为 0-100 尺度。
+// 旧 mechanics 按 1-7 量表取值（max ≈ 12.95），为保持保护强度等价，
+// 将加权和除以 100 后再乘 TALENT_PROTECTION_SCALE（8 → max ≈ 14.8，与旧量级一致）。
+// 全 0 → 0；平均 50 → ≈7.4；全 100 → ≈14.8。
+export const TALENT_PROTECTION_SCALE = 8 as const;
+
+function talentProtection(talents: { insight: number; luck: number; grit: number }): number {
+  const weighted = talents.insight * 0.8 + talents.luck * 0.7 + talents.grit * 0.35;
+  return (weighted / 100) * TALENT_PROTECTION_SCALE;
+}
+
 export function computeEffectiveRisk(input: EffectiveRiskInput): number {
   const { protagonist } = input;
   const stats = protagonist.state.stats;
   const fitAdjustment = input.stateFit === "顺势" ? -6 : input.stateFit === "吃力" ? 8 : 0;
-  const talentProtection =
-    protagonist.core.talents.insight * 0.8 +
-    protagonist.core.talents.luck * 0.7 +
-    protagonist.core.talents.grit * 0.35;
   const scarcity = resourceScarcityPenalty(stats.cash, stats.health);
   const raw =
     input.estimatedRisk +
     scarcity +
     fitAdjustment +
     (input.eraRiskAdjustment ?? 0) -
-    talentProtection;
+    talentProtection(protagonist.core.talents);
   return Math.round(clamp(raw, 3, 95));
 }
 

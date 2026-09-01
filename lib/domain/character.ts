@@ -4,6 +4,7 @@
 
 import type { ChapterId, MemoryId, Talents } from "./shared";
 import type { LifeStats } from "./shared";
+import type { CharacterVisual } from "./visual";
 
 export type CharacterHook = {
   id: string;
@@ -59,6 +60,9 @@ export type Character = {
     hiddenConcerns: string[];
     privateBeliefs: string[];
   };
+
+  // 视觉身份（V1.3 展示层，可选；不进入世界模拟语义）
+  visual?: CharacterVisual;
 
   memoryIds: MemoryId[];
 

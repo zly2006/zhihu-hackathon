@@ -6,6 +6,7 @@ import type { Character } from "../domain/character";
 import type { Relationship, RelationshipType, RelationshipScores } from "../domain/relationship";
 import type { WorldState } from "../domain/world";
 import type { GameSave } from "../domain/chapter";
+import type { VisualIdentity } from "../domain/visual";
 import { clampLifeStats, clampTalents, type LifeStats, type Talents } from "../domain/shared";
 
 export type ProtagonistDraft = {
@@ -21,6 +22,7 @@ export type ProtagonistDraft = {
   longTermGoal: string;
   initialDilemma: string;
   talents: Talents;
+  visualIdentity?: VisualIdentity; // V1.3 可选：头像视觉身份，只影响展示
 };
 
 export type NpcDraft = {
@@ -111,6 +113,14 @@ export function createProtagonist(draft: ProtagonistDraft, now = new Date().toIS
       attitudes: {},
     },
     privateState: undefined,
+    visual: draft.visualIdentity
+      ? {
+          avatarId: draft.visualIdentity.avatarId,
+          avatarLabel: draft.visualIdentity.avatarLabel,
+          avatarUrl: draft.visualIdentity.avatarUrl,
+          fullPortrait: draft.visualIdentity.fullPortrait,
+        }
+      : undefined,
     memoryIds: [],
     createdAt: now,
     updatedAt: now,

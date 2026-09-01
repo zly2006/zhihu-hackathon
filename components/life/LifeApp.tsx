@@ -15,12 +15,16 @@ import type { WorldSimulationOutput } from "@/lib/domain/simulation";
 import type { EvidenceBundle, LifeExperience } from "@/lib/domain/experience";
 import type { NpcDraft, ProtagonistDraft } from "@/lib/game/character-factory";
 import { parseGameSave } from "@/lib/game/save";
+import { buildLifePresentation } from "@/lib/game/presentation";
+import { findScene, DEFAULT_SCENE_ID } from "@/lib/game/scene-catalog";
 import { ProtagonistSetup } from "./ProtagonistSetup";
 import { NpcSetup } from "./NpcSetup";
-import { CharacterPanel, RelationshipPanel } from "./CharacterPanel";
-import { DecisionPanel, type ChapterSelection } from "./DecisionPanel";
-import { TimelinePanel } from "./TimelinePanel";
 import { ChapterSummary } from "./ChapterSummary";
+import { LifeShell } from "@/components/life-vn/LifeShell";
+import { SceneStage } from "@/components/life-vn/SceneStage";
+import { DialogueBox } from "@/components/life-vn/DialogueBox";
+import { PlayerHud } from "@/components/life-vn/PlayerHud";
+import { RelationshipHud } from "@/components/life-vn/RelationshipHud";
 
 const SAVE_KEY = "restart-life-save-v1";
 
@@ -80,23 +84,6 @@ async function readSseComplete<T>(response: Response, onProgress: (message: stri
   throw new Error("响应未完成");
 }
 
-const pageStyle: React.CSSProperties = {
-  minHeight: "100vh",
-  background: "#f9fafb",
-  padding: "40px 20px",
-  fontFamily: "system-ui, -apple-system, 'Segoe UI', sans-serif",
-  color: "#111827",
-};
-
-const cardStyle: React.CSSProperties = {
-  maxWidth: 860,
-  margin: "0 auto",
-  background: "#ffffff",
-  border: "1px solid #e5e7eb",
-  borderRadius: 16,
-  padding: 28,
-};
-
 function persist(save: GameSave) {
   window.localStorage.setItem(SAVE_KEY, JSON.stringify(save));
 }
@@ -113,17 +100,62 @@ export function LifeApp() {
   const [span, setSpan] = useState<ChapterSpan>(1);
   const [choice, setChoice] = useState<ChapterChoice | null>(null);
   const [choiceProgress, setChoiceProgress] = useState("");
-  const [selection, setSelection] = useState<ChapterSelection | null>(null);
+  const [selection, setSelection] = useState<{ optionId: "A" | "B" | "C" | "CUSTOM"; customAction?: string } | null>(null);
   const [simulating, setSimulating] = useState(false);
   const [simProgress, setSimProgress] = useState("");
   const [simResult, setSimResult] = useState<SimulateResult | null>(null);
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [preWorld, setPreWorld] = useState<WorldState | null>(null);
   const [novelLoading, setNovelLoading] = useState(false);
+  const [customOpen, setCustomOpen] = useState(false);
+  const [customText, setCustomText] = useState("");
 
   useEffect(() => {
     setHasSave(Boolean(window.localStorage.getItem(SAVE_KEY)));
   }, []);
+
+  // 测试可观测接口：只暴露玩家可见信息，绝不输出 NPC privateState。
+  useEffect(() => {
+    const world = save?.worldState;
+    const hero = world ? world.characters[world.protagonistId] : null;
+    (window as unknown as Record<string, unknown>).render_game_to_text = () =>
+      JSON.stringify({
+        screen,
+        year: world?.currentYear,
+        chapterIndex: world?.chapterIds.length ?? 0,
+        protagonist: hero
+          ? {
+              name: hero.identity.name,
+              age: hero.state.age,
+              occupation: hero.state.occupation,
+              stats: hero.state.stats,
+              goals: hero.state.currentGoals,
+            }
+          : null,
+        visibleNpcs: world
+          ? Object.values(world.characters)
+              .filter((item) => item.role === "npc")
+              .map((item) => ({ name: item.identity.name, occupation: item.state.occupation }))
+          : [],
+        visibleRelationships: world
+          ? Object.values(world.relationships).map((rel) => ({
+              type: rel.type,
+              closeness: rel.scores.closeness,
+              conflict: rel.scores.conflict,
+            }))
+          : [],
+        activeDecision: choice
+          ? {
+              promptTitle: choice.promptTitle,
+              options: choice.options.map((option) => option.label),
+              selectedOptionId: selection?.optionId ?? null,
+            }
+          : null,
+        activeScene: chapter ? { index: chapter.index, title: chapter.novel.title } : null,
+        loading,
+        error,
+      });
+  }, [screen, save, choice, selection, loading, error, chapter]);
 
   const handleGenerateNpcs = useCallback(async (draft: ProtagonistDraft) => {
     setLoading(true);
@@ -200,6 +232,8 @@ export function LifeApp() {
       setSelection(null);
       setSimResult(null);
       setChapter(null);
+      setCustomOpen(false);
+      setCustomText("");
       setScreen("decision");
     } catch (err) {
       setError(err instanceof Error ? err.message : "选择生成失败");
@@ -209,7 +243,7 @@ export function LifeApp() {
   }, [save, span]);
 
   const handleSelect = useCallback(
-    async (next: ChapterSelection) => {
+    async (next: { optionId: "A" | "B" | "C" | "CUSTOM"; customAction?: string }) => {
       if (!save || !choice) return;
       setSelection(next);
       setSimulating(true);
@@ -311,47 +345,46 @@ export function LifeApp() {
     setSimResult(null);
     setChapter(null);
     setPreWorld(null);
+    setCustomOpen(false);
+    setCustomText("");
     setScreen("chapter_start");
   }, []);
 
+  // ---------- 各屏幕 ----------
   if (screen === "landing") {
     return (
-      <div style={pageStyle}>
-        <div style={{ ...cardStyle, textAlign: "center" }}>
-          <h1 style={{ fontSize: 26, margin: "0 0 8px" }}>知乎 · 互动人生小说</h1>
-          <p style={{ color: "#6b7280", margin: "0 0 24px", fontSize: 15 }}>
+      <div className="life-vn" style={{ display: "grid", placeItems: "center", minHeight: "100vh", padding: 24 }}>
+        <div className="life-vn-card" style={{ maxWidth: 520, width: "100%", textAlign: "center", padding: 40 }}>
+          <h1 className="life-vn-title" style={{ fontSize: 30 }}>
+            知乎 · 互动人生小说
+          </h1>
+          <p className="life-vn-sub">
             以知乎真实人生经历为现实底座，由大模型推演你的长期人生与关系。
           </p>
           <div style={{ display: "grid", gap: 12, maxWidth: 320, margin: "0 auto" }}>
-            <button onClick={() => setScreen("setup")} style={primaryButton}>
+            <button type="button" className="life-vn-btn" onClick={() => setScreen("setup")}>
               开始新人生
             </button>
             {hasSave && (
-              <button onClick={handleContinue} style={secondaryButton}>
+              <button type="button" className="life-vn-btn ghost" onClick={handleContinue}>
                 继续上一次人生
               </button>
             )}
           </div>
-          {error && <div style={{ color: "#dc2626", marginTop: 16, fontSize: 14 }}>{error}</div>}
+          {error && <div className="life-vn-error" style={{ marginTop: 16 }}>{error}</div>}
         </div>
       </div>
     );
   }
 
   if (screen === "setup") {
-    return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
-          <ProtagonistSetup onSubmit={handleGenerateNpcs} loading={loading} error={error} />
-        </div>
-      </div>
-    );
+    return <ProtagonistSetup onSubmit={handleGenerateNpcs} loading={loading} error={error} />;
   }
 
   if (screen === "npc_setup") {
     return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
+      <div className="life-vn" style={{ padding: "32px 20px 48px" }}>
+        <div className="life-vn-card" style={{ maxWidth: 860, margin: "0 auto" }}>
           <NpcSetup
             npcs={npcs}
             protagonistName={protagonist?.identity.name ?? "主角"}
@@ -364,26 +397,116 @@ export function LifeApp() {
     );
   }
 
-  if (screen === "decision" && choice) {
+  const world = save?.worldState;
+  const presentation = world
+    ? buildLifePresentation({ world, chapter, chapterEvents: simResult?.simulation.events })
+    : null;
+  const hero = world ? world.characters[world.protagonistId] : null;
+  const pastChapters = save ? Object.values(save.chapters).sort((a, b) => a.index - b.index) : [];
+
+  if (screen === "decision" && choice && presentation && world) {
+    const sceneDef = findScene(DEFAULT_SCENE_ID) as NonNullable<ReturnType<typeof findScene>>;
+    const options = choice.options.map((option) => ({ id: option.id, label: option.label }));
+    const feedback = selection
+      ? ""
+      : "选择将影响这一年的走向——你决定行动，系统决定后果。";
     return (
-      <div style={pageStyle}>
-        <div style={cardStyle}>
-          {!selection && <DecisionPanel choice={choice} onSelect={handleSelect} />}
-          {selection && simulating && (
-            <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>{simProgress}</div>
-          )}
-          {selection && !simulating && novelLoading && (
-            <div style={{ textAlign: "center", padding: 40, color: "#6b7280" }}>正在把本章写成小说…</div>
-          )}
-          {selection && !simulating && !simResult && error && (
-            <div style={{ color: "#dc2626", fontSize: 14, marginTop: 12 }}>{error}</div>
-          )}
-        </div>
-      </div>
+      <LifeShell
+        chapterLabel={`Chapter ${String(presentation.chapter.index + 1).padStart(2, "0")}`}
+        title={choice.promptTitle}
+        yearRange={presentation.chapter.yearRange}
+        left={
+          <div className="life-vn-timeline">
+            {pastChapters.map((past) => (
+              <div className="life-vn-tl-entry" key={past.id}>
+                <small>
+                  第 {String(past.index + 1).padStart(2, "0")} 章 · {past.startYear}—{past.endYear}
+                </small>
+                <h3>{past.novel.title}</h3>
+              </div>
+            ))}
+            <div className="life-vn-tl-entry active">
+              <small>本章 · 抉择</small>
+              <h3>{choice.promptTitle}</h3>
+            </div>
+          </div>
+        }
+        right={
+          <>
+            <PlayerHud
+              presentation={presentation.protagonist}
+              goals={hero?.state.currentGoals ?? []}
+              dilemmas={hero?.state.currentDilemmas ?? []}
+            />
+            <RelationshipHud relationships={presentation.relationships} />
+          </>
+        }
+        center={
+          <SceneStage
+            scene={sceneDef}
+            meta={`${world.currentYear} 年 · ${hero?.state.city || "未知"} · 夜`}
+            portraitUrl={presentation.protagonist.avatarUrl}
+            children={
+              <DialogueBox
+                copy={choice.context}
+                options={selection ? undefined : options}
+                selectedOptionId={selection?.optionId ?? null}
+                feedback={feedback}
+                onSelect={(id) => handleSelect({ optionId: id })}
+                children={
+                  selection ? (
+                    simulating ? (
+                      <div className="life-vn-feedback">{simProgress}</div>
+                    ) : novelLoading ? (
+                      <div className="life-vn-feedback">正在把本章写成小说…</div>
+                    ) : error ? (
+                      <div className="life-vn-error">{error}</div>
+                    ) : null
+                  ) : customOpen ? (
+                    <div style={{ display: "grid", gap: 8, paddingTop: 10 }}>
+                      <textarea
+                        value={customText}
+                        onChange={(e) => setCustomText(e.target.value)}
+                        placeholder="描述你自定义的行动…"
+                        rows={2}
+                        style={{
+                          width: "100%",
+                          padding: 9,
+                          borderRadius: 8,
+                          border: "1px solid var(--lv-gold-line)",
+                          fontSize: 13,
+                          background: "rgba(255,252,244,.9)",
+                        }}
+                      />
+                      <button
+                        type="button"
+                        className="life-vn-btn"
+                        onClick={() => {
+                          if (customText.trim()) {
+                            handleSelect({ optionId: "CUSTOM", customAction: customText.trim() });
+                          }
+                        }}
+                      >
+                        确认自定义行动
+                      </button>
+                    </div>
+                  ) : (
+                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                      <button type="button" className="life-vn-btn ghost" onClick={() => setCustomOpen(true)}>
+                        ✎ 自定义行动
+                      </button>
+                    </div>
+                  )
+                }
+              />
+            }
+          />
+        }
+      />
     );
   }
 
-  if (screen === "chapter_summary" && chapter && simResult) {
+  if (screen === "chapter_summary" && chapter && simResult && presentation && world) {
     const events = chapter.simulationEventIds
       .map((id) => save?.events[id])
       .filter((event): event is NonNullable<typeof event> => Boolean(event));
@@ -391,76 +514,105 @@ export function LifeApp() {
       .map((id) => save?.experienceCache[id])
       .filter((e): e is LifeExperience => Boolean(e));
     return (
-      <div style={pageStyle}>
-        <div style={{ ...cardStyle, maxWidth: 860 }}>
-          <ChapterSummary
-            chapter={chapter}
-            events={events}
-            resolution={simResult.resolution}
-            evidence={evidence}
-            evidenceTotal={simResult.evidenceBundle.total}
-            onRegenerate={handleRegenerateNovel}
-            onNextChapter={handleNextChapter}
-            regenerating={novelLoading}
-          />
-          {error && <div style={{ color: "#dc2626", marginTop: 12, fontSize: 14 }}>{error}</div>}
-        </div>
-      </div>
+      <ChapterSummary
+        chapter={chapter}
+        events={events}
+        resolution={simResult.resolution}
+        evidence={evidence}
+        evidenceTotal={simResult.evidenceBundle.total}
+        onRegenerate={handleRegenerateNovel}
+        onNextChapter={handleNextChapter}
+        regenerating={novelLoading}
+        world={world}
+        pastChapters={pastChapters}
+      />
     );
   }
 
   // chapter_start
-  const world = save?.worldState;
-  const characters = world ? Object.values(world.characters) : [];
-  const relationships = world ? Object.values(world.relationships) : [];
-  const pastChapters = save ? Object.values(save.chapters).sort((a, b) => a.index - b.index) : [];
-  return (
-    <div style={pageStyle}>
-      <div style={{ ...cardStyle, maxWidth: 1000 }}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", marginBottom: 20 }}>
-          <h2 style={{ margin: 0, fontSize: 22 }}>
-            {world && world.chapterIds.length > 0 ? `第 ${world.chapterIds.length + 1} 章` : "第一章"} · 开始
-          </h2>
-          <span style={{ color: "#6b7280", fontSize: 14 }}>
-            {world?.currentYear} 年 · 主角 {protagonist?.identity.name ?? ""}{" "}
-            {world?.characters[world.protagonistId]?.state.age ?? 18} 岁
-          </span>
-        </div>
-        {world && (
-          <div style={{ display: "grid", gap: 24 }}>
-            <CharacterPanel characters={characters} />
-            <RelationshipPanel relationships={relationships} characters={world.characters} />
-            {pastChapters.length > 0 && <TimelinePanel chapters={pastChapters} />}
-            <div style={{ padding: 16, border: "1px solid #e5e7eb", borderRadius: 12 }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 16, justifyContent: "space-between", flexWrap: "wrap" }}>
-                <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                  <span style={{ fontSize: 14, color: "#374151" }}>本章跨度：</span>
-                  {([1, 3] as const).map((value) => (
-                    <button
-                      key={value}
-                      onClick={() => setSpan(value)}
-                      style={{
-                        padding: "6px 16px",
-                        borderRadius: 8,
-                        border: span === value ? "1px solid #2563eb" : "1px solid #d1d5db",
-                        background: span === value ? "#2563eb" : "#fff",
-                        color: span === value ? "#fff" : "#374151",
-                        cursor: "pointer",
-                        fontSize: 14,
-                      }}
-                    >
-                      {value} 年
-                    </button>
-                  ))}
-                </div>
-                <button onClick={handleStartChapter} disabled={loading} style={primaryButton}>
-                  {loading ? choiceProgress || "生成中…" : "开始本章"}
-                </button>
+  if (presentation && world) {
+    const sceneDef = findScene("urban-home-apartment-day-v1") as NonNullable<ReturnType<typeof findScene>>;
+    const chapterNumber = world.chapterIds.length > 0 ? world.chapterIds.length + 1 : 1;
+    return (
+      <LifeShell
+        chapterLabel={`Chapter ${String(chapterNumber).padStart(2, "0")}`}
+        title={world.chapterIds.length > 0 ? `第 ${chapterNumber} 章 · 开始` : "第一章 · 开始"}
+        yearRange={`${world.currentYear} 年起`}
+        left={
+          <div className="life-vn-timeline">
+            {pastChapters.map((past) => (
+              <div className="life-vn-tl-entry" key={past.id}>
+                <small>
+                  第 {String(past.index + 1).padStart(2, "0")} 章 · {past.startYear}—{past.endYear}
+                </small>
+                <h3>{past.novel.title}</h3>
+                <p>{past.summary.keyEvents.slice(0, 2).join("；")}</p>
               </div>
-              {error && <div style={{ color: "#dc2626", marginTop: 12, fontSize: 14 }}>{error}</div>}
+            ))}
+            <div className="life-vn-tl-entry active">
+              <small>本章 · 起点</small>
+              <h3>{world.currentYear} 年</h3>
             </div>
           </div>
-        )}
+        }
+        right={
+          <>
+            <PlayerHud
+              presentation={presentation.protagonist}
+              goals={hero?.state.currentGoals ?? []}
+              dilemmas={hero?.state.currentDilemmas ?? []}
+            />
+            <RelationshipHud relationships={presentation.relationships} />
+          </>
+        }
+        center={
+          <SceneStage
+            scene={sceneDef}
+            meta={`${world.currentYear} 年 · ${hero?.state.city || "未知"} · 日`}
+            portraitUrl={presentation.protagonist.avatarUrl}
+            children={
+              <DialogueBox
+                copy={`${hero?.identity.name ?? "你"}，${hero?.state.age ?? 18} 岁，在${hero?.state.city || "一座城市"}开始了新的人生。选择本章跨度，然后开始这一章。`}
+                children={
+                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                    {([1, 3] as const).map((value) => (
+                      <button
+                        key={value}
+                        type="button"
+                        className="life-vn-btn ghost"
+                        style={span === value ? { borderColor: "var(--lv-gold-strong)", color: "var(--lv-gold-strong)" } : undefined}
+                        onClick={() => setSpan(value)}
+                      >
+                        {value} 年 / 章
+                      </button>
+                    ))}
+                    <button
+                      type="button"
+                      className="life-vn-btn"
+                      onClick={handleStartChapter}
+                      disabled={loading}
+                      style={{ marginLeft: "auto" }}
+                    >
+                      {loading ? choiceProgress || "生成中…" : "开始本章"}
+                    </button>
+                  </div>
+                }
+              />
+            }
+          />
+        }
+      />
+    );
+  }
+
+  // 兜底：存档未就绪
+  return (
+    <div className="life-vn" style={{ display: "grid", placeItems: "center", minHeight: "100vh" }}>
+      <div className="life-vn-card" style={{ textAlign: "center" }}>
+        <p>存档尚未就绪。</p>
+        <button type="button" className="life-vn-btn ghost" onClick={() => setScreen("landing")}>
+          返回首页
+        </button>
       </div>
     </div>
   );
@@ -505,7 +657,7 @@ function allEvidence(bundle: EvidenceBundle): LifeExperience[] {
 
 function assembleChapter(args: {
   choice: ChapterChoice;
-  selection: ChapterSelection;
+  selection: { optionId: "A" | "B" | "C" | "CUSTOM"; customAction?: string };
   span: ChapterSpan;
   worldBefore: WorldState;
   result: SimulateResult;
@@ -559,23 +711,3 @@ function assembleChapter(args: {
     createdAt: new Date().toISOString(),
   };
 }
-
-const primaryButton: React.CSSProperties = {
-  padding: "12px 16px",
-  borderRadius: 10,
-  background: "#2563eb",
-  color: "#fff",
-  border: "none",
-  fontSize: 16,
-  cursor: "pointer",
-};
-
-const secondaryButton: React.CSSProperties = {
-  padding: "12px 16px",
-  borderRadius: 10,
-  background: "#fff",
-  color: "#2563eb",
-  border: "1px solid #2563eb",
-  fontSize: 16,
-  cursor: "pointer",
-};

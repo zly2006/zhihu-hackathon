@@ -1,16 +1,22 @@
 "use client";
 
+import { useMemo, useState } from "react";
 import type { Chapter, DecisionResolution } from "@/lib/domain/chapter";
 import type { SimulationEvent } from "@/lib/domain/simulation";
 import type { LifeExperience } from "@/lib/domain/experience";
-import { NovelReader } from "./NovelReader";
-import { EvidencePanel } from "./EvidencePanel";
+import type { WorldState } from "@/lib/domain/world";
+import { buildLifePresentation } from "@/lib/game/presentation";
+import { pickSceneForNovelScene } from "@/lib/game/scene-catalog";
+import { LifeShell } from "@/components/life-vn/LifeShell";
+import { SceneStage } from "@/components/life-vn/SceneStage";
+import { DialogueBox } from "@/components/life-vn/DialogueBox";
+import { PlayerHud } from "@/components/life-vn/PlayerHud";
+import { RelationshipHud } from "@/components/life-vn/RelationshipHud";
+import { ChapterResult } from "@/components/life-vn/ChapterResult";
 
-const anchorLabel: Record<string, string> = {
-  favorable: "顺遂",
-  mixed: "有得有失",
-  setback: "受挫",
-};
+function pad(value: number): string {
+  return String(value).padStart(2, "0");
+}
 
 export function ChapterSummary({
   chapter,
@@ -21,6 +27,8 @@ export function ChapterSummary({
   onRegenerate,
   onNextChapter,
   regenerating,
+  world,
+  pastChapters,
 }: {
   chapter: Chapter;
   events: SimulationEvent[];
@@ -30,66 +38,121 @@ export function ChapterSummary({
   onRegenerate: () => void;
   onNextChapter: () => void;
   regenerating: boolean;
+  world: WorldState;
+  pastChapters: Chapter[];
 }) {
-  const { summary } = chapter;
-  return (
-    <div style={{ display: "grid", gap: 28 }}>
-      {/* 结果锚点 */}
-      <div style={{ textAlign: "center", fontSize: 14, color: "#6b7280" }}>
-        本章结果：<strong style={{ color: "#111827" }}>{anchorLabel[resolution.outcomeAnchor]}</strong>
-        {" · "}有效风险 {resolution.effectiveRisk}
-        {" · "}参考 {evidenceTotal} 条知乎真实经历
-      </div>
+  const [mode, setMode] = useState<"novel" | "result">("novel");
+  const [sceneIndex, setSceneIndex] = useState(0);
 
-      {/* 小说 */}
-      <section>
-        <NovelReader novel={chapter.novel} onRegenerate={onRegenerate} regenerating={regenerating} />
-      </section>
+  const scenes = chapter.novel.scenes;
+  const scene = scenes[sceneIndex];
+  const sceneDef = pickSceneForNovelScene({
+    timeLabel: scene?.timeLabel,
+    heading: scene?.heading,
+    text: scene?.text,
+  });
 
-      {/* 关键事件时间轴 */}
-      <section>
-        <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>关键事件时间轴</h3>
-        <div style={{ display: "grid", gap: 8 }}>
-          {events.map((event) => (
-            <div key={event.id} style={{ display: "flex", gap: 12, alignItems: "baseline" }}>
-              <span style={{ fontSize: 13, color: "#6b7280", whiteSpace: "nowrap", minWidth: 72 }}>
-                {event.year}
-                {event.month ? `.${String(event.month).padStart(2, "0")}` : ""}
-              </span>
-              <span style={{ fontSize: 14, color: "#111827" }}>
-                <strong>{event.title}</strong>
-                {event.summary ? ` — ${event.summary}` : ""}
-              </span>
-            </div>
-          ))}
+  const presentation = useMemo(
+    () => buildLifePresentation({ world, chapter, chapterEvents: events, sceneIndex }),
+    [world, chapter, events, sceneIndex],
+  );
+
+  const protagonist = world.characters[world.protagonistId];
+  const hudContent = (
+    <>
+      <PlayerHud
+        presentation={presentation.protagonist}
+        goals={protagonist?.state.currentGoals ?? []}
+        dilemmas={protagonist?.state.currentDilemmas ?? []}
+      />
+      <RelationshipHud relationships={presentation.relationships} />
+    </>
+  );
+
+  const timelineContent = (
+    <div className="life-vn-timeline">
+      {pastChapters.map((past) => (
+        <div className="life-vn-tl-entry" key={past.id}>
+          <small>
+            第 {pad(past.index + 1)} 章 · {past.startYear}—{past.endYear}
+          </small>
+          <h3>{past.novel.title}</h3>
+          <p>{past.summary.keyEvents.slice(0, 2).join("；")}</p>
         </div>
-      </section>
-
-      {/* 人物与关系变化 */}
-      {(summary.characterChanges.length > 0 || summary.relationshipChanges.length > 0) && (
-        <section>
-          <h3 style={{ margin: "0 0 12px", fontSize: 16 }}>本章变化</h3>
-          {summary.characterChanges.length > 0 && (
-            <div style={{ fontSize: 14, color: "#374151", marginBottom: 6 }}>
-              人物：{summary.characterChanges.join("；")}
-            </div>
-          )}
-          {summary.relationshipChanges.length > 0 && (
-            <div style={{ fontSize: 14, color: "#374151" }}>
-              关系：{summary.relationshipChanges.join("；")}
-            </div>
-          )}
-        </section>
-      )}
-
-      {/* 知乎现实参照 */}
-      <section>
-        <EvidencePanel experiences={evidence} total={evidenceTotal} />
-      </section>
-
-      <button onClick={onNextChapter} style={{ padding: "12px 16px", borderRadius: 10, background: "#2563eb", color: "#fff", border: "none", fontSize: 16, cursor: "pointer" }}>
-        进入下一章
-      </button>
+      ))}
+      <div className="life-vn-tl-entry active">
+        <small>
+          第 {pad(chapter.index + 1)} 章 · {chapter.startYear}—{chapter.endYear}
+        </small>
+        <h3>{chapter.novel.title}</h3>
+        <p>本章 · 正在结算</p>
+      </div>
     </div>
+  );
+
+  function nextScene() {
+    if (sceneIndex + 1 < scenes.length) {
+      setSceneIndex((index) => index + 1);
+    } else {
+      setMode("result");
+    }
+  }
+
+  const center =
+    mode === "novel" ? (
+      <SceneStage
+        scene={sceneDef}
+        meta={scene?.timeLabel ?? `${chapter.startYear} 年`}
+        portraitUrl={presentation.protagonist.avatarUrl}
+        children={
+          <DialogueBox
+            copy={scene?.text ?? ""}
+            speaker={undefined}
+            onContinue={nextScene}
+            continueLabel={sceneIndex + 1 < scenes.length ? "继续剧情" : "查看本章结算"}
+            children={
+              sceneIndex + 1 < scenes.length ? (
+                <div style={{ marginBottom: 8, display: "flex", gap: 8, alignItems: "center" }}>
+                  <span className="life-vn-pill">
+                    {pad(sceneIndex + 1)}/{pad(scenes.length)} · {sceneDef.label}
+                  </span>
+                  {scene?.heading && <span className="life-vn-pill">{scene.heading}</span>}
+                </div>
+              ) : undefined
+            }
+          />
+        }
+      />
+    ) : (
+      <div style={{ position: "absolute", inset: 0, overflow: "auto", padding: 18 }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
+          <button type="button" className="life-vn-btn ghost" onClick={() => setMode("novel")}>
+            ← 返回阅读本章
+          </button>
+        </div>
+        <ChapterResult
+          events={events}
+          outcomeAnchor={resolution.outcomeAnchor}
+          effectiveRisk={resolution.effectiveRisk}
+          summary={chapter.summary}
+          evidence={evidence}
+          evidenceTotal={evidenceTotal}
+          onRegenerate={onRegenerate}
+          onNextChapter={onNextChapter}
+          regenerating={regenerating}
+        />
+      </div>
+    );
+
+  return (
+    <LifeShell
+      chapterLabel={`Chapter ${pad(chapter.index + 1)}`}
+      title={chapter.novel.title}
+      yearRange={`${chapter.startYear} → ${chapter.endYear}`}
+      left={timelineContent}
+      right={hudContent}
+      center={center}
+      sheet={hudContent}
+    />
   );
 }
