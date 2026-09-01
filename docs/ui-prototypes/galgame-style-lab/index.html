@@ -1,0 +1,346 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Restart Life · 四边面板原型</title>
+  <style>
+    :root{
+      color-scheme:dark;font-family:"Microsoft YaHei UI","PingFang SC",system-ui,sans-serif;
+      --ink:#f5ead7;--muted:#b9ad9b;--gold:#d6a75e;--gold2:#f2d397;
+      --rose:#d88f92;--blue:#7ea9df;--green:#76b990;
+      --panel:rgba(15,14,15,.91);--strong:rgba(12,11,12,.97);
+      --line:rgba(214,167,94,.38);--soft:rgba(235,210,168,.13);
+    }
+    *{box-sizing:border-box}
+    body{margin:0;min-width:320px;min-height:100vh;color:var(--ink);
+      background:radial-gradient(circle at 48% -20%,rgba(80,62,47,.38),transparent 38rem),#080808}
+    button{font:inherit}button:focus-visible{outline:2px solid var(--gold2);outline-offset:2px}
+    .lab-strip{display:flex;align-items:center;justify-content:space-between;gap:14px;
+      max-width:1820px;min-height:54px;margin:auto;padding:8px 18px}
+    .lab-strip strong{color:var(--gold2);font:600 15px "Songti SC","SimSun",serif;letter-spacing:.06em}
+    .lab-strip small{margin-left:9px;color:#8f877c;font-size:11px}
+    .lab-actions{display:flex;gap:7px}.lab-button{min-height:34px;padding:6px 12px;border:1px solid #ffffff1f;
+      border-radius:8px;color:#beb5a7;background:#181616d6;cursor:pointer}
+    .lab-button[aria-pressed="true"]{color:#1c160e;border-color:var(--gold);background:var(--gold2)}
+
+    .prototype-shell{display:grid;grid-template-rows:74px minmax(0,1fr) 72px;
+      width:min(1820px,calc(100vw - 24px));height:min(1010px,calc(100vh - 68px));min-height:600px;
+      margin:0 auto 14px;overflow:hidden;border:1px solid var(--line);border-radius:10px;
+      background:#111;box-shadow:0 34px 90px #000b;container-type:inline-size}
+    .top-command-bar{z-index:20;display:grid;grid-template-columns:minmax(280px,1fr) auto minmax(280px,1fr);
+      gap:18px;align-items:center;padding:0 20px;border-bottom:1px solid var(--line);
+      background:linear-gradient(#121112fa,#0a0a0bfa);box-shadow:0 8px 24px #0005}
+    .brand{display:flex;align-items:center;gap:13px;min-width:0}.brand-mark{display:grid;width:42px;height:42px;
+      place-items:center;border:1px solid var(--line);border-radius:50%;color:var(--gold2);
+      font:24px Georgia,serif;transform:rotate(-8deg)}
+    .brand b{display:block;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+      font:600 clamp(17px,1.5vw,25px) "Songti SC","SimSun",serif;letter-spacing:.06em}
+    .brand small{display:block;margin-top:2px;color:var(--muted);font:9px Georgia,serif;letter-spacing:.42em}
+    .chapter-heading{display:flex;align-items:center;justify-content:center;gap:20px;min-width:420px;
+      font-family:"Songti SC","SimSun",serif}.chapter-title{text-align:center}.chapter-title small{display:block;margin-bottom:2px;
+      color:var(--gold2);font:600 9px/1.1 Inter,Arial,sans-serif;letter-spacing:.24em;text-transform:uppercase}.chapter-heading h1{margin:0;font-size:clamp(18px,1.7vw,27px);
+      font-weight:600;letter-spacing:.12em;white-space:nowrap}.chapter-heading time{color:var(--gold2);
+      font:600 16px Georgia,serif}.ornament{width:52px;height:1px;background:linear-gradient(90deg,transparent,var(--gold),transparent)}
+    .system-actions{display:flex;justify-content:flex-end;height:100%}.system-action{display:grid;min-width:70px;
+      padding:7px 9px;place-items:center;border:0;border-left:1px solid var(--soft);color:var(--muted);
+      background:transparent;cursor:pointer}.system-action:hover{color:var(--gold2);background:#d6a75e0f}
+    .system-action i{display:grid;width:28px;height:28px;margin-bottom:3px;place-items:center;border:1px solid var(--line);
+      border-radius:50%;color:var(--gold);font-size:14px;font-style:normal}.system-action span{font-size:10px}
+    [data-chrome-theme="light"] .top-command-bar{color:#403326;border-color:#b6844e70;
+      background:radial-gradient(circle at 48% -60%,#fffef8,transparent 48%),linear-gradient(145deg,#fbf3e5f5,#ead8bdf5);
+      box-shadow:0 8px 24px #5a3b191f,inset 0 -1px #fff9e7b3}
+    [data-chrome-theme="light"] .brand small,[data-chrome-theme="light"] .chapter-title small,
+    [data-chrome-theme="light"] .chapter-heading time{color:#8a6035}
+    [data-chrome-theme="light"] .brand-mark{border-color:#a6754166;color:#7b5530;background:#fffaf08f}
+    [data-chrome-theme="light"] .system-action{border-color:#a6754130;color:#75685a}
+    [data-chrome-theme="light"] .system-action:hover{color:#6d4828;background:#fff9ec99}
+    [data-chrome-theme="light"] .system-action i{border-color:#a6754166;color:#7b5530;background:#fffaf08f}
+
+    .game-layout{display:grid;width:100%;min-width:0;min-height:0;grid-template-columns:286px minmax(0,1fr) 338px;
+      transition:grid-template-columns .26s ease}
+    .timeline-collapsed .game-layout{grid-template-columns:50px minmax(0,1fr) 338px}
+    .status-collapsed .game-layout{grid-template-columns:286px minmax(0,1fr) 50px}
+    .timeline-collapsed.status-collapsed .game-layout{grid-template-columns:50px minmax(0,1fr) 50px}
+    .side-panel{position:relative;z-index:11;min-width:0;overflow:hidden;
+      background:linear-gradient(#151313e8,#0d0c0df7);backdrop-filter:blur(15px)}
+    .timeline-panel{border-right:1px solid var(--line)}.status-panel{border-left:1px solid var(--line)}
+    [data-panel-theme="light"] .side-panel{color:#403326;border-color:#b6844e70;
+      background:radial-gradient(circle at 20% 0,#fffdf5d9,transparent 42%),linear-gradient(145deg,#f8eedde8,#ead8bdf2);
+      box-shadow:inset 0 0 0 1px #fff9e7a6;backdrop-filter:blur(18px)}
+    [data-panel-theme="light"] .panel-header{border-color:#a6754138;background:#fff8e94d}
+    [data-panel-theme="light"] .panel-header h2,[data-panel-theme="light"] .panel-icon,[data-panel-theme="light"] .collapsed-label{color:#72502f}
+    [data-panel-theme="light"] .panel-toggle{border-color:#a6754166;color:#7b5530;background:#fffaf0b8;box-shadow:0 3px 10px #77501e14}
+    .panel-header{display:flex;align-items:center;gap:10px;min-height:52px;padding:10px 12px;
+      border-bottom:1px solid var(--soft);white-space:nowrap}.panel-header h2{min-width:0;margin:0 auto 0 0;
+      font:600 15px "Songti SC","SimSun",serif;letter-spacing:.1em}.panel-icon{color:var(--gold);font-size:18px}
+    .panel-toggle{display:grid;width:30px;height:30px;flex:0 0 auto;place-items:center;border:1px solid var(--line);
+      border-radius:7px;color:var(--gold2);background:#d6a75e12;cursor:pointer}
+    .panel-content{height:calc(100% - 52px);overflow:auto;opacity:1;transition:opacity .16s ease;
+      scrollbar-color:#d6a75e59 transparent;scrollbar-width:thin}.collapsed-label{position:absolute;top:68px;left:50%;
+      display:none;color:var(--gold);font:12px "Songti SC",serif;letter-spacing:.28em;writing-mode:vertical-rl;
+      transform:translateX(-50%)}
+    .timeline-collapsed .timeline-panel .panel-content,.status-collapsed .status-panel .panel-content{opacity:0;pointer-events:none}
+    .timeline-collapsed .timeline-panel .panel-header h2,.timeline-collapsed .timeline-panel .panel-icon,
+    .status-collapsed .status-panel .panel-header h2,.status-collapsed .status-panel .panel-icon{display:none}
+    .timeline-collapsed .timeline-panel .panel-header,.status-collapsed .status-panel .panel-header{justify-content:center;padding:10px}
+    .timeline-collapsed .timeline-panel .collapsed-label,.status-collapsed .status-panel .collapsed-label{display:block}
+    .timeline-collapsed .timeline-panel .panel-toggle,.status-collapsed .status-panel .panel-toggle{transform:rotate(180deg)}
+
+    .timeline{position:relative;padding:18px 14px 18px 38px}.timeline:before{position:absolute;top:25px;bottom:28px;
+      left:21px;width:1px;background:linear-gradient(var(--gold),#d6a75e1f);content:""}
+    .timeline-entry{position:relative;padding:0 0 22px 12px;color:#75685a}.timeline-entry:before{position:absolute;
+      top:4px;left:-22px;width:9px;height:9px;border:2px solid #342c23;border-radius:50%;background:#d3c5ae;
+      box-shadow:0 0 0 1px var(--gold);content:""}.timeline-entry.active:before{border-radius:2px;background:var(--gold2);
+      box-shadow:0 0 16px var(--gold);transform:rotate(45deg)}.timeline-entry small{display:block;margin-bottom:6px;
+      color:#8a704f;font:10px Georgia,serif}.timeline-entry h3{margin:0 0 5px;color:#403326;
+      font:600 14px "Songti SC",serif}.timeline-entry p{margin:0;font-size:10px;line-height:1.65}
+    .timeline-entry.active h3,.timeline-entry.active small{color:var(--gold2)}
+
+    .scene-stage{position:relative;z-index:1;min-width:0;min-height:0;overflow:hidden;isolation:isolate;
+      background:url("assets/urban-background.png") center/cover no-repeat}.scene-stage:before{position:absolute;z-index:1;inset:0;
+      background:linear-gradient(#06080e05 48%,#070709b8),linear-gradient(90deg,#0a090a2e,transparent 35%,transparent 70%,#0a090a1f);
+      content:"";pointer-events:none}.scene-meta{position:absolute;z-index:5;top:14px;left:16px;display:flex;align-items:center;
+      gap:8px;padding:7px 11px;border:1px solid var(--line);border-radius:6px;color:#d8cab5;background:#100f10b3;
+      backdrop-filter:blur(12px);font-size:10px}.scene-meta i{width:6px;height:6px;border-radius:50%;background:var(--gold);
+      box-shadow:0 0 9px var(--gold)}
+    .character{position:absolute;z-index:2;bottom:-14%;left:45%;width:42%;height:108%;
+      background:url("assets/urban-linyu.png") center bottom/contain no-repeat;filter:drop-shadow(0 24px 28px #0007);
+      transform:translateX(-50%);animation:character-in .6s ease both}
+    .dialogue-box{position:absolute;z-index:7;right:clamp(14px,4%,60px);bottom:22px;left:clamp(14px,4%,60px);
+      padding:27px 28px 18px;border:1px solid #d6a75e94;border-radius:14px;color:#33281e;
+      background:linear-gradient(105deg,#faefdbf5,#f1e1c6ee);box-shadow:0 22px 46px #0007,inset 0 0 0 3px #fff3;
+      backdrop-filter:blur(12px);animation:dialogue-in .42s .1s ease both}.dialogue-box:before,.dialogue-box:after{
+      position:absolute;width:12px;height:12px;border:1px solid #bb8641;content:"";transform:rotate(45deg)}
+    .dialogue-box:before{top:7px;left:8px;border-right:0;border-bottom:0}.dialogue-box:after{right:8px;bottom:7px;border-top:0;border-left:0}
+    .speaker-name{position:absolute;top:-18px;left:24px;min-width:116px;padding:8px 20px;border:1px solid #e8b97eb8;
+      border-radius:9px 9px 4px 4px;color:#fff0db;background:linear-gradient(#9f5a56,#76403f);box-shadow:0 8px 18px #441f1e47;
+      font:17px "Songti SC",serif;letter-spacing:.2em;text-align:center}.dialogue-copy{margin:2px 0 14px;
+      font:clamp(17px,1.45cqw,22px)/1.75 "Songti SC","SimSun",serif;letter-spacing:.04em}.dialogue-tools{position:absolute;
+      top:8px;right:18px;display:flex;gap:7px}.dialogue-tool{border:0;color:#9b7447;background:transparent;cursor:pointer;font-size:11px}
+    .choice-list{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;padding-top:12px;border-top:1px solid #74502a2e}
+    .choice{display:grid;grid-template-columns:24px 1fr;gap:7px;align-items:center;min-height:52px;padding:8px 10px;
+      border:1px solid #734e2738;border-radius:8px;color:#493729;background:#fffbe88c;cursor:pointer;text-align:left;
+      transition:transform .16s,border-color .16s,background .16s}.choice:hover,.choice[aria-pressed="true"]{
+      border-color:#b9803e;background:#fff7e6f2;box-shadow:0 6px 18px #734c2521;transform:translateY(-2px)}
+    .choice-key{display:grid;width:22px;height:22px;place-items:center;border:1px solid #b98951;border-radius:50%;
+      color:#8a5b2f;font:700 10px Georgia,serif}.choice span:last-child{font-size:11px;line-height:1.45}
+    .dialogue-footer{display:flex;align-items:flex-end;justify-content:flex-end;gap:12px;margin-top:10px}.choice-feedback{flex:1;max-height:0;
+      overflow:hidden;color:#805442;font-size:10px;line-height:1.5;opacity:0;transition:max-height .18s,opacity .18s}
+    .choice-feedback.visible{max-height:42px;opacity:1}.dialogue-continue{display:flex;align-items:center;justify-content:center;gap:8px;min-width:138px;
+      min-height:42px;padding:8px 16px;border:1px solid #9c6735;border-radius:8px;color:#fff9eb;background:linear-gradient(135deg,#a76e39,#76502f);
+      box-shadow:0 8px 18px #68442138;cursor:pointer;font:600 13px "Songti SC",serif;letter-spacing:.08em}.dialogue-continue:hover{background:linear-gradient(135deg,#b87d42,#825735)}
+    .dialogue-continue small{font:8px Georgia,serif;letter-spacing:.06em;opacity:.72}
+
+    .status-section{padding:13px 14px;border-bottom:1px solid #a6754130}.status-title{display:flex;align-items:center;
+      justify-content:space-between;margin-bottom:11px;color:var(--gold2);font:12px "Songti SC",serif;letter-spacing:.08em}
+    .detail-button{min-height:25px;padding:4px 9px;border:1px solid var(--line);border-radius:6px;color:var(--gold2);
+      background:#d6a75e14;cursor:pointer;font-size:9px}.identity-card{display:grid;grid-template-columns:62px 1fr;gap:12px}
+    .identity-avatar{display:grid;width:62px;height:72px;place-items:center;border:1px solid var(--line);border-radius:7px;
+      color:var(--gold);background:radial-gradient(circle at 50% 32%,#d6a75e2e,transparent 30%),#211e1d;
+      font:22px "Songti SC",serif}.identity-info h3{margin:1px 0 7px;font:600 18px "Songti SC",serif}
+    .identity-info p{margin:0 0 4px;color:var(--muted);font-size:10px}.level-line{display:grid;grid-template-columns:auto 1fr;
+      gap:7px;align-items:center;margin-top:7px;color:var(--gold2);font:700 10px Georgia,serif}
+    .bar{height:6px;overflow:hidden;border:1px solid #ffffff17;border-radius:2px;background:#292627}.bar i{display:block;
+      width:var(--value);height:100%;background:var(--bar-color,var(--gold));box-shadow:0 0 9px color-mix(in srgb,var(--bar-color,var(--gold)) 36%,transparent)}
+    .stat-list{display:grid;gap:9px}.stat-row{display:grid;grid-template-columns:46px 1fr 48px;gap:8px;align-items:center;
+      color:var(--muted);font-size:10px}.stat-row b{color:#ded4c5;font:400 10px Georgia,serif;text-align:right}
+    .relation-list{display:grid;gap:8px}.relation{display:grid;grid-template-columns:34px 1fr auto;gap:8px;align-items:center}
+    .relation-avatar{display:grid;width:34px;height:34px;place-items:center;border:1px solid var(--line);border-radius:50%;
+      color:var(--rose);background:#292324;font:14px "Songti SC",serif}.relation-copy b{display:block;font-size:11px}
+    .relation-copy small{color:var(--muted);font-size:8px}.relation-score{color:var(--rose);font:700 13px Georgia,serif}
+    .goal-card{padding:10px 11px;border:1px solid var(--line);border-radius:7px;background:#d6a75e0d}
+    .goal-card b{display:block;margin-bottom:4px;font:12px "Songti SC",serif}.goal-card p{margin:0;color:var(--muted);font-size:9px;line-height:1.55}
+    .avatar-image{overflow:hidden;background-position:center;background-repeat:no-repeat;background-size:cover;box-shadow:0 4px 12px #704a2526}
+    .avatar-zhou{background-image:url("assets/urban-zhou-avatar-v1.png")}.avatar-wanghao{background-image:url("assets/urban-wanghao-avatar-v1.png")}
+    .avatar-linyu{background-image:url("assets/urban-linyu.png");background-position:50% 5%;background-size:230% auto}
+    [data-panel-theme="light"] .status-title{color:#75502d}[data-panel-theme="light"] .detail-button{border-color:#a675415c;color:#75502d;background:#fff9ec8f}
+    [data-panel-theme="light"] .identity-avatar,[data-panel-theme="light"] .relation-avatar{border-color:#a6754166;background-color:#f6e9d5}
+    [data-panel-theme="light"] .identity-info h3,[data-panel-theme="light"] .stat-row b,[data-panel-theme="light"] .relation-copy b,
+    [data-panel-theme="light"] .goal-card b{color:#403326}[data-panel-theme="light"] .identity-info p,[data-panel-theme="light"] .stat-row,
+    [data-panel-theme="light"] .relation-copy small,[data-panel-theme="light"] .goal-card p{color:#75685a}
+    [data-panel-theme="light"] .bar{border-color:#9d794c38;background:#cdbda8a3}[data-panel-theme="light"] .goal-card{border-color:#a6754145;background:#fffaf080}
+
+    .bottom-dock{z-index:20;display:grid;grid-template-columns:repeat(6,minmax(80px,1fr));border-top:1px solid var(--line);
+      background:linear-gradient(#1d1a18fa,#0e0d0efa);box-shadow:0 -8px 24px #0005}.dock-item{display:flex;align-items:center;
+      justify-content:center;gap:9px;min-width:0;border:0;border-right:1px solid var(--soft);color:var(--muted);
+      background:transparent;cursor:pointer}.dock-item:hover,.dock-item.active{color:var(--gold2);
+      background:linear-gradient(#d6a75e1f,#d6a75e08)}.dock-item.primary{color:var(--gold2);border-right:1px solid var(--line);
+      background:linear-gradient(#d6a75e33,#6b462b2b);font:16px "Songti SC",serif}.dock-icon{color:var(--gold);font-size:20px}
+    .dock-copy b{display:block;font:600 13px "Songti SC",serif;white-space:nowrap}.dock-copy small{display:block;margin-top:2px;
+      color:#766d61;font:8px Georgia,serif}.immersive .bottom-dock{grid-template-columns:repeat(6,1fr)}.immersive .dock-copy{display:none}
+    [data-chrome-theme="light"] .bottom-dock{border-color:#b6844e70;
+      background:radial-gradient(circle at 50% 150%,#fffef8,transparent 45%),linear-gradient(145deg,#f8eeddf5,#e6d1b3f5);
+      box-shadow:0 -8px 24px #5a3b191f,inset 0 1px #fff9e7b3}
+    [data-chrome-theme="light"] .dock-item{border-color:#a6754130;color:#75685a}
+    [data-chrome-theme="light"] .dock-item:hover,[data-chrome-theme="light"] .dock-item.active{color:#6d4828;background:linear-gradient(#fffaf0c7,#e9d4b580)}
+    [data-chrome-theme="light"] .dock-icon{color:#8a6035}[data-chrome-theme="light"] .dock-copy small{color:#8b765f}
+
+    @keyframes character-in{from{opacity:0;transform:translateX(-50%) translateY(18px)}}
+    @keyframes dialogue-in{from{opacity:0;transform:translateY(12px)}}
+    body[data-device="mobile"] .prototype-shell{grid-template-rows:62px minmax(0,1fr) 58px;width:min(430px,calc(100vw - 16px));
+      min-height:min(880px,calc(100vh - 64px));border-radius:26px}
+    body[data-device="mobile"] .top-command-bar{grid-template-columns:1fr auto;padding:0 13px}
+    body[data-device="mobile"] .brand-mark,body[data-device="mobile"] .brand small,body[data-device="mobile"] .system-actions,
+    body[data-device="mobile"] .ornament,body[data-device="mobile"] .chapter-heading time{display:none}
+    body[data-device="mobile"] .chapter-heading{min-width:0;justify-content:flex-end}body[data-device="mobile"] .chapter-heading h1{font-size:14px}
+    body[data-device="mobile"] .brand b{font-size:15px}
+    body[data-device="mobile"] .game-layout,body[data-device="mobile"] .timeline-collapsed .game-layout,
+    body[data-device="mobile"] .status-collapsed .game-layout,body[data-device="mobile"] .timeline-collapsed.status-collapsed .game-layout{display:block}
+    body[data-device="mobile"] .side-panel{display:none}body[data-device="mobile"] .scene-stage{height:100%;min-height:700px;background-position:44% center}
+    body[data-device="mobile"] .character{bottom:1%;left:42%;width:72%;height:84%}body[data-device="mobile"] .scene-meta{top:10px;left:10px}
+    body[data-device="mobile"] .dialogue-box{right:9px;bottom:10px;left:9px;padding:25px 14px 13px}
+    body[data-device="mobile"] .dialogue-copy{margin-bottom:9px;font-size:15px;line-height:1.55}
+    body[data-device="mobile"] .choice-list{grid-template-columns:1fr;gap:5px}body[data-device="mobile"] .choice{min-height:42px;padding:6px 8px}
+    body[data-device="mobile"] .bottom-dock,body[data-device="mobile"] .immersive .bottom-dock{grid-template-columns:repeat(5,1fr)}
+    body[data-device="mobile"] .bottom-dock .dock-item:nth-child(n+6),body[data-device="mobile"] .dock-copy small{display:none}
+    body[data-device="mobile"] .dock-item.primary{font-size:0}body[data-device="mobile"] .dock-copy b{font-size:10px}
+    @container(max-width:1180px){.game-layout{grid-template-columns:230px minmax(0,1fr) 290px}
+      .timeline-collapsed .game-layout{grid-template-columns:50px minmax(0,1fr) 290px}
+      .status-collapsed .game-layout{grid-template-columns:230px minmax(0,1fr) 50px}
+      .chapter-heading{min-width:330px}.system-action{min-width:58px}.dialogue-box{right:18px;left:18px}}
+    @container(max-width:900px){.top-command-bar{grid-template-columns:auto minmax(0,1fr) auto;gap:8px;padding:0 10px}
+      .brand b,.brand small,.system-action span,.chapter-heading time,.chapter-heading .ornament{display:none}.brand-mark{width:34px;height:34px}
+      .chapter-heading{min-width:0;gap:7px}.chapter-heading h1{font-size:14px}.chapter-title small{font-size:7px}.system-action{min-width:34px;padding:5px}
+      .timeline-collapsed.status-collapsed .game-layout{grid-template-columns:50px minmax(0,1fr) 50px}
+      .bottom-dock,.immersive .bottom-dock{grid-template-columns:repeat(6,minmax(54px,1fr))}.dock-item{gap:4px}.dock-icon{font-size:15px}
+      .dock-copy b{font-size:9px}.dock-copy small{font-size:7px}.choice-list{grid-template-columns:1fr;gap:5px}.choice{min-height:38px;padding:6px 8px}
+      .dialogue-box{bottom:12px;padding:25px 14px 12px}.dialogue-copy{margin-bottom:8px;font-size:14px;line-height:1.5}}
+    @media(max-width:720px){.lab-strip{align-items:flex-start;padding:8px 10px;flex-direction:column}.lab-strip small{display:block;margin:3px 0 0}
+      body[data-device="desktop"] .prototype-shell{height:calc(100vh - 118px);min-height:600px}}
+    @media(prefers-reduced-motion:reduce){*,*:before,*:after{animation-duration:.01ms!important;animation-iteration-count:1!important;
+      scroll-behavior:auto!important;transition-duration:.01ms!important}}
+  </style>
+</head>
+<body data-device="desktop">
+  <div class="lab-strip">
+    <div><strong>已选方案 1 · 四边面板结构预览</strong><small>当前只验证布局与对白选项；场景库确认后再生成。</small></div>
+    <div class="lab-actions">
+      <button class="lab-button" data-action="device" data-value="desktop" data-device="desktop" aria-pressed="true">桌面</button>
+      <button class="lab-button" data-action="device" data-value="mobile" data-device="mobile" aria-pressed="false">手机</button>
+      <button class="lab-button" data-action="immersive" aria-pressed="false">◫ 沉浸模式</button>
+    </div>
+  </div>
+
+  <main class="prototype-shell" data-theme="urban" data-panel-theme="light" data-chrome-theme="light">
+    <header class="top-command-bar">
+      <div class="brand"><span class="brand-mark">R</span><div><b>知乎 · 互动人生小说</b><small>Restart Life</small></div></div>
+        <div class="chapter-heading"><i class="ornament"></i><div class="chapter-title"><small>Chapter 04</small><h1>第 4 章 · 选择的代价</h1></div><time>2029 — 2032</time><i class="ornament"></i></div>
+      <nav class="system-actions" aria-label="系统功能">
+        <button class="system-action"><i>⇩</i><span>存档</span></button><button class="system-action"><i>⚙</i><span>设置</span></button>
+        <button class="system-action"><i>?</i><span>帮助</span></button><button class="system-action"><i>◎</i><span>系统</span></button>
+      </nav>
+    </header>
+
+    <div class="game-layout">
+      <aside class="side-panel timeline-panel" aria-label="时间线面板">
+        <header class="panel-header"><span class="panel-icon">◷</span><h2>时间线</h2>
+          <button class="panel-toggle" data-panel-toggle="timeline" aria-label="收起时间线面板" aria-expanded="true">‹</button></header>
+        <span class="collapsed-label">时间线</span>
+        <div class="panel-content"><div class="timeline">
+          <article class="timeline-entry"><small>第 1 章 · 2019—2021</small><h3>高考之后</h3><p>结束了高考，你对未来充满迷茫。</p></article>
+          <article class="timeline-entry"><small>第 2 章 · 2022—2024</small><h3>初入社会</h3><p>进入职场，结识新朋友，也第一次感受到现实压力。</p></article>
+          <article class="timeline-entry"><small>第 3 章 · 2025—2028</small><h3>职场试炼</h3><p>你努力适应职场，但也开始思考未来。</p></article>
+          <article class="timeline-entry active"><small>第 4 章 · 2029—2032</small><h3>选择的代价</h3><p>站在人生岔路口，每个选择都会改变未来轨迹。</p></article>
+        </div></div>
+      </aside>
+
+      <section class="scene-stage" aria-label="深圳出租屋对话场景">
+        <div class="scene-meta"><i></i>2029.08 · 深圳 · 出租屋 · 夜</div>
+        <div class="character" role="img" aria-label="林雨，30 岁，神情担忧"></div>
+        <div class="dialogue-box">
+          <span class="speaker-name">林雨</span>
+          <div class="dialogue-tools"><button class="dialogue-tool">◉ 自动</button><button class="dialogue-tool">↶ 回顾</button></div>
+          <p class="dialogue-copy">“你真的想清楚了吗？这一次，我们谈的不是下一份工作，是下一座城市。”</p>
+          <div class="choice-list" aria-label="对话选择">
+            <button class="choice" aria-pressed="false" data-choice="A"><span class="choice-key">A</span><span>我想再给这座城市半年。</span></button>
+            <button class="choice" aria-pressed="false" data-choice="B"><span class="choice-key">B</span><span>如果回武汉，你愿意和我一起吗？</span></button>
+            <button class="choice" aria-pressed="false" data-choice="C"><span class="choice-key">C</span><span>我还没有答案，但不想继续逃避。</span></button>
+          </div>
+          <div class="dialogue-footer">
+            <div class="choice-feedback" aria-live="polite"></div>
+            <button class="dialogue-continue" data-action="continue-story">继续剧情 <small>SPACE</small></button>
+          </div>
+        </div>
+      </section>
+
+      <aside class="side-panel status-panel" aria-label="角色状态面板">
+        <header class="panel-header"><button class="panel-toggle" data-panel-toggle="status" aria-label="收起角色状态面板" aria-expanded="true">›</button>
+          <span class="panel-icon">♙</span><h2>角色状态</h2></header>
+        <span class="collapsed-label">角色状态</span>
+        <div class="panel-content">
+          <section class="status-section"><div class="status-title">角色信息 <button class="detail-button">详细信息 ›</button></div>
+            <div class="identity-card"><span class="identity-avatar avatar-image avatar-zhou" role="img" aria-label="周行之头像"></span><div class="identity-info"><h3>周行之 · 31 岁</h3>
+              <p>职业　产品经理</p><p>城市　深圳</p><div class="level-line"><span>Life 04</span><span class="bar"><i style="--value:58%"></i></span></div></div></div></section>
+          <section class="status-section"><div class="stat-list">
+            <div class="stat-row"><span>♥ 健康</span><span class="bar"><i style="--value:72%;--bar-color:var(--green)"></i></span><b>72 / 100</b></div>
+            <div class="stat-row"><span>● 幸福</span><span class="bar"><i style="--value:48%;--bar-color:var(--rose)"></i></span><b>48 / 100</b></div>
+            <div class="stat-row"><span>▣ 事业</span><span class="bar"><i style="--value:78%;--bar-color:var(--blue)"></i></span><b>78 / 100</b></div>
+            <div class="stat-row"><span>¥ 现金</span><span class="bar"><i style="--value:63%;--bar-color:var(--gold)"></i></span><b>63 / 100</b></div>
+          </div></section>
+          <section class="status-section"><div class="status-title">人际关系 <button class="detail-button">全部关系 ›</button></div>
+            <div class="relation-list"><div class="relation"><span class="relation-avatar avatar-image avatar-linyu" role="img" aria-label="林雨头像"></span><span class="relation-copy"><b>林雨</b><small>伴侣 · 信任仍在</small></span><span class="relation-score">♥ 66 ▼4</span></div>
+              <div class="relation"><span class="relation-avatar avatar-image avatar-wanghao" role="img" aria-label="王浩头像"></span><span class="relation-copy"><b>王浩</b><small>好友 · 近况稳定</small></span><span class="relation-score" style="color:var(--blue)">52 ↑2</span></div></div></section>
+          <section class="status-section"><div class="status-title">当前目标 <button class="detail-button">查看详情</button></div>
+            <div class="goal-card"><b>决定下一座城市</b><p>在 2030 年前，决定是否离开深圳，并承担关系与事业的真实代价。</p></div></section>
+          <section class="status-section"><div class="status-title">当前困境 <button class="detail-button">查看详情</button></div>
+            <div class="goal-card"><b>关系与职业方向冲突</b><p>留下可能错过共同生活的窗口，离开则意味着放弃当前积累。</p></div></section>
+        </div>
+      </aside>
+    </div>
+
+    <nav class="bottom-dock" role="tablist" aria-label="功能面板">
+      <button class="dock-item active" role="tab" aria-selected="true"><span class="dock-icon">♟</span><span class="dock-copy"><b>人物</b><small>C</small></span></button>
+      <button class="dock-item" role="tab" aria-selected="false"><span class="dock-icon">♢</span><span class="dock-copy"><b>关系</b><small>R</small></span></button>
+      <button class="dock-item" role="tab" aria-selected="false"><span class="dock-icon">◷</span><span class="dock-copy"><b>时间线</b><small>T</small></span></button>
+      <button class="dock-item" role="tab" aria-selected="false"><span class="dock-icon">◇</span><span class="dock-copy"><b>现实参照</b><small>D</small></span></button>
+      <button class="dock-item" role="tab" aria-selected="false"><span class="dock-icon">▣</span><span class="dock-copy"><b>背包</b><small>B</small></span></button>
+      <button class="dock-item" role="tab" aria-selected="false"><span class="dock-icon">▤</span><span class="dock-copy"><b>记事本</b><small>N</small></span></button>
+    </nav>
+  </main>
+
+  <script>
+    const body=document.body,shell=document.querySelector(".prototype-shell");
+    const setPanelCollapsed=(panel,collapsed)=>{
+      shell.classList.toggle(panel+"-collapsed",collapsed);
+      const toggle=document.querySelector(`[data-panel-toggle="${panel}"]`);
+      toggle.setAttribute("aria-expanded",String(!collapsed));
+      toggle.setAttribute("aria-label",(collapsed?"展开":"收起")+(panel==="timeline"?"时间线":"角色状态")+"面板");
+    };
+    if(shell.clientWidth<900)setPanelCollapsed("timeline",true);
+    document.querySelectorAll('[data-action="device"]').forEach(button=>button.addEventListener("click",()=>{
+      body.dataset.device=button.dataset.value;
+      document.querySelectorAll('[data-action="device"]').forEach(item=>item.setAttribute("aria-pressed",String(item===button)));
+    }));
+    document.querySelector('[data-action="immersive"]').addEventListener("click",event=>{
+      const active=!shell.classList.contains("immersive");
+      shell.classList.toggle("immersive",active);setPanelCollapsed("timeline",active||shell.clientWidth<900);
+      setPanelCollapsed("status",active);event.currentTarget.setAttribute("aria-pressed",String(active));
+    });
+    document.querySelectorAll("[data-panel-toggle]").forEach(button=>button.addEventListener("click",()=>{
+      const panel=button.dataset.panelToggle,className=panel+"-collapsed",collapsed=!shell.classList.contains(className);
+      setPanelCollapsed(panel,collapsed);
+      if(!collapsed){shell.classList.remove("immersive");document.querySelector('[data-action="immersive"]').setAttribute("aria-pressed","false")}
+    }));
+    const feedbackText={A:"你给出了明确期限。林雨的焦虑没有消失，但这不再是一句无限期的拖延。",
+      B:"你第一次把“我们”放进迁移计划。关系压力下降，共同目标开始形成。",
+      C:"坦白没有立刻解决问题，却阻止了沉默继续侵蚀信任。"},feedback=document.querySelector(".choice-feedback");
+    document.querySelectorAll(".choice").forEach(choice=>choice.addEventListener("click",()=>{
+      document.querySelectorAll(".choice").forEach(item=>item.setAttribute("aria-pressed",String(item===choice)));
+      feedback.textContent=feedbackText[choice.dataset.choice];feedback.classList.add("visible");
+    }));
+    const continueStory=document.querySelector('[data-action="continue-story"]');
+    const advanceDialogue=()=>{
+      const selected=document.querySelector('.choice[aria-pressed="true"]');
+      feedback.textContent=selected?"选择已确认，下一段剧情将在正式版本中继续。":"请先选择一句回应。";
+      feedback.classList.add("visible");
+    };
+    continueStory.addEventListener("click",advanceDialogue);
+    window.addEventListener("keydown",event=>{if(event.code==="Space"&&event.target===body){event.preventDefault();advanceDialogue()}});
+    document.querySelectorAll('.bottom-dock [role="tab"]').forEach(tab=>tab.addEventListener("click",()=>{
+      document.querySelectorAll('.bottom-dock [role="tab"]').forEach(item=>{const selected=item===tab;
+        item.classList.toggle("active",selected);item.setAttribute("aria-selected",String(selected))});
+    }));
+  </script>
+</body>
+</html>

@@ -1,0 +1,49 @@
+project_id: restart-life-galgame-style-lab
+status: exploratory
+assets:
+  - id: protagonist-creation-html-v1
+    kind: interactive-html-prototype
+    path: docs/ui-prototypes/protagonist-creation-lab/index.html
+    screen: protagonist-creation
+    theme: urban
+    prompt: specs/restart-life-galgame-style-lab/prompts/pages/protagonist-creation.md
+    local_assets_only: true
+    approved: false
+  - id: urban-background
+    kind: scene-background
+    path: docs/ui-prototypes/galgame-style-lab/assets/urban-background.png
+    theme: urban
+    approved: false
+  - id: urban-linyu
+    kind: character-portrait
+    path: docs/ui-prototypes/galgame-style-lab/assets/urban-linyu.png
+    theme: urban
+    alpha: true
+    approved: false
+  - id: urban-zhou-avatar-v1
+    kind: character-avatar
+    path: docs/ui-prototypes/galgame-style-lab/assets/urban-zhou-avatar-v1.png
+    dimensions: [1254, 1254]
+    theme: urban
+    generated_by: built-in-imagegen
+    prompt: specs/restart-life-galgame-style-lab/prompts/pages/scene-style-lab.md
+    approved: false
+  - id: urban-wanghao-avatar-v1
+    kind: character-avatar
+    path: docs/ui-prototypes/galgame-style-lab/assets/urban-wanghao-avatar-v1.png
+    dimensions: [1254, 1254]
+    theme: urban
+    generated_by: built-in-imagegen
+    prompt: specs/restart-life-galgame-style-lab/prompts/pages/scene-style-lab.md
+    approved: false
+  - id: healing-background
+    kind: scene-background
+    path: docs/ui-prototypes/galgame-style-lab/assets/healing-background.png
+    theme: healing
+    approved: false
+  - id: healing-linyu
+    kind: character-portrait
+    path: docs/ui-prototypes/galgame-style-lab/assets/healing-linyu.png
+    theme: healing
+    alpha: true
+    approved: false

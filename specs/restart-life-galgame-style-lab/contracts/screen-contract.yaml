@@ -1,0 +1,83 @@
+project_id: restart-life-galgame-style-lab
+status: draft
+screens:
+  - id: protagonist-creation
+    priority: must-have
+    purpose: collect and validate the protagonist's 18-year-old starting profile before generating three core relationships
+    entry_points: [landing-new-life]
+    exits:
+      success: npc-setup
+      back: landing
+    primary_actions: [edit-profile, select-avatar, generate-core-relationships]
+    dependencies:
+      - ProtagonistDraft
+      - Talents
+      - api-life-npc-generate
+      - optional-zhihu-auth-status
+    layout:
+      top: brand, prologue title, creation progress and help
+      left: collapsible five-section progress rail
+      center: structured life dossier form
+      right: avatar, live protagonist summary and talent preview
+      bottom: back, local draft status and primary submit action
+    components:
+      - creation-progress-rail
+      - identity-section
+      - origin-section
+      - personality-section
+      - talent-allocator
+      - avatar-picker
+      - protagonist-live-preview
+      - creation-action-bar
+    states: [default, editing, incomplete, invalid, draft-restored, submitting, submit-error, mobile]
+    edge_cases:
+      - invalid-birth-year
+      - too-few-or-too-many-personality-traits
+      - too-few-or-too-many-values
+      - invalid-talent-budget
+      - avatar-unavailable
+      - npc-generation-network-error
+      - restored-local-draft
+    data_needs:
+      protagonist_draft:
+        - name
+        - birthYear
+        - gender
+        - hometown
+        - familyBackground
+        - initialCity
+        - initialDirection
+        - personalityTraits
+        - values
+        - longTermGoal
+        - initialDilemma
+        - talents
+      optional_account_profile: [name, avatarUrl]
+      optional_visual_identity: [avatarSource, avatarId, avatarUrl]
+  - id: scene-style-lab
+    purpose: compare two Galgame visual directions with identical content
+    entry: direct local HTML URL
+    primary_action: choose one of three dialogue responses
+    components:
+      - chapter-header
+      - scene-stage
+      - character-portrait
+      - dialogue-box
+      - dialogue-choice-list
+      - player-hud
+      - stage-goal
+      - relationship-hud
+      - character-avatar-images
+      - dialogue-continue-action
+      - scene-footer
+      - mobile-hud-tabs
+    states: [default, choice-selected, panel-collapsed, immersive, mobile]
+    data:
+      chapter: 'Chapter 04 · 选择的代价'
+      scene: '2029.08 · 深圳 · 出租屋'
+      speaker: 林雨
+      protagonist_age: 31
+      protagonist_job: 产品经理
+      stage_goal: 决定下一座城市
+      stats: { health: 72, happiness: 48, career: 78, cash: 63 }
+      relationship: { name: 林雨, value: 66, trend: down }

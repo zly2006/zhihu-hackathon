@@ -1,0 +1,48 @@
+project_id: restart-life-galgame-style-lab
+status: draft
+platforms: [desktop, mobile]
+reference_size:
+  desktop: [1440, 900]
+  mobile: [390, 844]
+shared:
+  language: zh-CN
+  adult_character_context: true
+  minimum_touch_target: 44
+  reduced_motion: required
+  text_strategy: html-overlay-only
+themes:
+  urban:
+    name: 都市现实动画系
+    colors:
+      background: '#101624'
+      surface: 'rgba(18, 25, 40, 0.88)'
+      side_surface: 'rgba(248, 238, 221, 0.94)'
+      side_surface_strong: 'rgba(255, 249, 236, 0.96)'
+      top_surface: 'rgba(251, 243, 229, 0.96)'
+      bottom_surface: 'rgba(248, 238, 221, 0.96)'
+      side_text: '#403326'
+      side_muted: '#75685A'
+      primary: '#D89B58'
+      text: '#F7F2E8'
+      muted: '#AAB3C2'
+      relationship: '#E7A6A1'
+    geometry:
+      card_radius: 12
+      dialogue_radius: 14
+      border: '1px solid rgba(216,155,88,.42)'
+    mood: mature cinematic dusk framed by unified warm ivory four-edge panels, restrained cel shading
+  healing:
+    name: 青春治愈动画系
+    colors:
+      background: '#EAF5FB'
+      surface: 'rgba(255,255,255,0.88)'
+      primary: '#6B9FCC'
+      secondary: '#EFA6B5'
+      text: '#31445E'
+      muted: '#6F8194'
+      relationship: '#DD7F98'
+    geometry:
+      card_radius: 22
+      dialogue_radius: 24
+      border: '1px solid rgba(107,159,204,.34)'
+    mood: bright gentle afternoon, soft clean animation
