@@ -101,3 +101,42 @@
 2. **版权策略**：严格门（仅公版入 ready，网文标 unknown、保护期作品仅登记）（推荐）/ 网文降级为 internal_eval_only 用于内部演示。
 3. **抽取与向量**：DeepSeek API 抽取 + 本地词法向量 v0（推荐，成本可控、可断点）/ 纯规则先跑通 pipeline / 全 API（含语义向量，成本高）。
 4. **本轮范围**：只建库到“入库 + 检索验证”（推荐先做）/ 含 FastAPI 服务 `/api/narrative/search`、`/api/narrative/scene` / 含与 zhihu-hackathon 的联调桩。
+
+---
+
+# 附：待决事项决策结论（2026-09-01）
+
+## 决策 1 · 语料扩量目标：扩至 500 条（Demo 验收标准）
+
+- **依据（文档既有结论）**：
+  - `docs/Narrative_KB_开发执行说明书.md` §13 Demo 验收标准：**“至少 20 个原始文本、500 个 Narrative Fragment”** —— 工程规格中的硬性验收线。
+  - `docs/Narrative_Knowledge_Base_数据采集与处理_Pipeline设计文档.md` §10：Demo 规模建议 20-50 本 → **5000-10000** fragments —— 这是 20-50 本语料的规模化目标，**不属于当前 Demo 验收门槛**。
+  - `docs/LifeExperience与InteractiveNarrativeKnowledgeBase数据库设记.md` §30：V0＝300-500（设计验证）、V1＝3000-10000（V1.1 可用）。
+- **结论**：以执行说明书 **500 条**为当前目标（V0 上限内，也是 Demo 验收线）；**不追求 5000-10000**（需新增大量语料与抽取成本，留待 V1 扩量）。
+- **影响**：当前 153 条 → 500 条需续跑抽取约 230 条。现有 19 文本抽样（开头3+结尾2）约 74 章/153 条，扩量方式＝提高 `SAMPLE_CHAPTERS`（如 8-10）再跑 `extract → embed → ingest`（幂等，断点复用）；成本约 +150-200 次 DeepSeek 调用（可控、可断点续跑）。
+
+## 决策 2 · 游戏侧 /api/narrative/* 接入范围
+
+- **依据（文档既有结论）**：
+  - `docs/Narrative_KB_开发执行说明书.md` §11 定义两个端点契约：
+    - `POST /api/narrative/search`：输入 `{event, stage}` → 返回 `{scene_pattern, choice_pattern, emotion_curve}`（查询叙事素材）；
+    - `POST /api/narrative/scene`：输入 `{event, characters, relationship}` → 返回 `{scene_structure, dialogue_style, choices}`（生成 Scene 参考）。
+  - §14 与主项目连接：**zhihu-hackathon 只调用 Narrative API，不直接访问数据库**；调用链＝World Simulator → SimulationEvent → Narrative KB API → Scene 参考 → Narrative Director → Visual Novel。
+  - `docs/AI人生模拟视觉小说RPG_V1.1-V2.0迭代方案.md` §4.8：游戏仓库侧编排端点为 `POST /api/chapter/narrative-plan`（buildNarrativeNeed → retrieveNarrativeEvidence → generateNarrativePlan → validateNarrativePlan），属阶段 3 V1.1 本体。
+  - 迭代方案 §11：应用仓库只保留 **schema contract / DTO / query adapter / fixtures / docs**。
+- **结论**：
+  - **端点契约**：沿用执行说明书 §11 的 `search` / `scene` 两个接口定义（输入输出字段已冻结）。
+  - **调用场景**：只在 World Simulator 产出 canonical SimulationEvent 之后、Narrative Director 规划 Scene 之前调用（§14 流程）；不进入游戏热路径结算。
+  - **实现方式**：阶段 3 按迭代方案 §11 采用「游戏仓库 `query adapter`（封装 SQLite 检索，等价 search 逻辑）+ `/api/chapter/narrative-plan` 编排」接入；独立 FastAPI 服务化（narrative-kb 侧）列为后续演进，不阻塞阶段 3。
+- **影响**：游戏侧新增 `lib/narrative-db/`（query adapter 映射执行说明书 search/scene 输入输出）与 narrative-plan 编排端点；不改 World Simulator 语义；Narrative KB 故障时降级空 bundle 仍可出文（设记 §34 fallback）。
+
+## 决策 3 · VNDB / GitHub 开源 VN 语料：**本期不做，列为后续可扩展项**
+
+- **结论**：不纳入当前实施范围（v0 已含本地小说 + 公版文学；VN 语料缺失可接受，choice/dialogue 模式由本地语料兜底）。
+- **后续可扩展项（潜在来源与预期价值）**：
+  - **VNDB 开放 API**（api.vndb.org）：类型/主题/人物关系元数据标签，价值＝低成本补齐“VN 元数据语料”，支撑 type/theme 维度的 Scene/Choice 检索；当前环境代理下路由不可达，需先解决网络可达性。
+  - **GitHub 开源 Ren'Py 项目**（script.rpy）：真实视觉小说场景/对白/选项结构，价值＝直接学习 dialogue/menu/branch 模式，提升 `choice_pattern`、`dialogue_pattern` 覆盖；需**逐项目甄别 LICENSE**（仅取明确开源许可者）。
+  - **DDLC 相关社区素材**：角色关系/日常事件/情绪变化样例；需确认授权状态，默认不可直接入库。
+  - 扩量到 5000-10000 条（Pipeline §10）依赖上述 VN 语料补充，属 V1 阶段。
+
+> 说明：本附章为已确认决策记录；如后续文档版本与上述出处冲突，以冻结版执行说明书与迭代方案为准。

@@ -71,3 +71,11 @@ node narrative-kb/pipeline/search.mjs "毕业选择" --lifeStage career
 - 网文为 internal_eval_only：正式上线前需取得授权或清理；保护期作品仅登记元数据。
 - LLM 调用为顺序执行 + 断点；单批 ≤2K 字，符合 AGENTS.md token 安全（不整库入上下文）。
 - 本仓库只做叙事知识库 v0（数据工程侧产物），游戏接入（`/api/narrative/*`）留待阶段 3 V1.1 联调。
+
+## 七、三项待决事项决策结论（依据见 `docs/Narrative_KB_建设处理计划.md` 附章）
+
+| 事项 | 决策 | 依据来源 |
+|---|---|---|
+| 1. 语料扩量目标 | **扩至 500 条**（执行说明书 Demo 验收线；不追 5000-10000） | 执行说明书 §13（500 硬标准）、Pipeline §10（5000-10000 为规模化目标） |
+| 2. `/api/narrative/*` 接入范围 | 端点契约沿用执行说明书 §11（search/scene）；调用场景＝SimulationEvent 之后、Director 之前；阶段 3 用游戏侧 query adapter + `/api/chapter/narrative-plan` 接入，FastAPI 服务化后续演进 | 执行说明书 §11/§14、迭代方案 §4.8/§11 |
+| 3. VNDB / GitHub VN 语料 | **本期不做**，列为后续可扩展项（VNDB 元数据 / 开源 Ren'Py script.rpy / DDLC 素材，均需权利甄别） | 本报告决策记录 |
