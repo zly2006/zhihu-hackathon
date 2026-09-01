@@ -7,6 +7,6 @@ test("DeepSeek requests disable thinking and reserve a complete JSON response bu
 
   assert.match(source, /thinking:\s*\{\s*type:\s*"disabled"\s*\}/);
   assert.match(source, /response_format:\s*\{\s*type:\s*"json_object"\s*\}/);
-  assert.match(source, /max_tokens:\s*options\.maxTokens \?\? \d{4}/);
-  assert.match(source, /setTimeout\(\(\) => controller\.abort\(\), options\.timeoutMs \?\? [\d_]{4,7}\)/);
+  assert.match(source, /max_tokens:\s*options\.maxTokens \?\? 4096/);
+  assert.match(source, /setTimeout\(\(\) => controller\.abort\(\), options\.timeoutMs \?\? 180_000\)/);
 });

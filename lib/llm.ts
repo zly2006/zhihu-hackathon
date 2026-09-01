@@ -119,7 +119,7 @@ export async function callGameModel<T>(
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
   options.signal?.addEventListener("abort", abortFromCaller, { once: true });
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 90_000);
+  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 180_000);
   const retryAttempt = options.slowRetryAttempt || 0;
   let httpStatus: number | null = null;
   let rawHttpResponse = "";
@@ -194,7 +194,7 @@ export async function callGameModel<T>(
         model,
         messages,
         temperature: 0.65,
-        max_tokens: options.maxTokens ?? 3200,
+        max_tokens: options.maxTokens ?? 4096,
         ...providerOptions,
         stream: true,
         stream_options: { include_usage: true },
