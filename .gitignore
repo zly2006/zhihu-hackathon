@@ -7,3 +7,8 @@ npm-debug.log*
 .workbuddy/
 .superpowers/
 docs/superpowers/
+
+# 本地语料与原始清洗产物（含版权文本，不入库）
+localdata/
+narrative-kb/data/raw/
+narrative-kb/data/tmp/
