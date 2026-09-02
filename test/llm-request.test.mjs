@@ -12,4 +12,7 @@ test("DeepSeek requests disable thinking and reserve a complete JSON response bu
   assert.match(source, /fenceMatch/, "必须剥离模型输出的 Markdown 代码围栏（opencodego 网关无 json_object 约束）");
   assert.match(source, /transientStreamError/, "必须识别瞬时传输错误并自动重试一次");
   assert.match(source, /模型服务连接中断/, "瞬时错误必须映射为友好提示，不得把原始 terminated 透传到 UI");
+  assert.match(source, /isRateLimit/, "必须识别 HTTP 429 限流");
+  assert.match(source, /模型服务繁忙，请稍等 1-2 分钟后重试/, "429 二次失败后必须是友好提示");
+  assert.match(source, /await sleep\(waitMs\)/, "429 重试前必须有退避等待");
 });

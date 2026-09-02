@@ -285,6 +285,10 @@ export async function callGameModel<T>(
     const transientStreamError =
       error instanceof Error &&
       /terminated|fetch failed|ECONNRESET|socket hang up|UND_ERR_|EPIPE/i.test(error.message || "");
+    // 限流（HTTP 429）：立即重试只会加剧限流，采用退避重试
+    const isRateLimit =
+      error instanceof Error && /429|Too Many Requests|rate ?limit/i.test(error.message || "");
+    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
     if (error instanceof Error && error.name === "AbortError" && slowStreamDetected) {
       terminalError = "DeepSeek API 持续超过 10 秒且速度低于 10 token/s";
       if (retryAttempt < 1 && !options.signal?.aborted) {
@@ -326,12 +330,35 @@ export async function callGameModel<T>(
         ...options,
         slowRetryAttempt: retryAttempt + 1,
       });
+    } else if (isRateLimit && retryAttempt < 2 && !options.signal?.aborted) {
+      // 限流退避：首次等 8s、二次等 25s，然后再整次调用
+      const waitMs = retryAttempt === 0 ? 8000 : 25_000;
+      terminalError = `模型服务繁忙（HTTP 429），等待 ${Math.round(waitMs / 1000)} 秒后自动重试`;
+      options.onProgress?.({
+        stage: "retrying",
+        elapsedMs: Math.round(performance.now() - startedClock),
+        firstTokenMs,
+        completionTokens: completionTokens || estimatedTokens(modelContent),
+        tokenCountEstimated,
+        tokensPerSecond,
+        retryAttempt: retryAttempt + 1,
+        retryReason: terminalError,
+        promptCacheHitTokens,
+        promptCacheMissTokens,
+      });
+      await sleep(waitMs);
+      return callGameModel<T>(purpose, system, prompt, {
+        ...options,
+        slowRetryAttempt: retryAttempt + 1,
+      });
     } else {
-      terminalError = transientStreamError
-        ? "模型服务连接中断，请重试"
-        : error instanceof Error
-          ? error.message
-          : "大模型请求失败";
+      terminalError = isRateLimit
+        ? "模型服务繁忙，请稍等 1-2 分钟后重试"
+        : transientStreamError
+          ? "模型服务连接中断，请重试"
+          : error instanceof Error
+            ? error.message
+            : "大模型请求失败";
     }
     throw new Error(terminalError);
   } finally {
