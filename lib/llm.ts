@@ -268,6 +268,9 @@ export async function callGameModel<T>(
     if (buffer.trim()) consumeLine(buffer);
     modelContent = modelContent.trim();
     progress("complete", true);
+    // 无 response_format 约束的网关（如 opencodego）模型可能包裹 ```json ... ``` 围栏，统一剥除
+    const fenceMatch = modelContent.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+    if (fenceMatch) modelContent = fenceMatch[1].trim();
     if (!modelContent.startsWith("{") || !modelContent.endsWith("}"))
       throw new Error("大模型未返回完整 JSON 对象");
     try {
