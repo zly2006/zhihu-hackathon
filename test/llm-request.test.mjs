@@ -10,4 +10,6 @@ test("DeepSeek requests disable thinking and reserve a complete JSON response bu
   assert.match(source, /max_tokens:\s*options\.maxTokens \?\? 4096/);
   assert.match(source, /setTimeout\(\(\) => controller\.abort\(\), options\.timeoutMs \?\? 180_000\)/);
   assert.match(source, /fenceMatch/, "必须剥离模型输出的 Markdown 代码围栏（opencodego 网关无 json_object 约束）");
+  assert.match(source, /transientStreamError/, "必须识别瞬时传输错误并自动重试一次");
+  assert.match(source, /模型服务连接中断/, "瞬时错误必须映射为友好提示，不得把原始 terminated 透传到 UI");
 });

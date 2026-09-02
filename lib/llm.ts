@@ -281,6 +281,10 @@ export async function callGameModel<T>(
     options.onCompletedMessage?.(modelContent);
     return parsedResponse;
   } catch (error) {
+    // 瞬时传输错误（网关丢流 / 连接重置等）的识别：opencode-go 等代理网关长调用偶发
+    const transientStreamError =
+      error instanceof Error &&
+      /terminated|fetch failed|ECONNRESET|socket hang up|UND_ERR_|EPIPE/i.test(error.message || "");
     if (error instanceof Error && error.name === "AbortError" && slowStreamDetected) {
       terminalError = "DeepSeek API 持续超过 10 秒且速度低于 10 token/s";
       if (retryAttempt < 1 && !options.signal?.aborted) {
@@ -303,7 +307,32 @@ export async function callGameModel<T>(
       }
     } else if (error instanceof Error && error.name === "AbortError") {
       terminalError = options.signal?.aborted ? "大模型请求已取消" : "大模型请求超时";
-    } else terminalError = error instanceof Error ? error.message : "大模型请求失败";
+    } else if (transientStreamError && retryAttempt < 1 && !options.signal?.aborted) {
+      // 网关中断：整次调用重试一次（不携带"修正"语义，避免与校验重试混淆）
+      terminalError = "模型服务连接中断，正在自动重试";
+      options.onProgress?.({
+        stage: "retrying",
+        elapsedMs: Math.round(performance.now() - startedClock),
+        firstTokenMs,
+        completionTokens: completionTokens || estimatedTokens(modelContent),
+        tokenCountEstimated,
+        tokensPerSecond,
+        retryAttempt: retryAttempt + 1,
+        retryReason: terminalError,
+        promptCacheHitTokens,
+        promptCacheMissTokens,
+      });
+      return callGameModel<T>(purpose, system, prompt, {
+        ...options,
+        slowRetryAttempt: retryAttempt + 1,
+      });
+    } else {
+      terminalError = transientStreamError
+        ? "模型服务连接中断，请重试"
+        : error instanceof Error
+          ? error.message
+          : "大模型请求失败";
+    }
     throw new Error(terminalError);
   } finally {
     clearTimeout(timeout);
