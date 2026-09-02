@@ -162,6 +162,9 @@ export function LifeApp() {
               referenceFragmentIds: chapter.narrative.referenceFragmentIds,
             }
           : null,
+        reflectionCount: save?.worldState.reflections
+          ? Object.keys(save.worldState.reflections).length
+          : 0,
         activeScene: chapter ? { index: chapter.index, title: chapter.novel.title } : null,
         loading,
         error,

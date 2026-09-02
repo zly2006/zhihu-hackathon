@@ -55,10 +55,13 @@ export type Character = {
   };
 
   // NPC 的隐藏状态，默认不直接展示给玩家；小说只能通过行为/对白/可观察迹象表现。
+  // V1.2：currentEmotionalTrend / reflectionIds 由 CharacterReflection 演化更新（§5.2）。
   privateState?: {
     hiddenGoals: string[];
     hiddenConcerns: string[];
     privateBeliefs: string[];
+    currentEmotionalTrend?: string;
+    reflectionIds?: string[];
   };
 
   // 视觉身份（V1.3 展示层，可选；不进入世界模拟语义）

@@ -39,6 +39,7 @@ const suites = [
   { file: "test/phase4-simulator.smoke.mjs", env: "PHASE4_TEST_DIR" },
   { file: "test/phase5-novel.smoke.mjs", env: "PHASE5_TEST_DIR" },
   { file: "test/phase7-stability.smoke.mjs", env: "PHASE7_TEST_DIR" },
+  { file: "test/reflection-engine.test.mjs", env: "REFLECTION_TEST_DIR" },
 ];
 
 let failed = 0;

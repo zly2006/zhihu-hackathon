@@ -59,5 +59,8 @@ export type WorldState = {
 
   canonicalEventIds: SimulationEventId[];
 
+  // V1.2：角色反思（私有，可选字段，旧存档兼容）
+  reflections?: Record<string, import("./reflection").CharacterReflection>;
+
   updatedAt: string;
 };
