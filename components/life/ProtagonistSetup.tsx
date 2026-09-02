@@ -256,12 +256,14 @@ export function ProtagonistSetup({
                   <div className="life-vn-avatar-grid" style={{ marginTop: 8 }} role="radiogroup" aria-label="预设人物头像">
                     {AVATAR_PRESETS.map((preset) => (
                       <label key={preset.id} className={`life-vn-avatar-option${preset.fullPortrait ? " full" : ""}${avatarId === preset.id ? " selected" : ""}`}>
-                        {/* eslint-disable-next-line @next/next/no-img-element */}
-                        <img
-                          src={preset.src}
-                          alt={`${preset.label}头像`}
-                          onClick={() => setAvatarId(preset.id)}
-                        />
+                        <span className="life-vn-avatar-thumb">
+                          {/* eslint-disable-next-line @next/next/no-img-element */}
+                          <img
+                            src={preset.src}
+                            alt={`${preset.label}头像`}
+                            onClick={() => setAvatarId(preset.id)}
+                          />
+                        </span>
                         <small>{preset.label}</small>
                       </label>
                     ))}

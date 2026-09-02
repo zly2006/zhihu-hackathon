@@ -2615,16 +2615,23 @@ body {
   text-align: center;
   cursor: pointer;
 }
-.life-vn-avatar-option img {
-  width: 100%;
+.life-vn-avatar-thumb {
+  position: relative;
+  display: block;
   aspect-ratio: 1;
-  object-fit: cover;
+  overflow: hidden;
   border: 2px solid rgba(150, 105, 57, 0.22);
   border-radius: 10px;
   background: #e8d5b9;
-  transition: border-color 0.16s, transform 0.16s;
+  transition: border-color 0.16s, transform 0.16s, box-shadow 0.16s;
 }
-.life-vn-avatar-option.selected img {
+.life-vn-avatar-thumb img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.life-vn-avatar-option.selected .life-vn-avatar-thumb {
   border-color: #8b5f2e;
   box-shadow: 0 0 0 3px #f1d7aa;
   transform: translateY(-2px);
@@ -2635,13 +2642,10 @@ body {
   color: var(--lv-muted);
   font-size: 10px;
 }
-.life-vn-avatar-option.full img {
+.life-vn-avatar-option.full .life-vn-avatar-thumb img {
   object-position: 50% 7%;
   transform: scale(2.35);
   transform-origin: 50% 8%;
-}
-.life-vn-avatar-option.full.selected img {
-  transform: scale(2.35) translateY(-2px);
 }
 .life-vn-talent-row {
   display: grid;
