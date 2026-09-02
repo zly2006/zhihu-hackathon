@@ -1,8 +1,9 @@
 # Narrative KB（叙事知识库）v0 建设完成报告
 
-- 日期：2026-09-01
+- 日期：2026-09-02（v0 收尾更新）
 - 依据：`docs/Narrative_KB_开发执行说明书.md` + `docs/Narrative_Knowledge_Base_数据采集与处理_Pipeline设计文档.md`
 - 用户确认的决策：**SQLite v0 落地 / 网文 internal_eval_only（内部演示）/ DeepSeek API 抽取 + 本地词法向量 / 范围=建库到检索验证**
+- 2026-09-02 更新：取消 500 条目标，以已抽取的全部事件为最终数据集（**684 条**）；.env 切换至 opencode-go（deepseek-v4-flash）。
 - 分支：`dev/mvp-v1-interactive-life`（narrative-kb/ 独立目录，不改游戏热路径）
 
 ## 一、数据库结构（SQLite：narrative-kb/data/narrative-kb.sqlite）
@@ -10,10 +11,10 @@
 | 表 | 说明 | 条目数 |
 |---|---|---|
 | `source_document` | 来源文档（含权利状态、可溯源 URI/hash） | 26 |
-| `narrative_fragment` | 核心叙事片段（事件/场景功能/冲突/情绪曲线/选择点/可迁移规则） | **153** |
-| `choice_pattern` | 玩家选择模式 | 202 |
-| `character_arc` | 人物弧光（state_before/state_after） | 390 |
-| `embeddings` | 词法向量（8192 维哈希袋，embedding_type='lexical' v0.2） | 153 |
+| `narrative_fragment` | 核心叙事片段（事件/场景功能/冲突/情绪曲线/选择点/可迁移规则） | **684** |
+| `choice_pattern` | 玩家选择模式 | 902 |
+| `character_arc` | 人物弧光（state_before/state_after） | 1723 |
+| `embeddings` | 词法向量（8192 维哈希袋，embedding_type='lexical' v0.2） | 684 |
 
 - 每表均含 `rights_status / rag_allowed / training_allowed` 溯源链路（fragment → source_document → 权利记录）。
 - 后续迁移 PostgreSQL + pgvector：表结构同构，`embeddings.vector` 改 pgvector 列即可。
@@ -33,12 +34,19 @@
 
 ## 三、抽取与质量
 
-- 抽取模型：DeepSeek（.env 配置），`response_format=json_object`，max_tokens 3000，温度 0.4。
-- 抽样：每文本 开头3+结尾2 章（约 87 章，每章 ≤2000 字），断点续跑（checkpoint），失败章节记录跳过。
-- Validator 四维评分（人生相关性/游戏性/情绪完整度/可迁移性，各 0-5）：**总分 ≥ 15 才入库**。实际 min 17 / max 20 / avg 19.54，全部通过。
-- 已入库 fragment：**153** 条（74/74 抽样章节全部完成、0 失败；断点续跑可继续扩量）。
-- 按 `life_stage` 分布：career 38、romance 25、education 24、social 24、family 12、friendship 7、relocation 7、entrepreneurship 4、marriage 4、finance 3、health 2、aging 1、housing 1、identity 1。
-- 按 `scene_type` Top8：setup 29、conflict 27、decision 15、reversal 15、bonding 14、transition 13、reveal 12、aftermath 9。
+- 抽取模型：DeepSeek（`.env` 配置；09-02 起切换到 opencode-go 网关 + deepseek-v4-flash，连通性已验证），`response_format=json_object`，max_tokens 3000，温度 0.4。
+- 抽样：每文本最多 18 章（开头3+结尾2+均匀中段+随机，每章 ≤2000 字），断点续跑（checkpoint），失败章节记录跳过。
+- Validator 四维评分（人生相关性/游戏性/情绪完整度/可迁移性，各 0-5）：**总分 ≥ 15 才入库**。实际 min 15 / max 20 / avg 19.45，**0 条被评分丢弃**。
+- 已入库 fragment：**684** 条（全部已抽取章节事件之和；不再继续扩量）。
+- 按 `life_stage` 分布：career 187、romance 151、social 91、education 86、family 45、friendship 37、entrepreneurship 31、finance 15、relocation 11、health 9、housing 8、marriage 7、loss 4、aging 1、identity 1。
+- 按 `scene_type` Top8：conflict 147、decision 96、bonding 94、setup 75、transition 64、reveal 53、reversal 49、aftermath 42。
+- 权利分布：internal_eval_only 656（96%）、public_domain 28（4%）、discovered 0（未抽取）。
+
+### 数据质量提示（不阻断流程）
+
+- **类别偏斜**：career+romance 占 49%，而 aging/loss/marriage/parenting 合计 <20 条——检索这四类人生阶段时召回质量会明显偏弱，影响下一阶段（Narrative Director 场景规划）在这些领域的素材覆盖。
+- **权利结构**：96% 为 internal_eval_only（ragAllowed=false）。当前检索验证不受影响；若后续要开放给线上用户，需先替换为公版/授权语料。
+- 以上两点已记录为 V1 扩量的优先补强方向（见 `docs/Narrative_KB_建设处理计划.md` 附章“后续可扩展项”）。
 
 ## 四、检索验证
 
