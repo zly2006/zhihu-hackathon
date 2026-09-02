@@ -288,6 +288,9 @@ export async function callGameModel<T>(
     // 限流（HTTP 429）：立即重试只会加剧限流，采用退避重试
     const isRateLimit =
       error instanceof Error && /429|Too Many Requests|rate ?limit/i.test(error.message || "");
+    // 用量上限（GoUsageLimitError 等，响应体可见）：窗口内重试无用，直接给准确提示
+    const isUsageLimit = isRateLimit && /UsageLimit|usage limit|balance/i.test(rawHttpResponse);
+    const usageResetHint = rawHttpResponse.match(/Resets? in ([^."\]]+)/i)?.[1];
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
     if (error instanceof Error && error.name === "AbortError" && slowStreamDetected) {
       terminalError = "DeepSeek API 持续超过 10 秒且速度低于 10 token/s";
@@ -330,6 +333,11 @@ export async function callGameModel<T>(
         ...options,
         slowRetryAttempt: retryAttempt + 1,
       });
+    } else if (isRateLimit && isUsageLimit) {
+      // 用量上限：退避重试无效（窗口期内必败），立即给出含重置时长的提示
+      terminalError = usageResetHint
+        ? `模型用量已达上限，约 ${usageResetHint} 后重置；如需立即继续请到 opencode.ai 工作区启用余额`
+        : "模型用量已达上限，请稍后再试或到 opencode.ai 工作区启用余额";
     } else if (isRateLimit && retryAttempt < 2 && !options.signal?.aborted) {
       // 限流退避：首次等 8s、二次等 25s，然后再整次调用
       const waitMs = retryAttempt === 0 ? 8000 : 25_000;

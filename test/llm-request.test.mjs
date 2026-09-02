@@ -15,4 +15,6 @@ test("DeepSeek requests disable thinking and reserve a complete JSON response bu
   assert.match(source, /isRateLimit/, "必须识别 HTTP 429 限流");
   assert.match(source, /模型服务繁忙，请稍等 1-2 分钟后重试/, "429 二次失败后必须是友好提示");
   assert.match(source, /await sleep\(waitMs\)/, "429 重试前必须有退避等待");
+  assert.match(source, /isUsageLimit/, "必须识别用量上限（GoUsageLimitError）");
+  assert.match(source, /模型用量已达上限/, "用量上限必须提示重置时长，不做无效重试");
 });
