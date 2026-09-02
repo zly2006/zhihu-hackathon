@@ -51,7 +51,7 @@ export function LifeShell({
   }
 
   return (
-    <div className="life-vn">
+    <div className="life-vn life-vn-app">
       <div
         className={`life-vn-shell${timelineCollapsed ? " life-vn-timeline-collapsed" : ""}${
           statusCollapsed ? " life-vn-status-collapsed" : ""

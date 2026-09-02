@@ -1906,10 +1906,10 @@ body {
    ============================================================ */
 .life-vn {
   --lv-bg: #f8f3ea;
-  --lv-surface: rgba(255, 252, 244, 0.92);
-  --lv-side: rgba(248, 238, 221, 0.94);
-  --lv-top: rgba(251, 243, 229, 0.96);
-  --lv-bottom: rgba(248, 238, 221, 0.96);
+  --lv-surface: rgba(255, 252, 244, 0.97);
+  --lv-side: rgba(248, 238, 221, 0.98);
+  --lv-top: rgba(251, 243, 229, 0.98);
+  --lv-bottom: rgba(248, 238, 221, 0.98);
   --lv-ink: #403326;
   --lv-muted: #75685a;
   --lv-faint: #9a8d7c;
@@ -1925,11 +1925,27 @@ body {
   --lv-font: "Microsoft YaHei UI", "PingFang SC", system-ui, sans-serif;
   --lv-serif: "Songti SC", "SimSun", serif;
   min-height: 100vh;
+  min-height: 100dvh;
   background:
     radial-gradient(circle at 48% -20%, rgba(216, 155, 88, 0.16), transparent 38rem),
     var(--lv-bg);
   color: var(--lv-ink);
   font-family: var(--lv-font);
+}
+/* 全屏应用态（LifeShell 三栏壳）：铺满视口、无外边距、无圆角边框 */
+.life-vn-app {
+  height: 100vh;
+  height: 100dvh;
+  overflow: hidden;
+}
+.life-vn-app .life-vn-shell {
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  margin: 0;
+  border: 0;
+  border-radius: 0;
+  box-shadow: none;
 }
 .life-vn * {
   box-sizing: border-box;
@@ -1946,7 +1962,7 @@ body {
 
 .life-vn-shell {
   display: grid;
-  grid-template-rows: 74px minmax(0, 1fr) 68px;
+  grid-template-rows: 64px minmax(0, 1fr) 60px;
   width: min(1540px, calc(100vw - 24px));
   height: min(920px, calc(100vh - 64px));
   min-height: 620px;
@@ -2017,7 +2033,7 @@ body {
 }
 .life-vn-layout {
   display: grid;
-  grid-template-columns: 268px minmax(0, 1fr) 320px;
+  grid-template-columns: 240px minmax(0, 1fr) 320px;
   min-width: 0;
   min-height: 0;
   transition: grid-template-columns 0.26s ease;
@@ -2026,7 +2042,7 @@ body {
   grid-template-columns: 46px minmax(0, 1fr) 320px;
 }
 .life-vn-status-collapsed .life-vn-layout {
-  grid-template-columns: 268px minmax(0, 1fr) 46px;
+  grid-template-columns: 240px minmax(0, 1fr) 46px;
 }
 .life-vn-timeline-collapsed.life-vn-status-collapsed .life-vn-layout {
   grid-template-columns: 46px minmax(0, 1fr) 46px;
@@ -2157,14 +2173,18 @@ body {
   position: absolute;
   z-index: 7;
   right: clamp(12px, 4%, 52px);
-  bottom: 18px;
+  bottom: clamp(14px, 3vh, 22px);
   left: clamp(12px, 4%, 52px);
-  padding: 26px 26px 16px;
-  border: 1px solid rgba(216, 155, 88, 0.6);
+  padding: clamp(16px, 2.4vh, 26px) clamp(18px, 3vw, 26px) clamp(12px, 2vh, 16px);
+  border: 1px solid rgba(216, 155, 88, 0.78);
   border-radius: 14px;
   color: var(--lv-ink);
-  background: linear-gradient(105deg, rgba(250, 239, 219, 0.96), rgba(241, 225, 198, 0.94));
-  box-shadow: 0 18px 40px rgba(90, 60, 28, 0.2), inset 0 0 0 3px rgba(255, 250, 240, 0.6);
+  background: rgba(255, 249, 240, 0.97);
+  box-shadow:
+    0 24px 54px rgba(80, 52, 22, 0.3),
+    inset 0 0 0 3px rgba(255, 250, 240, 0.72);
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
 }
 .life-vn-speaker {
   position: absolute;
@@ -2182,7 +2202,7 @@ body {
 }
 .life-vn-copy {
   margin: 4px 0 12px;
-  font: 16px/1.8 var(--lv-serif);
+  font: clamp(14px, 1.2vw, 17px)/1.85 var(--lv-serif);
   letter-spacing: 0.03em;
   white-space: pre-wrap;
 }
@@ -2200,9 +2220,9 @@ body {
   align-items: center;
   min-height: 48px;
   padding: 8px 10px;
-  border: 1px solid rgba(115, 78, 39, 0.24);
+  border: 1px solid rgba(115, 78, 39, 0.28);
   border-radius: 8px;
-  background: rgba(255, 251, 232, 0.55);
+  background: rgba(255, 251, 240, 0.82);
   text-align: left;
   font-size: 12px;
   line-height: 1.45;
@@ -2210,7 +2230,7 @@ body {
 .life-vn-choice:hover,
 .life-vn-choice[aria-pressed="true"] {
   border-color: #b9803e;
-  background: rgba(255, 247, 230, 0.95);
+  background: rgba(255, 247, 230, 0.99);
   box-shadow: 0 5px 16px rgba(115, 76, 37, 0.16);
   transform: translateY(-1px);
 }
@@ -2437,9 +2457,9 @@ body {
 }
 .life-vn-dock {
   display: grid;
-  grid-template-columns: repeat(6, minmax(80px, 1fr));
+  grid-template-columns: repeat(6, minmax(0, 1fr));
   border-top: 1px solid var(--lv-gold-line);
-  background: linear-gradient(145deg, rgba(248, 238, 221, 0.96), rgba(230, 209, 179, 0.96));
+  background: linear-gradient(145deg, rgba(248, 238, 221, 0.98), rgba(230, 209, 179, 0.98));
 }
 .life-vn-dock button {
   display: flex;
@@ -2447,19 +2467,25 @@ body {
   justify-content: center;
   gap: 8px;
   min-width: 0;
+  padding: 0 4px;
   border: 0;
   border-right: 1px solid var(--lv-line);
   background: transparent;
   color: var(--lv-muted);
+  overflow: hidden;
+}
+.life-vn-dock button:last-child {
+  border-right: 0;
 }
 .life-vn-dock button:hover,
 .life-vn-dock button.active {
   color: var(--lv-gold-strong);
-  background: rgba(255, 250, 240, 0.75);
+  background: rgba(255, 250, 240, 0.8);
 }
 .life-vn-dock b {
   display: block;
-  font: 600 12px var(--lv-serif);
+  font: 600 clamp(11px, 0.95vw, 13px) var(--lv-serif);
+  letter-spacing: 0.04em;
   white-space: nowrap;
 }
 .life-vn-dock small {
@@ -2497,7 +2523,10 @@ body {
   padding: 18px;
   border: 1px solid var(--lv-gold-line);
   border-radius: 12px;
-  background: rgba(255, 252, 244, 0.9);
+  background: rgba(255, 252, 244, 0.97);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  box-shadow: 0 16px 40px rgba(122, 82, 41, 0.14);
 }
 .life-vn-title {
   margin: 0 0 4px;
@@ -2724,6 +2753,43 @@ body {
   }
   .life-vn-avatar-grid {
     grid-template-columns: repeat(3, 1fr);
+  }
+}
+/* 全屏应用态：移动窄屏同样铺满（覆盖“手机框”居中样式，保留收拢规则） */
+@media (max-width: 900px) {
+  .life-vn-app .life-vn-shell {
+    width: 100%;
+    height: 100%;
+    min-height: 0;
+    margin: 0;
+    border: 0;
+    border-radius: 0;
+  }
+  .life-vn-app .life-vn-layout,
+  .life-vn-app .life-vn-timeline-collapsed .life-vn-layout,
+  .life-vn-app .life-vn-status-collapsed .life-vn-layout,
+  .life-vn-app .life-vn-timeline-collapsed.life-vn-status-collapsed .life-vn-layout {
+    display: block;
+  }
+  .life-vn-app .life-vn-panel {
+    display: none;
+  }
+  .life-vn-app .life-vn-scene {
+    min-height: 0;
+  }
+}
+/* 矮屏（横屏/低高度笔记本）：避免舞台被 1fr 行裁剪、顶底条过高 */
+@media (max-height: 680px) {
+  .life-vn-app .life-vn-shell {
+    grid-template-rows: 52px minmax(0, 1fr) 52px;
+  }
+  .life-vn-app .life-vn-dialogue {
+    bottom: 8px;
+    padding-top: 16px;
+    padding-bottom: 10px;
+  }
+  .life-vn-app .life-vn-copy {
+    margin-bottom: 8px;
   }
 }
 @media (prefers-reduced-motion: reduce) {
