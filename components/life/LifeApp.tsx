@@ -14,6 +14,7 @@ import type { WorldState } from "@/lib/domain/world";
 import type { WorldSimulationOutput } from "@/lib/domain/simulation";
 import type { EvidenceBundle, LifeExperience } from "@/lib/domain/experience";
 import type { NpcDraft, ProtagonistDraft } from "@/lib/game/character-factory";
+import type { NarrativeEvidenceBundle, NarrativePlan, NarrativeReference } from "@/lib/domain/narrative";
 import { parseGameSave } from "@/lib/game/save";
 import { buildLifePresentation } from "@/lib/game/presentation";
 import { findScene, DEFAULT_SCENE_ID } from "@/lib/game/scene-catalog";
@@ -107,6 +108,8 @@ export function LifeApp() {
   const [chapter, setChapter] = useState<Chapter | null>(null);
   const [preWorld, setPreWorld] = useState<WorldState | null>(null);
   const [novelLoading, setNovelLoading] = useState(false);
+  const [planProgress, setPlanProgress] = useState("");
+  const [planResult, setPlanResult] = useState<{ narrativePlan: NarrativePlan; narrativeEvidence: NarrativeEvidenceBundle } | null>(null);
   const [customOpen, setCustomOpen] = useState(false);
   const [customText, setCustomText] = useState("");
 
@@ -149,6 +152,14 @@ export function LifeApp() {
               promptTitle: choice.promptTitle,
               options: choice.options.map((option) => option.label),
               selectedOptionId: selection?.optionId ?? null,
+            }
+          : null,
+        activePlan: chapter?.narrative
+          ? {
+              theme: chapter.narrative.plan.theme,
+              mainConflict: chapter.narrative.plan.mainConflict,
+              sceneCount: chapter.narrative.plan.scenes.length,
+              referenceFragmentIds: chapter.narrative.referenceFragmentIds,
             }
           : null,
         activeScene: chapter ? { index: chapter.index, title: chapter.novel.title } : null,
@@ -232,6 +243,8 @@ export function LifeApp() {
       setSelection(null);
       setSimResult(null);
       setChapter(null);
+      setPlanResult(null);
+      setPlanProgress("");
       setCustomOpen(false);
       setCustomText("");
       setScreen("decision");
@@ -281,8 +294,43 @@ export function LifeApp() {
         // 生成小说（自动存档节点 5）
         setNovelLoading(true);
         try {
-          const novel = await fetchNovel(result, worldBefore, span, 1);
-          const chapter = assembleChapter({ choice, selection: next, span, worldBefore, result, novel });
+          // V1.1：先让叙事导演规划（失败自动降级为旧行为，不阻断、不修改 canonical）
+          let narrativePlan: NarrativePlan | undefined;
+          let narrativeReferences: NarrativeReference[] = [];
+          try {
+            setPlanProgress("正在规划本章叙事…");
+            const decision = buildChapterDecision(choice, next);
+            const planResponse = await fetch("/api/chapter/narrative-plan", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                chapterId: result.chapterId,
+                stateBefore: worldBefore,
+                events: result.simulation.events,
+                decision,
+                span,
+              }),
+            });
+            if (!planResponse.ok) throw new Error(`HTTP ${planResponse.status}`);
+            const planData = await readSseComplete<{
+              narrativePlan: NarrativePlan;
+              narrativeEvidence: NarrativeEvidenceBundle;
+            }>(planResponse, setPlanProgress);
+            narrativePlan = planData.narrativePlan;
+            narrativeReferences = [
+              ...planData.narrativeEvidence.arcPatterns,
+              ...planData.narrativeEvidence.scenePatterns,
+              ...planData.narrativeEvidence.dialoguePatterns,
+              ...planData.narrativeEvidence.pacingPatterns,
+              ...planData.narrativeEvidence.endingPatterns,
+            ];
+            setPlanResult({ narrativePlan: planData.narrativePlan, narrativeEvidence: planData.narrativeEvidence });
+          } catch (planError) {
+            // 验收：Director 失败不会修改 canonical；KB 故障有 fallback —— 降级为无规划写小说
+            console.warn("narrative plan fallback:", planError instanceof Error ? planError.message : planError);
+          }
+          const novel = await fetchNovel(result, worldBefore, span, 1, narrativePlan, narrativeReferences);
+          const chapter = assembleChapter({ choice, selection: next, span, worldBefore, result, novel, narrativePlan });
           setChapter(chapter);
           const finalSave: GameSave = {
             ...saveAfterSim,
@@ -319,7 +367,15 @@ export function LifeApp() {
     setNovelLoading(true);
     setError("");
     try {
-      const novel = await fetchNovel(simResult, preWorld, span, chapter.novel.version + 1);
+      // 重写不触发 World Simulator，也不重新规划：沿用已保存的 Director 规划（如有）
+      const novel = await fetchNovel(
+        simResult,
+        preWorld,
+        span,
+        chapter.novel.version + 1,
+        chapter.narrative?.plan,
+        [],
+      );
       const updatedChapter: Chapter = { ...chapter, novel };
       setChapter(updatedChapter);
       setSave((prev) => {
@@ -345,6 +401,8 @@ export function LifeApp() {
     setSimResult(null);
     setChapter(null);
     setPreWorld(null);
+    setPlanResult(null);
+    setPlanProgress("");
     setCustomOpen(false);
     setCustomText("");
     setScreen("chapter_start");
@@ -458,7 +516,7 @@ export function LifeApp() {
                     simulating ? (
                       <div className="life-vn-feedback">{simProgress}</div>
                     ) : novelLoading ? (
-                      <div className="life-vn-feedback">正在把本章写成小说…</div>
+                      <div className="life-vn-feedback">{planProgress || "正在把本章写成小说…"}</div>
                     ) : error ? (
                       <div className="life-vn-error">{error}</div>
                     ) : null
@@ -623,6 +681,8 @@ async function fetchNovel(
   worldBefore: WorldState,
   span: ChapterSpan,
   version: number,
+  narrativePlan?: NarrativePlan,
+  narrativeReferences: NarrativeReference[] = [],
 ): Promise<Chapter["novel"]> {
   const featuredEvidence = [
     ...result.evidenceBundle.decisionSimilar,
@@ -640,6 +700,8 @@ async function fetchNovel(
       featuredEvidence,
       span,
       version,
+      narrativePlan,
+      narrativeReferences,
     }),
   });
   const data = await readJsonResponse<{ novel: Chapter["novel"] }>(response);
@@ -655,17 +717,12 @@ function allEvidence(bundle: EvidenceBundle): LifeExperience[] {
   ];
 }
 
-function assembleChapter(args: {
-  choice: ChapterChoice;
-  selection: { optionId: "A" | "B" | "C" | "CUSTOM"; customAction?: string };
-  span: ChapterSpan;
-  worldBefore: WorldState;
-  result: SimulateResult;
-  novel: Chapter["novel"];
-}): Chapter {
-  const { choice, selection, span, worldBefore, result, novel } = args;
+function buildChapterDecision(
+  choice: ChapterChoice,
+  selection: { optionId: "A" | "B" | "C" | "CUSTOM"; customAction?: string },
+): ChapterDecision {
   const selectedOption = choice.options.find((option) => option.id === selection.optionId);
-  const decision: ChapterDecision = {
+  return {
     id: choice.id,
     promptTitle: choice.promptTitle,
     context: choice.context,
@@ -677,6 +734,19 @@ function assembleChapter(args: {
         ? (selection.customAction ?? "").trim()
         : (selectedOption?.label ?? "").trim(),
   };
+}
+
+function assembleChapter(args: {
+  choice: ChapterChoice;
+  selection: { optionId: "A" | "B" | "C" | "CUSTOM"; customAction?: string };
+  span: ChapterSpan;
+  worldBefore: WorldState;
+  result: SimulateResult;
+  novel: Chapter["novel"];
+  narrativePlan?: NarrativePlan;
+}): Chapter {
+  const { choice, selection, span, worldBefore, result, novel, narrativePlan } = args;
+  const decision = buildChapterDecision(choice, selection);
   const evidence = allEvidence(result.evidenceBundle);
   const featured = [
     ...result.evidenceBundle.decisionSimilar,
@@ -707,6 +777,13 @@ function assembleChapter(args: {
         .filter((thread) => thread.status === "open")
         .map((thread) => thread.label),
     },
+    narrative: narrativePlan
+      ? {
+          plan: narrativePlan,
+          referenceFragmentIds: narrativePlan.referenceFragmentIds,
+          directorVersion: 1,
+        }
+      : undefined,
     memoryIds: result.simulation.newMemories.map((memory) => memory.id),
     createdAt: new Date().toISOString(),
   };

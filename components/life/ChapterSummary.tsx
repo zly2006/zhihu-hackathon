@@ -140,6 +140,8 @@ export function ChapterSummary({
           onRegenerate={onRegenerate}
           onNextChapter={onNextChapter}
           regenerating={regenerating}
+          theme={chapter.narrative?.plan.theme}
+          mainConflict={chapter.narrative?.plan.mainConflict}
         />
       </div>
     );

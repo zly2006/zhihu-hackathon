@@ -11,6 +11,7 @@ import type { CharacterMemory } from "../domain/memory";
 import type { Relationship } from "../domain/relationship";
 import type { SimulationEvent } from "../domain/simulation";
 import type { LifeExperience } from "../domain/experience";
+import type { NarrativePlan, NarrativeReference } from "../domain/narrative";
 
 export type NovelWriterInput = {
   protagonist: Character;
@@ -22,6 +23,9 @@ export type NovelWriterInput = {
   events: SimulationEvent[];
   relevantMemories: CharacterMemory[];
   featuredEvidence: LifeExperience[];
+  // V1.1：可选 Director 规划；缺省时按 V1.0 行为写
+  narrativePlan?: NarrativePlan;
+  narrativeReferences?: NarrativeReference[];
 };
 
 type ModelNovel = {
@@ -75,7 +79,7 @@ function describeEvent(event: SimulationEvent, world: NovelWriterInput): string 
 }
 
 export function buildNovelPrompt(input: NovelWriterInput): string {
-  const { protagonist, npcs, relationships, startYear, endYear, span, events } = input;
+  const { protagonist, npcs, relationships, startYear, endYear, span, events, narrativePlan } = input;
   const npcLines = npcs
     .map((npc) => {
       const rel = relationships.find(
@@ -117,16 +121,67 @@ export function buildNovelPrompt(input: NovelWriterInput): string {
     `2. 不得改变上述任何事件的年份、结果、人物变化或关系变化；可以补充场景、对白、过渡、氛围与日常细节。`,
     `3. 对标记“只部分知情”的事件，只写主角可观察的表象，不写主角不可能知道的他人秘密；但可以通过行为暗示。`,
     `4. 不复制知乎作者的真实经历给游戏角色，不引用大段知乎原文。`,
-    `5. ${span === 1 ? "本章约 1200-2000 中文字" : "本章约 2500-4000 中文字"}，用多个场景推进，避免“第一年/第二年/第三年”流水账。`,
-  ].join("\n");
+  ];
 
-  const outputSpec = [
-    `# 输出 JSON（只输出 JSON）`,
-    `{"title":"20字内章节标题","subtitle":"${startYear}—${endYear}","scenes":[{"heading":"场景小标题（可选）","timeLabel":"如 2027.03","text":"该场景的正文"}]}`,
-    `scenes 数量不限，按时间顺序排列；每个 scene 的 text 是该场景的完整正文段落。`,
-  ].join("\n");
+  let outputSpec: string;
+  if (narrativePlan) {
+    sections.push(
+      `# 叙事导演规划（NarrativePlan：本章的结构与情绪路线，写作必须严格遵守）`,
+      describePlanForWriter(narrativePlan),
+      ``,
+      `# 叙事参考知识（只借鉴机制，禁止复制情节/角色/原文）`,
+      (input.narrativeReferences ?? [])
+        .slice(0, 10)
+        .map((r) => `- ${r.fragmentId}｜${r.functionTags.join("/")}｜${r.techniqueSummary || "无"}`)
+        .join("\n") || "（无）",
+    );
+    hardConstraints.push(
+      `5. 小说场景数必须等于导演规划的场景数（${narrativePlan.scenes.length} 个），按规划的 order 顺序一一对应；每个场景的 timeLabel 必须使用规划的时间标签，heading 与内容必须落实该场景的 purpose / visibleGoal / conflict / endingBeat，不得改写为其它场景。`,
+      `6. 每个规划场景的 mustNotInvent 清单是硬禁令，正文不得违反。`,
+      `7. 结尾必须实现导演规划的 endingHook（${narrativePlan.endingHook.type}：${narrativePlan.endingHook.textGoal}）。`,
+      `8. 本章约 ${span === 1 ? "1200-2000" : "2500-4000"} 中文字，均匀分配到各场景，避免“第一年/第二年/第三年”流水账。`,
+    );
+    outputSpec = [
+      `# 输出 JSON（只输出 JSON）`,
+      `{"title":"20字内章节标题（呼应导演规划的标题方向）","subtitle":"${startYear}—${endYear}","scenes":[${narrativePlan.scenes.map(() => `{"heading":"该场景小标题（可选）","timeLabel":"按规划","text":"该场景的正文"}`).join(",")}]}`,
+      `scenes 数组长度必须等于 ${narrativePlan.scenes.length}，顺序与规划一致；每个 scene 的 text 是该场景的完整正文段落。`,
+    ].join("\n");
+  } else {
+    hardConstraints.push(
+      `5. ${span === 1 ? "本章约 1200-2000 中文字" : "本章约 2500-4000 中文字"}，用多个场景推进，避免“第一年/第二年/第三年”流水账。`,
+    );
+    outputSpec = [
+      `# 输出 JSON（只输出 JSON）`,
+      `{"title":"20字内章节标题","subtitle":"${startYear}—${endYear}","scenes":[{"heading":"场景小标题（可选）","timeLabel":"如 2027.03","text":"该场景的正文"}]}`,
+      `scenes 数量不限，按时间顺序排列；每个 scene 的 text 是该场景的完整正文段落。`,
+    ].join("\n");
+  }
 
-  return [sections.join("\n"), hardConstraints, outputSpec].join("\n\n");
+  return [sections.join("\n"), hardConstraints.join("\n"), outputSpec].join("\n\n");
+}
+
+function describePlanForWriter(plan: NarrativePlan): string {
+  const lines = [
+    `主题：${plan.theme}`,
+    `主冲突：${plan.mainConflict}`,
+    `情绪内核：${plan.emotionalCore}`,
+    `结尾余味：${plan.endingHook.type}｜${plan.endingHook.textGoal}`,
+    ``,
+  ];
+  for (const scene of plan.scenes) {
+    lines.push(
+      `场景 ${scene.order}（${scene.id}｜${scene.timeLabel}｜${scene.location}｜${scene.purpose}）`,
+      `- 视角：${scene.povCharacterId}；参与者：${scene.participantIds.join("、")}`,
+      `- 可见目标：${scene.visibleGoal}`,
+      `- 冲突/张力：${scene.conflict}`,
+      `- 情绪：${scene.startEmotion} → ${scene.endEmotion}`,
+      `- 必须呈现：${scene.mustShow.join("；") || "（无）"}`,
+      `- 禁止编造：${scene.mustNotInvent.join("；") || "（无）"}`,
+      scene.dialogueIntent ? `- 对白目的：${scene.dialogueIntent}` : "",
+      `- 结尾余味：${scene.endingBeat}`,
+    );
+  }
+  return lines.join("\n");
 }
 
 export function parseNovel(
@@ -135,15 +190,23 @@ export function parseNovel(
   version: number,
   startYear: number,
   endYear: number,
+  plan?: NarrativePlan,
 ): Chapter["novel"] {
   const rawScenes = Array.isArray(modeled.scenes) ? modeled.scenes : [];
   if (!rawScenes.length) throw new Error("大模型必须返回至少一个场景");
+  if (plan && rawScenes.length !== plan.scenes.length) {
+    throw new Error(`小说场景数 ${rawScenes.length} 与导演规划 ${plan.scenes.length} 不一致`);
+  }
   const scenes: NovelScene[] = rawScenes.map((rawScene, index) => {
     const scene = (rawScene ?? {}) as Record<string, unknown>;
+    const planned = plan?.scenes[index];
     return {
       id: `scene-${index + 1}`,
       heading: typeof scene.heading === "string" && scene.heading.trim() ? scene.heading.trim().slice(0, 40) : undefined,
-      timeLabel: typeof scene.timeLabel === "string" && scene.timeLabel.trim() ? scene.timeLabel.trim().slice(0, 20) : undefined,
+      timeLabel:
+        typeof scene.timeLabel === "string" && scene.timeLabel.trim()
+          ? scene.timeLabel.trim().slice(0, 20)
+          : planned?.timeLabel,
       text: requireText(scene.text, `scenes[${index}].text`, 4000),
     };
   });
@@ -165,5 +228,5 @@ export async function writeNovel(input: NovelWriterInput, version = 1): Promise<
     maxTokens: 8000,
     timeoutMs: 180_000,
   });
-  return parseNovel(modeled, new Date().toISOString(), version, input.startYear, input.endYear);
+  return parseNovel(modeled, new Date().toISOString(), version, input.startYear, input.endYear, input.narrativePlan);
 }

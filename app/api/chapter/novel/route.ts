@@ -5,6 +5,7 @@ import type { CharacterMemory } from "@/lib/domain/memory";
 import type { SimulationEvent } from "@/lib/domain/simulation";
 import type { LifeExperience } from "@/lib/domain/experience";
 import type { WorldState } from "@/lib/domain/world";
+import type { NarrativePlan, NarrativeReference } from "@/lib/domain/narrative";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -16,6 +17,9 @@ type NovelRequest = {
   featuredEvidence: LifeExperience[];
   span: ChapterSpan;
   version?: number;
+  // V1.1：可选 Director 规划与叙事参考
+  narrativePlan?: NarrativePlan;
+  narrativeReferences?: NarrativeReference[];
 };
 
 export async function POST(request: Request) {
@@ -25,7 +29,16 @@ export async function POST(request: Request) {
   } catch {
     return NextResponse.json({ error: "请求正文不是有效 JSON" }, { status: 400 });
   }
-  const { stateBefore, events, relevantMemories = [], featuredEvidence = [], span, version = 1 } = body;
+  const {
+    stateBefore,
+    events,
+    relevantMemories = [],
+    featuredEvidence = [],
+    span,
+    version = 1,
+    narrativePlan,
+    narrativeReferences,
+  } = body;
   if (!stateBefore || stateBefore.schemaVersion !== 1 || !stateBefore.protagonistId) {
     return NextResponse.json({ error: "无效的 stateBefore" }, { status: 400 });
   }
@@ -47,6 +60,8 @@ export async function POST(request: Request) {
       events,
       relevantMemories,
       featuredEvidence,
+      narrativePlan,
+      narrativeReferences,
     };
     const novel = await writeNovel(input, version);
     return NextResponse.json({ novel });

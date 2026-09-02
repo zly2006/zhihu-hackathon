@@ -6,6 +6,7 @@ import type { ChapterId, ChapterSpan, ExperienceId, MemoryId, SimulationEventId 
 import type { WorldState } from "./world";
 import type { SimulationEvent } from "./simulation";
 import type { LifeExperience } from "./experience";
+import type { NarrativePlan } from "./narrative";
 
 export type ChapterDecision = {
   id: string;
@@ -85,6 +86,13 @@ export type Chapter = {
     characterChanges: string[];
     relationshipChanges: string[];
     openThreads: string[];
+  };
+
+  // V1.1 Narrative Engine 产物（可选，§4.9；GameSave schemaVersion 不 bump，旧存档兼容）
+  narrative?: {
+    plan: NarrativePlan;
+    referenceFragmentIds: string[];
+    directorVersion: number;
   };
 
   memoryIds: MemoryId[];

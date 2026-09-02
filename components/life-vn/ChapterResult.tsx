@@ -11,7 +11,7 @@ const anchorLabel: Record<string, string> = {
   setback: "受挫",
 };
 
-// 章节结算：结果锚点 + 关键事件时间轴 + 本章变化 + 现实参照抽屉 + 操作
+// 章节结算：结果锚点 + 本章主题（叙事导演）+ 关键事件时间轴 + 本章变化 + 现实参照抽屉 + 操作
 export function ChapterResult({
   events,
   outcomeAnchor,
@@ -22,6 +22,8 @@ export function ChapterResult({
   onRegenerate,
   onNextChapter,
   regenerating,
+  theme,
+  mainConflict,
   children,
 }: {
   events: SimulationEvent[];
@@ -38,6 +40,8 @@ export function ChapterResult({
   onRegenerate: () => void;
   onNextChapter: () => void;
   regenerating: boolean;
+  theme?: string;
+  mainConflict?: string;
   children?: React.ReactNode;
 }) {
   const [showChanges, setShowChanges] = useState(true);
@@ -48,6 +52,16 @@ export function ChapterResult({
         <span className="life-vn-pill">有效风险 {effectiveRisk}</span>
         <span className="life-vn-pill">参考 {evidenceTotal} 条知乎真实经历</span>
       </div>
+
+      {(theme || mainConflict) && (
+        <div className="life-vn-card">
+          <div className="life-vn-hud-title">
+            <span>本章主题（叙事导演）</span>
+          </div>
+          {theme && <div className="life-vn-change">{theme}</div>}
+          {mainConflict && <div className="life-vn-change">主冲突：{mainConflict}</div>}
+        </div>
+      )}
 
       {children}
 
