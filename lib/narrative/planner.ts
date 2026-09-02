@@ -8,6 +8,7 @@ import type { SimulationEvent } from "../domain/simulation";
 import type { WorldState } from "../domain/world";
 import type { ChapterDecision } from "../domain/chapter";
 import { SCENE_COUNT_RANGE } from "./validator";
+import { buildAliasTables, characterLabelFor, eventLabelFor, resolvePlanAliases } from "./aliases";
 
 export type DirectorWorldInfo = {
   world: WorldState;
@@ -101,8 +102,7 @@ export function buildDirectorPrompt(args: {
 }): string {
   const { need, bundle, info, previousErrors } = args;
   const [minScenes, maxScenes] = SCENE_COUNT_RANGE[info.span];
-  const allowedEventIds = info.events.map((event) => event.id);
-  const allowedCharacterIds = Object.keys(info.world.characters);
+  const aliasTables = buildAliasTables(info.events, info.world);
   const allowedFragmentIds = [
     ...bundle.arcPatterns,
     ...bundle.scenePatterns,
@@ -113,9 +113,9 @@ export function buildDirectorPrompt(args: {
 
   const hardConstraints = [
     "# 硬约束（程序生成，逐条必须满足）",
-    `1. 本章共 ${allowedEventIds.length} 个 canonical 事件，id 列表：${allowedEventIds.join(", ") || "（无）"}。canonicalEventIds 与每个场景的 sourceEventIds 只能引用这些 id。`,
+    `1. 事件代号：${eventLabelFor(info.events) || "（无）"}。canonicalEventIds 与每个场景的 sourceEventIds 只能引用这些事件代号。`,
     `2. 场景数量必须在 ${minScenes}-${maxScenes} 之间（${info.span} 年章）。`,
-    `3. 可用角色 id：${allowedCharacterIds.join(", ")}。participantIds 与 povCharacterId 只能引用这些 id，且 povCharacterId 必须在 participantIds 内。`,
+    `3. 角色代号：${characterLabelFor(info.world)}。participantIds、povCharacterId 与 characterArcs.characterId 只能引用这些角色代号，且 povCharacterId 必须在 participantIds 内。`,
     `4. 场景时间标签（timeLabel）中的年份必须在 ${info.startYear}-${info.endYear} 内；回忆场景须在 timeLabel 或 location 中显式标注“回忆”。`,
     `5. referenceFragmentIds 只能引用下方参考知识中出现的 id：${allowedFragmentIds.join(", ") || "（本 bundle 为空，referenceFragmentIds 必须为 []）"}。`,
     `6. 至少一个场景 purpose 为 conflict / turning_point / climax；必须给出 endingHook。`,
@@ -274,5 +274,6 @@ export async function generateNarrativePlan(args: {
     maxTokens: 6000,
     timeoutMs: 180_000,
   });
-  return parsePlan(modeled);
+  const aliasTables = buildAliasTables(args.info.events, args.info.world);
+  return resolvePlanAliases(parsePlan(modeled), aliasTables);
 }

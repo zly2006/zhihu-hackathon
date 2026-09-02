@@ -99,7 +99,10 @@ export function LifeShell({
 
         <div className="life-vn-layout">
           {left && (
-            <aside className="life-vn-panel life-vn-panel-left" aria-label="时间线面板">
+            <aside
+              className={`life-vn-panel life-vn-panel-left${timelineCollapsed ? " collapsed" : ""}`}
+              aria-label="时间线面板"
+            >
               <header className="life-vn-panel-head">
                 <h2>时间线</h2>
                 <button
@@ -108,7 +111,7 @@ export function LifeShell({
                   aria-expanded={!timelineCollapsed}
                   onClick={() => setTimelineCollapsed((value) => !value)}
                 >
-                  ‹
+                  {timelineCollapsed ? "›" : "‹"}
                 </button>
               </header>
               <span className="life-vn-vertical-label">时间线</span>
@@ -119,7 +122,10 @@ export function LifeShell({
           <div style={{ position: "relative", minWidth: 0, minHeight: 0 }}>{center}</div>
 
           {right && (
-            <aside className="life-vn-panel life-vn-panel-right" aria-label="角色状态面板">
+            <aside
+              className={`life-vn-panel life-vn-panel-right${statusCollapsed ? " collapsed" : ""}`}
+              aria-label="角色状态面板"
+            >
               <header className="life-vn-panel-head">
                 <h2>角色状态</h2>
                 <button
@@ -128,7 +134,7 @@ export function LifeShell({
                   aria-expanded={!statusCollapsed}
                   onClick={() => setStatusCollapsed((value) => !value)}
                 >
-                  ›
+                  {statusCollapsed ? "‹" : "›"}
                 </button>
               </header>
               <span className="life-vn-vertical-label">角色状态</span>

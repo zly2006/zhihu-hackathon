@@ -9,7 +9,6 @@ import { selectRelevantMemories } from "@/lib/game/memory-selector";
 import { runWorldSimulator } from "@/lib/game/world-simulator";
 import { validateSimulationOutput, type ValidationContext } from "@/lib/game/simulation-validator";
 import { reduceWorldState } from "@/lib/game/world-reducer";
-import { runReflectionBatch, applyReflections } from "@/lib/game/reflection-engine";
 import { hashState } from "@/lib/game/hash";
 
 export const runtime = "nodejs";
@@ -143,39 +142,17 @@ export async function POST(request: Request) {
         }
         if (!output) throw new Error("世界推演未能产出有效结果");
 
-        // 6. 应用 delta，产生 stateAfter
+        // 6. 应用 delta，产生 stateAfter（V1.2 反思由 /api/chapter/reflections 并行处理）
         const worldStateAfter = reduceWorldState(worldState, output, { chapterId, endYear });
-
-        // 7. V1.2 角色反思（每章至多一次 Batch；失败 fail-open，不阻断、不修改 canonical）
-        send("progress", { stage: "reflecting", message: "正在生成角色内心反思" });
-        let finalWorldState = worldStateAfter;
-        try {
-          const reflectionResult = await runReflectionBatch({
-            chapterId,
-            year: endYear,
-            worldBefore: worldState,
-            worldAfter: worldStateAfter,
-            events: output.events,
-          });
-          if (reflectionResult.applied && reflectionResult.reflections.length) {
-            finalWorldState = applyReflections(worldStateAfter, reflectionResult.reflections);
-            send("progress", {
-              stage: "reflecting",
-              message: `已生成 ${reflectionResult.reflections.length} 条角色反思`,
-            });
-          }
-        } catch (reflectionError) {
-          console.warn("reflection batch fail-open:", reflectionError);
-        }
 
         send("complete", {
           chapterId,
           evidenceBundle,
           resolution,
           simulation: output,
-          worldStateAfter: finalWorldState,
+          worldStateAfter,
           stateBeforeHash: hashState(worldState),
-          stateAfterHash: hashState(finalWorldState),
+          stateAfterHash: hashState(worldStateAfter),
         });
       } catch (error) {
         console.error("world simulation failed", error);

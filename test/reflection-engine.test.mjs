@@ -218,9 +218,14 @@ test("私有性：render_game_to_text 只含反思计数，不泄漏内容", () 
   const lifeApp = readFileSync(join(process.cwd(), "components", "life", "LifeApp.tsx"), "utf8");
   assert.match(lifeApp, /reflectionCount/, "应有 reflectionCount");
   assert.doesNotMatch(lifeApp, /beliefChanges.*save|insight.*save|hiddenGoals.*render/, "不得把反思/私有字段输出到测试接口");
+  assert.match(lifeApp, /\/api\/chapter\/reflections/, "LifeApp 必须调用独立反思端点");
+  assert.match(lifeApp, /reflection fallback/, "反思失败必须降级不阻断");
+  assert.match(lifeApp, /Promise\.all\(/, "规划与反思必须并行调用（缩短章节生成时长）");
+  const reflectionsRoute = readFileSync(join(process.cwd(), "app", "api", "chapter", "reflections", "route.ts"), "utf8");
+  assert.match(reflectionsRoute, /runReflectionBatch/, "reflections 端点必须运行反思批次");
+  assert.match(reflectionsRoute, /applyReflections/, "reflections 端点必须应用反思结果");
   const simulateRoute = readFileSync(join(process.cwd(), "app", "api", "chapter", "simulate", "route.ts"), "utf8");
-  assert.match(simulateRoute, /runReflectionBatch/, "simulate 必须运行反思批次");
-  assert.match(simulateRoute, /fail-open/, "反思失败必须不阻断");
+  assert.doesNotMatch(simulateRoute, /runReflectionBatch/, "simulate 不应再串行运行反思（已拆出并行）");
   const world = readFileSync(join(process.cwd(), "lib", "domain", "world.ts"), "utf8");
   assert.match(world, /reflections\?:/, "WorldState 应有可选 reflections 字段");
   assert.match(world, /schemaVersion: 1/, "schemaVersion 保持 1");

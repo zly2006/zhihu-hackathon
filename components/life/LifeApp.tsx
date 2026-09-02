@@ -285,65 +285,114 @@ export function LifeApp() {
         const result = await readSseComplete<SimulateResult>(response, setSimProgress);
         setSimResult(result);
 
-        // 自动存档节点 4：canonical simulation 完成
-        const saveAfterSim: GameSave = {
+        // 自动存档节点 4：canonical simulation 完成（反思结果随后覆盖，见下）
+        let saveBase: GameSave = {
           ...save,
           worldState: result.worldStateAfter,
           savedAt: new Date().toISOString(),
         };
-        setSave(saveAfterSim);
-        persist(saveAfterSim);
+        setSave(saveBase);
+        persist(saveBase);
 
         // 生成小说（自动存档节点 5）
         setNovelLoading(true);
         try {
-          // V1.1：先让叙事导演规划（失败自动降级为旧行为，不阻断、不修改 canonical）
+          // V1.1 叙事规划 ∥ V1.2 角色反思 并行（两者互不依赖，省一段串行等待；
+          // 任一失败均自动降级，不阻断、不修改 canonical）
           let narrativePlan: NarrativePlan | undefined;
           let narrativeReferences: NarrativeReference[] = [];
           try {
-            setPlanProgress("正在规划本章叙事…");
             const decision = buildChapterDecision(choice, next);
-            const planResponse = await fetch("/api/chapter/narrative-plan", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                chapterId: result.chapterId,
-                stateBefore: worldBefore,
-                events: result.simulation.events,
-                decision,
-                span,
+            setPlanProgress("正在规划本章叙事…");
+            const planFetch = (async () => {
+              const planResponse = await fetch("/api/chapter/narrative-plan", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chapterId: result.chapterId,
+                  stateBefore: worldBefore,
+                  events: result.simulation.events,
+                  decision,
+                  span,
+                }),
+              });
+              if (!planResponse.ok) throw new Error(`HTTP ${planResponse.status}`);
+              const planData = await readSseComplete<{
+                narrativePlan: NarrativePlan;
+                narrativeEvidence: NarrativeEvidenceBundle;
+              }>(planResponse, setPlanProgress);
+              return {
+                narrativePlan: planData.narrativePlan,
+                narrativeReferences: [
+                  ...planData.narrativeEvidence.arcPatterns,
+                  ...planData.narrativeEvidence.scenePatterns,
+                  ...planData.narrativeEvidence.dialoguePatterns,
+                  ...planData.narrativeEvidence.pacingPatterns,
+                  ...planData.narrativeEvidence.endingPatterns,
+                ],
+                evidence: planData.narrativeEvidence,
+              };
+            })();
+            const reflectionFetch = (async () => {
+              const reflectionResponse = await fetch("/api/chapter/reflections", {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify({
+                  chapterId: result.chapterId,
+                  worldBefore,
+                  worldAfter: result.worldStateAfter,
+                  events: result.simulation.events,
+                }),
+              });
+              if (!reflectionResponse.ok) throw new Error(`HTTP ${reflectionResponse.status}`);
+              return await readJsonResponse<{ worldStateAfter: WorldState; reflectionCount: number }>(
+                reflectionResponse,
+              );
+            })();
+            const [planOutcome, reflectionOutcome] = await Promise.all([
+              planFetch.catch((planError) => {
+                console.warn("narrative plan fallback:", planError instanceof Error ? planError.message : planError);
+                return null;
               }),
-            });
-            if (!planResponse.ok) throw new Error(`HTTP ${planResponse.status}`);
-            const planData = await readSseComplete<{
-              narrativePlan: NarrativePlan;
-              narrativeEvidence: NarrativeEvidenceBundle;
-            }>(planResponse, setPlanProgress);
-            narrativePlan = planData.narrativePlan;
-            narrativeReferences = [
-              ...planData.narrativeEvidence.arcPatterns,
-              ...planData.narrativeEvidence.scenePatterns,
-              ...planData.narrativeEvidence.dialoguePatterns,
-              ...planData.narrativeEvidence.pacingPatterns,
-              ...planData.narrativeEvidence.endingPatterns,
-            ];
-            setPlanResult({ narrativePlan: planData.narrativePlan, narrativeEvidence: planData.narrativeEvidence });
-          } catch (planError) {
-            // 验收：Director 失败不会修改 canonical；KB 故障有 fallback —— 降级为无规划写小说
-            console.warn("narrative plan fallback:", planError instanceof Error ? planError.message : planError);
+              reflectionFetch.catch((reflectionError) => {
+                console.warn("reflection fallback:", reflectionError instanceof Error ? reflectionError.message : reflectionError);
+                return null;
+              }),
+            ]);
+            if (planOutcome) {
+              narrativePlan = planOutcome.narrativePlan;
+              narrativeReferences = planOutcome.narrativeReferences;
+              setPlanResult({ narrativePlan: planOutcome.narrativePlan, narrativeEvidence: planOutcome.evidence });
+            }
+            if (reflectionOutcome?.worldStateAfter) {
+              saveBase = { ...saveBase, worldState: reflectionOutcome.worldStateAfter, savedAt: new Date().toISOString() };
+              setSave(saveBase);
+              persist(saveBase);
+            }
+          } catch (parallelError) {
+            console.warn("narrative/reflection parallel stage failed:", parallelError);
           }
           const novel = await fetchNovel(result, worldBefore, span, 1, narrativePlan, narrativeReferences);
-          const chapter = assembleChapter({ choice, selection: next, span, worldBefore, result, novel, narrativePlan });
+          const chapter = assembleChapter({
+            choice,
+            selection: next,
+            span,
+            worldBefore,
+            result,
+            novel,
+            narrativePlan,
+            worldStateAfter: saveBase.worldState,
+          });
           setChapter(chapter);
           const finalSave: GameSave = {
-            ...saveAfterSim,
-            chapters: { ...saveAfterSim.chapters, [chapter.id]: chapter },
+            ...saveBase,
+            chapters: { ...saveBase.chapters, [chapter.id]: chapter },
             events: {
-              ...saveAfterSim.events,
+              ...saveBase.events,
               ...Object.fromEntries(result.simulation.events.map((event) => [event.id, event])),
             },
             experienceCache: {
-              ...saveAfterSim.experienceCache,
+              ...saveBase.experienceCache,
               ...Object.fromEntries(allEvidence(result.evidenceBundle).map((e) => [e.id, e])),
             },
             savedAt: new Date().toISOString(),
@@ -747,8 +796,10 @@ function assembleChapter(args: {
   result: SimulateResult;
   novel: Chapter["novel"];
   narrativePlan?: NarrativePlan;
+  worldStateAfter?: WorldState;
 }): Chapter {
-  const { choice, selection, span, worldBefore, result, novel, narrativePlan } = args;
+  const { choice, selection, span, worldBefore, result, novel, narrativePlan, worldStateAfter } = args;
+  const finalWorld = worldStateAfter ?? result.worldStateAfter;
   const decision = buildChapterDecision(choice, selection);
   const evidence = allEvidence(result.evidenceBundle);
   const featured = [
@@ -776,7 +827,7 @@ function assembleChapter(args: {
       keyEvents: result.simulation.chapterSummary.keyEvents,
       characterChanges: result.simulation.chapterSummary.characterChanges,
       relationshipChanges: result.simulation.chapterSummary.relationshipChanges,
-      openThreads: result.worldStateAfter.openThreads
+      openThreads: finalWorld.openThreads
         .filter((thread) => thread.status === "open")
         .map((thread) => thread.label),
     },

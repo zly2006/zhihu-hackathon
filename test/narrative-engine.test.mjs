@@ -3,7 +3,7 @@ import { readFileSync } from "node:fs";
 import { join } from "node:path";
 import test from "node:test";
 
-// 编译：npx tsc --outDir .tmp/narrative-test --module commonjs --moduleResolution node --target es2022 lib/domain/narrative.ts lib/narrative/need-builder.ts lib/narrative/query-adapter.ts lib/narrative/retriever.ts lib/narrative/validator.ts
+// 编译：npx tsc --outDir .tmp/narrative-test --module commonjs --moduleResolution node --target es2022 lib/domain/narrative.ts lib/narrative/need-builder.ts lib/narrative/query-adapter.ts lib/narrative/retriever.ts lib/narrative/validator.ts lib/narrative/aliases.ts
 // 运行：node --test test/narrative-engine.test.mjs
 
 const base = process.env.NARRATIVE_TEST_DIR || ".tmp/narrative-test";
@@ -333,4 +333,36 @@ test("页面契约：LifeApp 先规划后写小说，Chapter 带可选 narrative
   assert.match(novelRoute, /narrativePlan/, "novel 端点必须接收 narrativePlan");
   const planRoute = readFileSync(join(process.cwd(), "app", "api", "chapter", "narrative-plan", "route.ts"), "utf8");
   assert.match(planRoute, /runNarrativeEngine/, "narrative-plan 端点必须走 engine 编排");
+});
+
+test("代号映射：E/C 代号还原真实 id，真实 id 透传", async () => {
+  const { buildAliasTables, resolvePlanAliases, eventLabelFor, characterLabelFor } = await load("narrative/aliases.js");
+  const world = makeWorld();
+  const events = makeEvents();
+  const tables = buildAliasTables(events, world);
+  assert.equal(tables.eventAliasToId.get("E1"), "evt-1");
+  assert.equal(tables.characterAliasToId.get("C1"), "hero");
+  assert.equal(tables.characterAliasToId.get("C2"), "npc-1");
+  const plan = {
+    version: 1,
+    titleDirection: "x", theme: "t", emotionalCore: "e", mainConflict: "c",
+    characterArcs: [{ characterId: "C2", startState: "a", pressure: "b", change: "c", endState: "d" }],
+    scenes: [{
+      id: "scene-1", order: 1, timeLabel: "2026.03", location: "家",
+      participantIds: ["C1", "hero"], povCharacterId: "C1", sourceEventIds: ["E1", "evt-2"],
+      purpose: "setup", visibleGoal: "g", conflict: "c", startEmotion: "a", endEmotion: "b",
+      mustShow: [], mustNotInvent: [], narrativeTechniques: [], endingBeat: "x",
+    }],
+    endingHook: { textGoal: "h", type: "quiet_aftershock" },
+    referenceFragmentIds: [],
+    canonicalEventIds: ["E2", "evt-1"],
+  };
+  const resolved = resolvePlanAliases(plan, tables);
+  assert.equal(resolved.scenes[0].povCharacterId, "hero");
+  assert.deepEqual(resolved.scenes[0].participantIds, ["hero"]);
+  assert.deepEqual(resolved.scenes[0].sourceEventIds, ["evt-1", "evt-2"]);
+  assert.equal(resolved.characterArcs[0].characterId, "npc-1");
+  assert.deepEqual(resolved.canonicalEventIds, ["evt-2", "evt-1"]);
+  assert.ok(eventLabelFor(events).includes("E1="));
+  assert.ok(characterLabelFor(world).includes("C1=张明(主角)"));
 });
