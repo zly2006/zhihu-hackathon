@@ -3,11 +3,16 @@
 // 旧存档（legacy schema）不自动升级（方案 §33）：提示用户旧存档走旧模式。
 
 import type { GameSave } from "../domain/chapter";
+import type { GameMode } from "../domain/shared";
 
 export const GAME_SAVE_SCHEMA_VERSION = 1 as const;
 
 const LEGACY_SAVE_MESSAGE =
   "当前存档来自旧版人生重启模式，可继续使用旧模式；新互动人生需要创建新存档。";
+
+function normalizePresentationMode(value: unknown): GameMode {
+  return value === "novel" ? "novel" : "galgame";
+}
 
 export function parseGameSave(raw: unknown): GameSave {
   if (!raw || typeof raw !== "object" || Array.isArray(raw)) {
@@ -32,7 +37,10 @@ export function parseGameSave(raw: unknown): GameSave {
   if (!save.savedAt || typeof save.savedAt !== "string") {
     throw new Error("存档缺少 savedAt");
   }
-  return save as GameSave;
+  return {
+    ...save,
+    presentationMode: normalizePresentationMode(save.presentationMode),
+  } as GameSave;
 }
 
 export function serializeGameSave(save: GameSave): string {

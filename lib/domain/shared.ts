@@ -10,6 +10,8 @@ export type ChapterId = string;
 
 export type ChapterSpan = 1 | 3;
 
+export type GameMode = "novel" | "galgame";
+
 export type LifeDomain =
   | "education"
   | "career"

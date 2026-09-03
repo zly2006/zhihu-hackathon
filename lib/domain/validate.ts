@@ -90,6 +90,23 @@ export function validateWorldState(world: WorldState): void {
         throw new Error(`角色 ${character.id} 的 memoryIds 引用了不存在的记忆: ${memoryId}`);
       }
     }
+    const relationshipHistory = character.relationshipHistory;
+    if (relationshipHistory !== undefined) {
+      if (!Array.isArray(relationshipHistory) || relationshipHistory.length > 12) {
+        throw new Error(`角色 ${character.id} 的 relationshipHistory 最多只能有 12 条`);
+      }
+      for (const entry of relationshipHistory) {
+        if (!entry || typeof entry !== "object" || !relationships[entry.relationshipId]) {
+          throw new Error(`角色 ${character.id} 的 relationshipHistory 引用了不存在的关系`);
+        }
+        if (!Number.isInteger(entry.year)) {
+          throw new Error(`角色 ${character.id} 的 relationshipHistory.year 必须是整数`);
+        }
+        if (typeof entry.summary !== "string" || !entry.summary.trim()) {
+          throw new Error(`角色 ${character.id} 的 relationshipHistory.summary 不能为空`);
+        }
+      }
+    }
   }
 
   for (const relationship of Object.values(relationships)) {

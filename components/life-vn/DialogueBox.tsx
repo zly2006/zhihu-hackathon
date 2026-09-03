@@ -6,6 +6,7 @@ export type DialogueOption = {
   id: "A" | "B" | "C";
   label: string;
   description?: string;
+  disabled?: boolean;
 };
 
 // 对白框：说话人 + 正文 + 选项（可选）+ 右下角继续
@@ -44,6 +45,7 @@ export function DialogueBox({
               type="button"
               className="life-vn-choice"
               aria-pressed={selectedOptionId === option.id}
+              disabled={option.disabled}
               onClick={() => onSelect?.(option.id)}
             >
               <span className="life-vn-choice-key">{option.id}</span>

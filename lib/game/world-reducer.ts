@@ -31,6 +31,8 @@ export type ReduceOptions = {
   newId?: () => string;
 };
 
+export const MAX_RELATIONSHIP_HISTORY = 12;
+
 function defaultNow(): string {
   return new Date().toISOString();
 }
@@ -122,6 +124,32 @@ export function applyRelationshipChange(
   };
 }
 
+function appendRelationshipHistory(
+  characters: Record<string, Character>,
+  relationship: Relationship,
+  event: { chapterId: string; year: number },
+  description: string,
+): void {
+  for (const characterId of [relationship.characterAId, relationship.characterBId]) {
+    const character = characters[characterId];
+    if (!character) continue;
+    const history = [
+      ...(character.relationshipHistory ?? []),
+      {
+        relationshipId: relationship.id,
+        chapterId: event.chapterId,
+        year: event.year,
+        relationshipType: relationship.type,
+        summary: description.trim().slice(0, 200) || "关系发生变化",
+      },
+    ].slice(-MAX_RELATIONSHIP_HISTORY);
+    characters[characterId] = {
+      ...character,
+      relationshipHistory: history,
+    };
+  }
+}
+
 // 推进角色时间：所有角色的 year 前进到章节结束年，年龄按跨度同步增长。
 function advanceCharacterClock(
   character: Character,
@@ -178,13 +206,15 @@ export function reduceWorldState(
           `事件 ${event.id} 的 RelationshipChange 引用了不存在的关系: ${change.relationshipId}`,
         );
       }
-      relationships[change.relationshipId] = applyRelationshipChange(
+      const nextRelationship = applyRelationshipChange(
         relationships[change.relationshipId],
         change,
         now,
         newId,
         options.chapterId,
       );
+      relationships[change.relationshipId] = nextRelationship;
+      appendRelationshipHistory(characters, nextRelationship, event, change.description);
     }
   }
 

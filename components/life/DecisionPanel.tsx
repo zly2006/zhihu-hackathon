@@ -17,14 +17,17 @@ const stateFitColor: Record<string, string> = {
 export function DecisionPanel({
   choice,
   onSelect,
+  disabled = false,
 }: {
   choice: ChapterChoice;
   onSelect: (selection: ChapterSelection) => void;
+  disabled?: boolean;
 }) {
   const [customOpen, setCustomOpen] = useState(false);
   const [customText, setCustomText] = useState("");
 
   function pick(optionId: "A" | "B" | "C") {
+    if (disabled) return;
     const option = choice.options.find((item) => item.id === optionId);
     if (!option) return;
     onSelect({ optionId });
@@ -55,6 +58,12 @@ export function DecisionPanel({
               (e.currentTarget as HTMLDivElement).style.boxShadow = "none";
             }}
             onClick={() => pick(option.id)}
+            role="button"
+            aria-disabled={disabled}
+            tabIndex={disabled ? -1 : 0}
+            onKeyDown={(event) => {
+              if (!disabled && (event.key === "Enter" || event.key === " ")) pick(option.id);
+            }}
           >
             <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline" }}>
               <strong style={{ fontSize: 16 }}>
@@ -77,6 +86,7 @@ export function DecisionPanel({
         {!customOpen ? (
           <button
             onClick={() => setCustomOpen(true)}
+            disabled={disabled}
             style={{
               width: "100%",
               padding: "12px",
@@ -95,13 +105,14 @@ export function DecisionPanel({
             <textarea
               value={customText}
               onChange={(e) => setCustomText(e.target.value)}
+              disabled={disabled}
               placeholder="描述你自己的想法，例如：先不辞职，利用半年看看武汉有没有更好的机会，再决定。"
               rows={3}
               style={{ width: "100%", padding: 10, borderRadius: 10, border: "1px solid #d1d5db", fontSize: 14 }}
             />
             <button
               onClick={() => onSelect({ optionId: "CUSTOM", customAction: customText })}
-              disabled={!customText.trim()}
+              disabled={disabled || !customText.trim()}
               style={{
                 padding: "12px",
                 borderRadius: 10,

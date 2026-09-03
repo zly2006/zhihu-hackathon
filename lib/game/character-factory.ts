@@ -7,7 +7,7 @@ import type { Relationship, RelationshipType, RelationshipScores } from "../doma
 import type { WorldState } from "../domain/world";
 import type { GameSave } from "../domain/chapter";
 import type { VisualIdentity } from "../domain/visual";
-import { clampLifeStats, clampTalents, type LifeStats, type Talents } from "../domain/shared";
+import { clampLifeStats, clampTalents, type GameMode, type LifeStats, type Talents } from "../domain/shared";
 
 export type ProtagonistDraft = {
   name: string;
@@ -23,6 +23,7 @@ export type ProtagonistDraft = {
   initialDilemma: string;
   talents: Talents;
   visualIdentity?: VisualIdentity; // V1.3 可选：头像视觉身份，只影响展示
+  speechStyle?: string;
 };
 
 export type NpcDraft = {
@@ -36,7 +37,14 @@ export type NpcDraft = {
   hiddenGoal: string;
   hiddenConcern: string;
   privateBelief: string;
+  speechStyle?: string;
 };
+
+function defaultSpeechStyle(traits: string[], role: "protagonist" | "npc"): string {
+  const visibleTraits = traits.map((item) => item.trim()).filter(Boolean).slice(0, 2);
+  if (visibleTraits.length > 0) return `说话体现${visibleTraits.join("、")}，表达清楚具体`;
+  return role === "protagonist" ? "表达直接，习惯先说事实再说感受" : "表达克制，习惯先观察再回应";
+}
 
 // 18 岁开局状态基线（0-100 安全度指数，非绝对数值）
 export const STARTING_LIFE_STATS: LifeStats = {
@@ -113,6 +121,9 @@ export function createProtagonist(draft: ProtagonistDraft, now = new Date().toIS
       attitudes: {},
     },
     privateState: undefined,
+    speechStyle: draft.speechStyle?.trim() || defaultSpeechStyle(draft.personalityTraits, "protagonist"),
+    emotionState: "平静",
+    relationshipHistory: [],
     visual: draft.visualIdentity
       ? {
           avatarId: draft.visualIdentity.avatarId,
@@ -162,6 +173,9 @@ export function createNpc(draft: NpcDraft, currentYear: number, now = new Date()
       hiddenConcerns: draft.hiddenConcern ? [draft.hiddenConcern] : [],
       privateBeliefs: draft.privateBelief ? [draft.privateBelief] : [],
     },
+    speechStyle: draft.speechStyle?.trim() || defaultSpeechStyle(draft.personalityTraits, "npc"),
+    emotionState: "平静",
+    relationshipHistory: [],
     memoryIds: [],
     createdAt: now,
     updatedAt: now,
@@ -217,7 +231,11 @@ export function createInitialWorldState(
   };
 }
 
-export function createInitialGameSave(world: WorldState, now = new Date().toISOString()): GameSave {
+export function createInitialGameSave(
+  world: WorldState,
+  now = new Date().toISOString(),
+  presentationMode: GameMode = "galgame",
+): GameSave {
   return {
     schemaVersion: 1,
     savedAt: now,
@@ -225,5 +243,6 @@ export function createInitialGameSave(world: WorldState, now = new Date().toISOS
     chapters: {},
     events: {},
     experienceCache: {},
+    presentationMode,
   };
 }

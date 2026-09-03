@@ -7,12 +7,13 @@ import {
   type NpcDraft,
 } from "@/lib/game/character-factory";
 import type { Character } from "@/lib/domain/character";
+import type { GameMode } from "@/lib/domain/shared";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  let body: { protagonist: Character; npcs: NpcDraft[] };
+  let body: { protagonist: Character; npcs: NpcDraft[]; presentationMode?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -25,6 +26,9 @@ export async function POST(request: Request) {
   if (!Array.isArray(npcs) || npcs.length !== 3) {
     return NextResponse.json({ error: "必须提供 3 个 NPC" }, { status: 400 });
   }
+  if (body.presentationMode !== undefined && body.presentationMode !== "novel" && body.presentationMode !== "galgame") {
+    return NextResponse.json({ error: "presentationMode 无效" }, { status: 400 });
+  }
 
   try {
     const now = new Date().toISOString();
@@ -34,7 +38,8 @@ export async function POST(request: Request) {
       createRelationship(protagonist.id, npc.id, npcs[index].relationshipType, npcs[index].basicSetting, now),
     );
     const world = createInitialWorldState(protagonist, npcCharacters, relationships, now);
-    const gameSave = createInitialGameSave(world, now);
+    const presentationMode = (body.presentationMode ?? "galgame") as GameMode;
+    const gameSave = createInitialGameSave(world, now, presentationMode);
     return NextResponse.json({ gameSave });
   } catch (error) {
     console.error("life creation failed", error);

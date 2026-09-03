@@ -6,10 +6,12 @@ export function NovelReader({
   novel,
   onRegenerate,
   regenerating,
+  showRegenerate = true,
 }: {
   novel: Chapter["novel"];
   onRegenerate: () => void;
   regenerating: boolean;
+  showRegenerate?: boolean;
 }) {
   const totalChars = novel.scenes.reduce((sum, scene) => sum + scene.text.length, 0);
   return (
@@ -42,23 +44,25 @@ export function NovelReader({
         ))}
       </div>
 
-      <div style={{ marginTop: 24, display: "flex", justifyContent: "center" }}>
-        <button
-          onClick={onRegenerate}
-          disabled={regenerating}
-          style={{
-            padding: "10px 20px",
-            borderRadius: 10,
-            background: "#fff",
-            color: "#4b5563",
-            border: "1px solid #d1d5db",
-            fontSize: 14,
-            cursor: regenerating ? "wait" : "pointer",
-          }}
-        >
-          {regenerating ? "正在重写…" : "重写本章小说（不改变已发生的事实）"}
-        </button>
-      </div>
+      {showRegenerate && (
+        <div style={{ marginTop: 24, display: "flex", justifyContent: "center" }}>
+          <button
+            onClick={onRegenerate}
+            disabled={regenerating}
+            style={{
+              padding: "10px 20px",
+              borderRadius: 10,
+              background: "#fff",
+              color: "#4b5563",
+              border: "1px solid #d1d5db",
+              fontSize: 14,
+              cursor: regenerating ? "wait" : "pointer",
+            }}
+          >
+            {regenerating ? "正在重写…" : "重写本章小说（不改变已发生的事实）"}
+          </button>
+        </div>
+      )}
     </div>
   );
 }

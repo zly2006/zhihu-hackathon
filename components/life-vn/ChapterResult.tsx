@@ -24,6 +24,7 @@ export function ChapterResult({
   regenerating,
   theme,
   mainConflict,
+  showRegenerate = true,
   children,
 }: {
   events: SimulationEvent[];
@@ -42,6 +43,7 @@ export function ChapterResult({
   regenerating: boolean;
   theme?: string;
   mainConflict?: string;
+  showRegenerate?: boolean;
   children?: React.ReactNode;
 }) {
   const [showChanges, setShowChanges] = useState(true);
@@ -118,9 +120,11 @@ export function ChapterResult({
       <div className="life-vn-card">
         <RealityEvidenceDrawer experiences={evidence} total={evidenceTotal} />
         <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 12 }}>
-          <button type="button" className="life-vn-btn ghost" onClick={onRegenerate} disabled={regenerating}>
-            {regenerating ? "正在重写…" : "重写本章小说（不改事实）"}
-          </button>
+          {showRegenerate && (
+            <button type="button" className="life-vn-btn ghost" onClick={onRegenerate} disabled={regenerating}>
+              {regenerating ? "正在重写…" : "重写本章小说（不改事实）"}
+            </button>
+          )}
           <button type="button" className="life-vn-btn" onClick={onNextChapter}>
             进入下一章
           </button>

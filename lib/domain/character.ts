@@ -2,8 +2,9 @@
 // 主角与 NPC 使用同一结构，区别只在 role。NPC 是真正拥有状态的人，
 // 而不是主角旁边的一段描述文字。
 
-import type { ChapterId, MemoryId, Talents } from "./shared";
+import type { ChapterId, MemoryId, RelationshipId, Talents } from "./shared";
 import type { LifeStats } from "./shared";
+import type { RelationshipType } from "./relationship";
 import type { CharacterVisual } from "./visual";
 
 export type CharacterHook = {
@@ -21,6 +22,14 @@ export type CharacterGoal = {
   horizon: "short" | "medium" | "long";
   priority: number; // 0-100
   status: "active" | "achieved" | "abandoned" | "blocked";
+};
+
+export type CharacterRelationshipHistory = {
+  relationshipId: RelationshipId;
+  chapterId: ChapterId;
+  year: number;
+  relationshipType: RelationshipType;
+  summary: string;
 };
 
 export type Character = {
@@ -63,6 +72,11 @@ export type Character = {
     currentEmotionalTrend?: string;
     reflectionIds?: string[];
   };
+
+  // 对话表现层使用的公开、短期状态；不替代 core/state/privateState 的既有语义。
+  speechStyle?: string;
+  emotionState?: string;
+  relationshipHistory?: CharacterRelationshipHistory[];
 
   // 视觉身份（V1.3 展示层，可选；不进入世界模拟语义）
   visual?: CharacterVisual;

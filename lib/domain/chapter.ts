@@ -2,11 +2,12 @@
 // Chapter 保存：选择 + 证据引用 + 真实模拟结果引用 + 小说 + 摘要。
 // 真正的世界状态仍由 WorldState 决定。
 
-import type { ChapterId, ChapterSpan, ExperienceId, MemoryId, SimulationEventId } from "./shared";
+import type { ChapterId, ChapterSpan, ExperienceId, GameMode, MemoryId, SimulationEventId } from "./shared";
 import type { WorldState } from "./world";
 import type { SimulationEvent } from "./simulation";
 import type { LifeExperience } from "./experience";
 import type { NarrativePlan } from "./narrative";
+import type { DialogueScene } from "./dialogue";
 
 export type ChapterDecision = {
   id: string;
@@ -81,6 +82,9 @@ export type Chapter = {
     version: number;
   };
 
+  // V2.1 Galgame 表现层产物；缺失时由 NovelScene 确定性降级展示。
+  dialogue?: DialogueScene[];
+
   summary: {
     keyEvents: string[];
     characterChanges: string[];
@@ -113,4 +117,7 @@ export type GameSave = {
   events: Record<SimulationEventId, SimulationEvent>;
 
   experienceCache: Record<ExperienceId, LifeExperience>;
+
+  // 旧存档缺失时由 parseGameSave 归一为 galgame。
+  presentationMode?: GameMode;
 };

@@ -9,7 +9,8 @@ import type {
   DecisionResolution,
   GameSave,
 } from "@/lib/domain/chapter";
-import type { ChapterSpan } from "@/lib/domain/shared";
+import type { DialogueScene } from "@/lib/domain/dialogue";
+import type { ChapterSpan, GameMode } from "@/lib/domain/shared";
 import type { WorldState } from "@/lib/domain/world";
 import type { WorldSimulationOutput } from "@/lib/domain/simulation";
 import type { EvidenceBundle, LifeExperience } from "@/lib/domain/experience";
@@ -17,10 +18,12 @@ import type { NpcDraft, ProtagonistDraft } from "@/lib/game/character-factory";
 import type { NarrativeEvidenceBundle, NarrativePlan, NarrativeReference } from "@/lib/domain/narrative";
 import { parseGameSave } from "@/lib/game/save";
 import { buildLifePresentation } from "@/lib/game/presentation";
-import { findScene, DEFAULT_SCENE_ID } from "@/lib/game/scene-catalog";
+import { findScene, DEFAULT_SCENE_ID, pickSceneForNovelScene } from "@/lib/game/scene-catalog";
 import { ProtagonistSetup } from "./ProtagonistSetup";
 import { NpcSetup } from "./NpcSetup";
 import { ChapterSummary } from "./ChapterSummary";
+import { DecisionPanel } from "./DecisionPanel";
+import { ModeSelect } from "./ModeSelect";
 import { LifeShell } from "@/components/life-vn/LifeShell";
 import { SceneStage } from "@/components/life-vn/SceneStage";
 import { DialogueBox } from "@/components/life-vn/DialogueBox";
@@ -29,7 +32,7 @@ import { RelationshipHud } from "@/components/life-vn/RelationshipHud";
 
 const SAVE_KEY = "restart-life-save-v1";
 
-type Screen = "landing" | "setup" | "npc_setup" | "chapter_start" | "decision" | "chapter_summary";
+type Screen = "landing" | "mode_select" | "setup" | "npc_setup" | "chapter_start" | "decision" | "chapter_summary";
 
 type ProgressEvent = { stage?: string; message?: string };
 
@@ -89,10 +92,46 @@ function persist(save: GameSave) {
   window.localStorage.setItem(SAVE_KEY, JSON.stringify(save));
 }
 
+function fallbackDialogueScenes(novel: Chapter["novel"]): DialogueScene[] {
+  return novel.scenes.map((scene) => ({
+    id: scene.id,
+    background: pickSceneForNovelScene(scene).id,
+    timeLabel: scene.timeLabel,
+    characters: [],
+    blocks: [{ type: "narration" as const, text: scene.text }],
+    choices: [],
+  }));
+}
+
+async function fetchDialogue(
+  worldBefore: WorldState,
+  events: WorldSimulationOutput["events"],
+  novel: Chapter["novel"],
+  narrativePlan?: NarrativePlan,
+): Promise<DialogueScene[]> {
+  const response = await fetch("/api/chapter/dialogue", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      stateBefore: worldBefore,
+      events,
+      novelScenes: novel.scenes,
+      narrativePlan,
+    }),
+  });
+  const data = await readJsonResponse<{ dialogue: DialogueScene[]; degraded?: boolean }>(response);
+  if (!Array.isArray(data.dialogue) || data.dialogue.length === 0) {
+    throw new Error("对白服务未返回有效场景");
+  }
+  return data.dialogue;
+}
+
 export function LifeApp() {
   const [screen, setScreen] = useState<Screen>("landing");
   const [hasSave, setHasSave] = useState(false);
   const [save, setSave] = useState<GameSave | null>(null);
+  const [mode, setMode] = useState<GameMode>("galgame");
+  const [entryIntent, setEntryIntent] = useState<"new" | "continue">("new");
   const [protagonist, setProtagonist] = useState<Character | null>(null);
   const [npcs, setNpcs] = useState<NpcDraft[]>([]);
   const [loading, setLoading] = useState(false);
@@ -231,9 +270,10 @@ export function LifeApp() {
         const response = await fetch("/api/life/create", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ protagonist, npcs: finalNpcs }),
+          body: JSON.stringify({ protagonist, npcs: finalNpcs, presentationMode: mode }),
         });
         const data = await readJsonResponse<{ gameSave: GameSave }>(response);
+        setMode(data.gameSave.presentationMode ?? mode);
         persist(data.gameSave);
         setSave(data.gameSave);
         setScreen("chapter_start");
@@ -243,19 +283,49 @@ export function LifeApp() {
         setLoading(false);
       }
     },
-    [protagonist],
+    [mode, protagonist],
   );
+
+  const handleStartNew = useCallback(() => {
+    setError("");
+    setEntryIntent("new");
+    setMode("galgame");
+    setScreen("mode_select");
+  }, []);
 
   const handleContinue = useCallback(() => {
     try {
       const raw = window.localStorage.getItem(SAVE_KEY);
       if (!raw) return;
-      setSave(parseGameSave(JSON.parse(raw)));
-      setScreen("chapter_start");
+      const loadedSave = parseGameSave(JSON.parse(raw));
+      setSave(loadedSave);
+      setMode(loadedSave.presentationMode ?? "galgame");
+      setEntryIntent("continue");
+      setScreen("mode_select");
     } catch (err) {
       setError(err instanceof Error ? err.message : "存档读取失败");
     }
   }, []);
+
+  const handleModeSelect = useCallback(
+    (nextMode: GameMode) => {
+      setMode(nextMode);
+      setError("");
+      if (entryIntent === "continue" && save) {
+        const nextSave: GameSave = {
+          ...save,
+          presentationMode: nextMode,
+          savedAt: new Date().toISOString(),
+        };
+        setSave(nextSave);
+        persist(nextSave);
+        setScreen("chapter_start");
+        return;
+      }
+      setScreen("setup");
+    },
+    [entryIntent, save],
+  );
 
   const handleStartChapter = useCallback(async () => {
     if (!save) return;
@@ -404,6 +474,19 @@ export function LifeApp() {
             console.warn("narrative/reflection parallel stage failed:", parallelError);
           }
           const novel = await fetchNovel(result, worldBefore, span, 1, narrativePlan, narrativeReferences);
+          let dialogue: DialogueScene[] | undefined;
+          if (mode === "galgame") {
+            try {
+              setPlanProgress("正在整理互动对白…");
+              dialogue = await fetchDialogue(worldBefore, result.simulation.events, novel, narrativePlan);
+            } catch (dialogueError) {
+              console.warn(
+                "dialogue fallback:",
+                dialogueError instanceof Error ? dialogueError.message : dialogueError,
+              );
+              dialogue = fallbackDialogueScenes(novel);
+            }
+          }
           const chapter = assembleChapter({
             choice,
             selection: next,
@@ -412,6 +495,7 @@ export function LifeApp() {
             result,
             novel,
             narrativePlan,
+            dialogue,
             worldStateAfter: saveBase.worldState,
           });
           setChapter(chapter);
@@ -442,7 +526,7 @@ export function LifeApp() {
         setSimulating(false);
       }
     },
-    [save, choice, span],
+    [mode, save, choice, span],
   );
 
   const handleRegenerateNovel = useCallback(async () => {
@@ -459,7 +543,19 @@ export function LifeApp() {
         chapter.narrative?.plan,
         [],
       );
-      const updatedChapter: Chapter = { ...chapter, novel };
+      let dialogue = chapter.dialogue;
+      if (mode === "galgame") {
+        try {
+          dialogue = await fetchDialogue(preWorld, simResult.simulation.events, novel, chapter.narrative?.plan);
+        } catch (dialogueError) {
+          console.warn(
+            "dialogue regeneration fallback:",
+            dialogueError instanceof Error ? dialogueError.message : dialogueError,
+          );
+          dialogue = fallbackDialogueScenes(novel);
+        }
+      }
+      const updatedChapter: Chapter = { ...chapter, novel, ...(dialogue ? { dialogue } : {}) };
       setChapter(updatedChapter);
       setSave((prev) => {
         if (!prev) return prev;
@@ -476,7 +572,7 @@ export function LifeApp() {
     } finally {
       setNovelLoading(false);
     }
-  }, [chapter, simResult, preWorld, span]);
+  }, [chapter, mode, simResult, preWorld, span]);
 
   const handleNextChapter = useCallback(() => {
     setChoice(null);
@@ -503,7 +599,7 @@ export function LifeApp() {
             以知乎真实人生经历为现实底座，由大模型推演你的长期人生与关系。
           </p>
           <div style={{ display: "grid", gap: 12, maxWidth: 320, margin: "0 auto" }}>
-            <button type="button" className="life-vn-btn" onClick={() => setScreen("setup")}>
+            <button type="button" className="life-vn-btn" onClick={handleStartNew}>
               开始新人生
             </button>
             {hasSave && (
@@ -515,6 +611,17 @@ export function LifeApp() {
           {error && <div className="life-vn-error" style={{ marginTop: 16 }}>{error}</div>}
         </div>
       </div>
+    );
+  }
+
+  if (screen === "mode_select") {
+    return (
+      <ModeSelect
+        initialMode={mode}
+        continueMode={entryIntent === "continue"}
+        onSelect={handleModeSelect}
+        onCancel={() => setScreen("landing")}
+      />
     );
   }
 
@@ -546,6 +653,27 @@ export function LifeApp() {
   const pastChapters = save ? Object.values(save.chapters).sort((a, b) => a.index - b.index) : [];
 
   if (screen === "decision" && choice && presentation && world) {
+    if (mode === "novel") {
+      return (
+        <div className="life-vn" style={{ minHeight: "100vh", padding: "32px 20px 48px" }}>
+          <div className="life-vn-card" style={{ maxWidth: 760, margin: "0 auto" }}>
+            <div style={{ marginBottom: 18, color: "#6b7280", fontSize: 13 }}>
+              Chapter {String(presentation.chapter.index + 1).padStart(2, "0")} · {presentation.chapter.yearRange}
+            </div>
+            <DecisionPanel choice={choice} onSelect={handleSelect} disabled={Boolean(selection)} />
+            {selection && (
+              <div className="life-vn-feedback" style={{ marginTop: 16 }}>
+                {simulating
+                  ? simProgress
+                  : novelLoading
+                    ? planProgress || "正在把本章写成小说…"
+                    : error || "正在准备本章结果…"}
+              </div>
+            )}
+          </div>
+        </div>
+      );
+    }
     const sceneDef = findScene(DEFAULT_SCENE_ID) as NonNullable<ReturnType<typeof findScene>>;
     const options = choice.options.map((option) => ({ id: option.id, label: option.label }));
     const feedback = selection
@@ -666,6 +794,7 @@ export function LifeApp() {
         regenerating={novelLoading}
         world={world}
         pastChapters={pastChapters}
+        presentationMode={mode}
       />
     );
   }
@@ -827,9 +956,10 @@ function assembleChapter(args: {
   result: SimulateResult;
   novel: Chapter["novel"];
   narrativePlan?: NarrativePlan;
+  dialogue?: DialogueScene[];
   worldStateAfter?: WorldState;
 }): Chapter {
-  const { choice, selection, span, worldBefore, result, novel, narrativePlan, worldStateAfter } = args;
+  const { choice, selection, span, worldBefore, result, novel, narrativePlan, dialogue, worldStateAfter } = args;
   const finalWorld = worldStateAfter ?? result.worldStateAfter;
   const decision = buildChapterDecision(choice, selection);
   const evidence = allEvidence(result.evidenceBundle);
@@ -854,6 +984,7 @@ function assembleChapter(args: {
     simulationEventIds: result.simulation.events.map((event) => event.id),
     stateAfterHash: result.stateAfterHash,
     novel,
+    ...(dialogue?.length ? { dialogue } : {}),
     summary: {
       keyEvents: result.simulation.chapterSummary.keyEvents,
       characterChanges: result.simulation.chapterSummary.characterChanges,
