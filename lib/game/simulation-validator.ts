@@ -16,8 +16,9 @@ const MAJOR_EVENT_IMPORTANCE = 70;
 const TYPE_CHANGE_MIN_IMPORTANCE = 60;
 
 // 未来年份不得伪造现实政策/公司/名人为事实（方案 §23.2）的轻量启发式
+// 只匹配真实“政策/法规出台”与重大现实事件类表述；不含常用词（如“正式”“国家”），避免误伤普通生活表述。
 const FUTURE_FABRICATION_PATTERN =
-  /(?:国家|国务院|部委|正式|颁布|出台|立法|《[^》]{2,20}》(?:法|条例|政策|规定)|实名|(?:大规模)?裁员\d+|破产清算)/;
+  /(?:国务院|部委|颁布|出台|立法|《[^》]{2,20}》(?:法|条例|政策|规定)|(?:大规模)?裁员\d+|破产清算)/;
 
 export type ValidationContext = {
   chapterId: string;
@@ -65,8 +66,13 @@ export function validateSimulationOutput(
     if (!isFiniteNumber(event.importance) || event.importance < 0 || event.importance > 100) {
       throw new Error(`事件 ${event.id} 的 importance 必须是 0-100`);
     }
-    if (event.year > context.currentRealYear && FUTURE_FABRICATION_PATTERN.test(event.summary)) {
-      throw new Error(`事件 ${event.id} 疑似在未来年份伪造真实政策/公司/名人为事实`);
+    if (event.year > context.currentRealYear) {
+      const fabricationMatch = event.summary.match(FUTURE_FABRICATION_PATTERN);
+      if (fabricationMatch) {
+        throw new Error(
+          `事件 ${event.id} 疑似在未来年份伪造真实政策/公司/名人为事实（触发词："${fabricationMatch[0]}"）。请改为泛指表述，不要引用具体政策/法规/公司/名人。`,
+        );
+      }
     }
 
     for (const participantId of event.participantIds) {
