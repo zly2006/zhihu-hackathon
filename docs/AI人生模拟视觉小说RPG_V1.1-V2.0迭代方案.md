@@ -1044,3 +1044,45 @@ V1.x 明确不做：多主角控制、多人联机、20+ NPC 社会模拟、后�
 **一句话基线：**
 
 > V1.0 已经解决“这个人生世界会不会合理地继续发生”；V1.1–V1.3 要依次解决“这些事实能不能成为好故事”“这些人物像不像活人”“这个产品看起来和玩起来像不像游戏”。
+
+---
+
+# 17. V2.0 落地路线（O5：Galgame 化玩法升级工程拆解）
+
+> 本节由 2026-09-03 核对清单 O5 整理：把《产品冻结补充版》的玩法方向（Stage Goal / 三层选择 / Dialogue Generator）与本方案 §7（知识库扩量 / LoRA Gate / Director 拆分 / 生图 / NPC 后台模拟）落成可执行版本计划。V1.x 阶段不实施。
+
+## 17.1 目标与功能描述
+
+V2.0 的核心是**把"每章一次大选择"升级为"Galgame 式多层互动人生"**，让玩家在章节内、场景内也持续做选择，从而把 V1 已有的"合理人生事实"转成"可交互的阅读体验"。
+
+1. **Stage Goal 系统（Life Stage 驱动力）**：5–10 年人生阶段 → 阶段主题 → 玩家选择人生方向 → 该方向成为后续多章的长期拉力（影响事件概率 / 风险 / 成长方向 / 关系走向）。默认由人生经历推动目标变化，特殊人格允许坚持原目标。
+2. **三层选择体系**：
+   - ① Life Decision：人生大方向（沿用现有主决策，影响职业 / 财富 / 城市 / 社交圈）；
+   - ② Goal Choice：阶段目标取舍（决定后续事件概率与成长侧重）；
+   - ③ Dialogue Choice：场景内即时对话选择（影响 Relationship / Emotion / Memory / Future Flag；不直接决定成功失败）。
+3. **Interactive Narrative Engine 细化**：SimulationEvent → Narrative Director → Scene Plan → **Dialogue Generation**（逐句对白 + 对话分支选项）→ Visual Novel Chapter；Dialogue Choice 由 Dialogue Generator 产出。
+4. **Narrative KB 扩量**：引入 Visual Novel 语料（Ren'Py / 开源许可 / VNDB 元数据，逐项目 LICENSE 甄别 + 渠道可达后再采），fragment 规模走向 5000–10000，建立离线检索评测（召回质量 ≥ 阈值才进）。
+5. **Fine-tuning Gate**：同时满足"合法语料 + 足够规模 + RAG 与 Director 达瓶颈 + 明确 baseline + 可衡量增益"才评估 LoRA；禁止"小说不好看 → 堆语料 → 直接微调"。
+6. **Director 拆分（可选）**：若 V1.1 一次 LLM 生成 NarrativePlan 被证明不够精细，拆 Narrative Director → Scene Planner → Writer 两/三个模型角色。
+7. **Visual Generation System（presentation-only）**：角色立绘（年龄/表情一致性）、场景背景、CG、缓存与成本控制、失败 fallback；AI 生图只改呈现，不进入 WorldState/模拟语义。
+8. **NPC 后台持续模拟（不早于上述）**：仅当 3 核心 NPC 每章模拟显僵硬、且需要开放社会世界时才做；V1 明确不做后台 Agent。
+
+## 17.2 实施顺序（依赖优先）
+
+```text
+Step 0  KB VN 语料采集与权利审计（前置：代理路由可达、逐项目 LICENSE）→ fragment 扩量 5000–10000 + 离线评测
+Step 1  新领域模块：lib/domain/{life-theme,stage-goal,dialogue}.ts + lib/game/narrative/{scene-generator,dialogue-generator}.ts
+Step 2  Dialogue Choice：场景内对白选项（先 VN 场景壳内闭环，不动 World Simulator）
+Step 3  Stage Goal：chapter 之上加 stage 容器与阶段结算；Life/Goal/Dialogue 三层选择打通存档（schemaVersion 升版策略需评审）
+Step 4  量化验证后评估：Director 拆分 / LoRA / 生图接入 / NPC 后台模拟
+```
+
+每步沿用现有工程约束：lint/build → 真机流程 → render_game_to_text → 截图 → console → fixture；Mind Flow 三层 Prompt；canonical 与 presentation 边界不变。
+
+## 17.3 预期效果与验收口径
+
+- V2 Done（沿用 §14）：知识库与模型升级经 A/B 证明稳定增益，且数据权利可审计。
+- 玩法层：玩家能在单章内多次即时对话选择，且能说出"这一章我在几个关键瞬间做了决定"；关系/情绪/记忆/Flag 变化可追溯到具体 Dialogue Choice。
+- 体验层：Stage Goal 让多章形成人生阶段节奏（青年期闯荡 / 中年期安家），不再每章孤立。
+- 视觉层（若生图接入）：首见即能认出角色立绘与场景，且随年龄/地点合理变化。
+- 非目标不变（§16）：不做多主角 / 多人联机 / 20+ NPC / 后台实时 Agent / 语音 BGM / 训练基模 / 小说知识库影响人生事实。

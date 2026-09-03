@@ -171,6 +171,37 @@ export function LifeApp() {
       });
   }, [screen, save, choice, selection, loading, error, chapter]);
 
+  // 测试可观测接口（迭代方案 §10.2）：window.__lifeTest 跳过 VN 动效直达终态。
+  // 供自动化截图/长流程回归使用；等价于全局 prefers-reduced-motion，幂等可恢复。
+  useEffect(() => {
+    const NO_MOTION_STYLE_ID = "life-vn-no-motion";
+    const win = window as unknown as Record<string, unknown>;
+    win.__lifeTest = {
+      finishTransitions: () => {
+        if (document.getElementById(NO_MOTION_STYLE_ID)) return;
+        const style = document.createElement("style");
+        style.id = NO_MOTION_STYLE_ID;
+        style.textContent = [
+          ".life-vn *, .life-vn *:before, .life-vn *:after {",
+          "  animation-duration: 0.01ms !important;",
+          "  animation-iteration-count: 1 !important;",
+          "  transition-duration: 0ms !important;",
+          "  scroll-behavior: auto !important;",
+          "}",
+        ].join("\n");
+        document.head.appendChild(style);
+      },
+      restoreMotion: () => {
+        document.getElementById(NO_MOTION_STYLE_ID)?.remove();
+      },
+      isMotionFinished: () => Boolean(document.getElementById(NO_MOTION_STYLE_ID)),
+    };
+    return () => {
+      delete win.__lifeTest;
+      document.getElementById(NO_MOTION_STYLE_ID)?.remove();
+    };
+  }, []);
+
   const handleGenerateNpcs = useCallback(async (draft: ProtagonistDraft) => {
     setLoading(true);
     setError("");
