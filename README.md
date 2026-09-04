@@ -37,10 +37,12 @@ Novel Writer 文学化 → 章节小说（可重写，不改事实）
 
 ```bash
 npm ci
-npm run dev
+npm run dev -- --port 3111
 ```
 
-打开 <http://127.0.0.1:3000/life> 开始新的人生。生产构建：
+本项目测试入口为 <http://127.0.0.1:3111/life>，打开后开始新的人生。
+如果直接运行 `npm run dev`，Next.js 默认使用 3000 端口，对应地址为 <http://127.0.0.1:3000/life>。
+生产构建：
 
 ```bash
 npm run lint
