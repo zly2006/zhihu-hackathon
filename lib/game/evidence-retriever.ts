@@ -5,6 +5,7 @@
 
 import { retrieveEvidenceCandidates } from "../database";
 import { toLifeExperience } from "./experience-adapter";
+import { BoundedTtlCache, stableCacheKey } from "./performance-cache";
 import type { EvidenceBundle, LifeExperience } from "../domain/experience";
 import type { WorldState } from "../domain/world";
 import type { ChapterChoice } from "../domain/chapter";
@@ -27,6 +28,15 @@ export type RetrievalContext = {
 const RELATIONSHIP_KEYWORDS = ["分手", "离婚", "异地", "沟通", "矛盾", "伴侣", "夫妻", "父母", "亲子", "结婚"];
 const NEGATIVE_PATTERN = /失败|后悔|亏|没做成|放弃|不如|血本无归|分手|离婚|失业|被裁|困难|压力|没做成|错/;
 const POSITIVE_PATTERN = /成功|顺利|赚|升职|加薪|满意|不错|改善|好转|收获|认可|翻身/;
+
+const evidenceCache = new BoundedTtlCache<EvidenceBundle>({
+  ttlMs: 5 * 60_000,
+  maxEntries: 64,
+});
+
+export function clearEvidenceCache(): void {
+  evidenceCache.clear();
+}
 
 function domainForAge(age: number): string {
   if (age < 23) return "education";
@@ -163,13 +173,23 @@ export function assembleEvidenceBundle(
 
 export async function retrieveEvidence(input: EvidenceRetrievalInput): Promise<EvidenceBundle> {
   const context = deriveRetrievalContext(input.world, input.decision, input.selectedOptionId);
-  const candidates = await retrieveEvidenceCandidates({
-    domain: context.domain,
-    terms: context.terms,
-    anchorSeed: context.anchorSeed,
-    limit: 18,
-    excludedExperienceIds: input.usedExperienceIds ?? [],
+  const key = stableCacheKey("evidence-bundle", {
+    gameId: input.world.gameId,
+    currentYear: input.world.currentYear,
+    chapterCount: input.world.chapterIds.length,
+    context,
+    selectedOptionId: input.selectedOptionId ?? null,
+    usedExperienceIds: [...(input.usedExperienceIds ?? [])].sort(),
   });
-  const experiences = candidates.map(toLifeExperience);
-  return assembleEvidenceBundle(experiences, context);
+  return evidenceCache.getOrSet(key, async () => {
+    const candidates = await retrieveEvidenceCandidates({
+      domain: context.domain,
+      terms: context.terms,
+      anchorSeed: context.anchorSeed,
+      limit: 18,
+      excludedExperienceIds: input.usedExperienceIds ?? [],
+    });
+    const experiences = candidates.map(toLifeExperience);
+    return assembleEvidenceBundle(experiences, context);
+  });
 }

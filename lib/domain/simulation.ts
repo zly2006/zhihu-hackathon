@@ -17,6 +17,7 @@ import type { Relationship, RelationshipType } from "./relationship";
 import type { StoryThread, EraContextSnapshot } from "./world";
 import type { EvidenceBundle } from "./experience";
 import type { ChapterDecision, DecisionResolution } from "./chapter";
+import type { NpcAgentDirective } from "./npc-agent";
 
 export type CharacterChange = {
   characterId: CharacterId;
@@ -108,6 +109,9 @@ export type WorldSimulationInput = {
   resolution: DecisionResolution;
 
   evidenceBundle: EvidenceBundle;
+
+  // V3.1：每章一次的服务端 NPC 自主驱动；不进入客户端，不直接修改 WorldState。
+  npcAgentDirectives?: NpcAgentDirective[];
 
   eraContext?: EraContextSnapshot | null;
 };

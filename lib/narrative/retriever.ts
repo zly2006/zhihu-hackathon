@@ -2,27 +2,42 @@
 // NarrativeNeed → NarrativeEvidenceBundle：按叙事功能分桶检索 KB，聚合为
 // arc/scene/dialogue/pacing/ending 五类 NarrativeReference。
 import type { NarrativeEvidenceBundle, NarrativeNeed, NarrativeReference } from "../domain/narrative";
-import { searchFragments, type RetrievalResult } from "./query-adapter";
+import { BoundedTtlCache, stableCacheKey } from "../game/performance-cache";
+import { loadNarrativePatterns, searchFragments, type RetrievalResult } from "./query-adapter";
 
 const SCENE_FUNCTION_SCENES = ["conflict", "decision", "reversal", "climax"];
 const DIALOGUE_SCENES = ["conflict", "bonding", "decision", "reveal"];
 const PACING_SCENES = ["setup", "transition", "aftermath"];
 const ENDING_SCENES = ["aftermath", "ending_hook", "loss", "reconciliation"];
 
+const narrativePatternCache = new BoundedTtlCache<NarrativeEvidenceBundle>({
+  ttlMs: 10 * 60_000,
+  maxEntries: 64,
+});
+
+export function clearNarrativePatternCache(): void {
+  narrativePatternCache.clear();
+}
+
 function rowToReference(row: RetrievalResult["rows"][number]): NarrativeReference {
   let emotionCurve: string[] = [];
   let relationshipTags: string[] = [];
   try {
-    const curve = JSON.parse(row.emotion_curve || "{}") as { start?: string[]; peak?: string[]; end?: string[] };
-    emotionCurve = [...(curve.start ?? []), ...(curve.peak ?? []), ...(curve.end ?? [])];
+    const curve = JSON.parse(row.emotion_curve || "{}") as { start?: unknown[]; peak?: unknown[]; end?: unknown[] };
+    emotionCurve = [...(curve.start ?? []), ...(curve.peak ?? []), ...(curve.end ?? [])]
+      .filter((item): item is string => typeof item === "string")
+      .map((item) => item.slice(0, 40));
     const effect = JSON.parse(row.relationship_effect || "null") as { description?: string } | null;
-    if (effect?.description) relationshipTags = [effect.description];
+    if (effect?.description) relationshipTags = [effect.description.slice(0, 120)];
   } catch {
     /* 容错 */
   }
   let tags: string[] = [];
   try {
-    tags = JSON.parse(row.tags || "[]");
+    const parsedTags = JSON.parse(row.tags || "[]");
+    tags = Array.isArray(parsedTags)
+      ? parsedTags.filter((tag): tag is string => typeof tag === "string").map((tag) => tag.slice(0, 40))
+      : [];
   } catch {
     /* 容错 */
   }
@@ -32,10 +47,10 @@ function rowToReference(row: RetrievalResult["rows"][number]): NarrativeReferenc
     functionTags: [row.scene_type, ...tags].filter(Boolean),
     conflictTags: [row.conflict_type].filter(Boolean),
     relationshipTags,
-    techniqueSummary: row.transferable_rule || "",
+    techniqueSummary: (row.transferable_rule || "").slice(0, 240),
     structureSummary: `${row.scene_type}｜${row.life_stage}｜${row.conflict_type}`,
     emotionalCurve: emotionCurve.slice(0, 8),
-    safeExcerpt: (row.excerpt || "").slice(0, 300) || undefined,
+    safeExcerpt: row.quoteAllowed === 1 ? (row.excerpt || "").slice(0, 300) || undefined : undefined,
     similarity: Math.round(row.similarity * 1000) / 1000,
     qualityScore: row.quality_score,
   };
@@ -62,7 +77,7 @@ function composeQuery(need: NarrativeNeed): string {
     .join(" ");
 }
 
-export function retrieveNarrativeEvidence(need: NarrativeNeed): NarrativeEvidenceBundle {
+function retrieveNarrativeEvidenceUncached(need: NarrativeNeed): NarrativeEvidenceBundle {
   const query = composeQuery(need);
   const primaryStage = need.lifeDomains[0];
 
@@ -85,6 +100,14 @@ export function retrieveNarrativeEvidence(need: NarrativeNeed): NarrativeEvidenc
   const arcPatterns = dedupe(arc.rows.map(rowToReference));
 
   const all = dedupe([...scenePatterns, ...dialoguePatterns, ...pacingPatterns, ...endingPatterns, ...arcPatterns]);
+  const matchedRows = [scene, dialogue, pacing, ending, arc].flatMap((result) => result.rows);
+  const similarityByFragmentId = Object.fromEntries(
+    matchedRows.map((row) => [row.fragment_id, row.similarity]),
+  );
+  const patternResult = loadNarrativePatterns(
+    all.map((reference) => reference.fragmentId),
+    similarityByFragmentId,
+  );
   const querySummary = kbAvailable
     ? `章节 ${need.chapterId}｜领域 ${need.lifeDomains.join("/")}｜中心事件 ${need.centralEvents.slice(0, 3).join("；")}｜检索 ${all.length} 条参考`
     : `Narrative KB 不可用（${reasons.join("；")}），返回空证据包，Director 以无参考模式生成计划`;
@@ -97,7 +120,18 @@ export function retrieveNarrativeEvidence(need: NarrativeNeed): NarrativeEvidenc
     pacingPatterns,
     endingPatterns,
     total: all.length,
+    choicePatterns: patternResult.choicePatterns,
+    characterArcPatterns: patternResult.characterArcPatterns,
   };
+}
+
+export function retrieveNarrativeEvidence(need: NarrativeNeed): NarrativeEvidenceBundle {
+  const key = stableCacheKey("narrative-pattern", need);
+  const cached = narrativePatternCache.get(key);
+  if (cached) return cached;
+  const bundle = retrieveNarrativeEvidenceUncached(need);
+  if (bundle.total > 0) narrativePatternCache.set(key, bundle);
+  return bundle;
 }
 
 export function bundleFragmentIds(bundle: NarrativeEvidenceBundle): Set<string> {

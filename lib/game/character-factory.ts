@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import type { Character } from "../domain/character";
 import type { Relationship, RelationshipType, RelationshipScores } from "../domain/relationship";
 import type { WorldState } from "../domain/world";
+import { initializeSnapshotState } from "./snapshot-manager";
 import type { GameSave } from "../domain/chapter";
 import type { VisualIdentity } from "../domain/visual";
 import { clampLifeStats, clampTalents, type GameMode, type LifeStats, type Talents } from "../domain/shared";
@@ -236,7 +237,7 @@ export function createInitialGameSave(
   now = new Date().toISOString(),
   presentationMode: GameMode = "galgame",
 ): GameSave {
-  return {
+  const save: GameSave = {
     schemaVersion: 1,
     savedAt: now,
     worldState: world,
@@ -245,4 +246,5 @@ export function createInitialGameSave(
     experienceCache: {},
     presentationMode,
   };
+  return initializeSnapshotState(save, now);
 }

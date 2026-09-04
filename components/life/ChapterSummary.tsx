@@ -12,8 +12,8 @@ import { findScene, pickSceneForNovelScene } from "@/lib/game/scene-catalog";
 import { LifeShell } from "@/components/life-vn/LifeShell";
 import { SceneStage } from "@/components/life-vn/SceneStage";
 import { DialogueBox } from "@/components/life-vn/DialogueBox";
-import { PlayerHud } from "@/components/life-vn/PlayerHud";
-import { RelationshipHud } from "@/components/life-vn/RelationshipHud";
+import { Timeline, type TimelineChapter } from "@/components/life-vn/Timeline";
+import { StatusHUD } from "@/components/life-vn/StatusHUD";
 import { ChapterResult } from "@/components/life-vn/ChapterResult";
 import { NovelReader } from "./NovelReader";
 
@@ -47,6 +47,8 @@ export function ChapterSummary({
   regenerating,
   world,
   pastChapters,
+  timelineItems,
+  onTimelineSelect,
   presentationMode = "galgame",
 }: {
   chapter: Chapter;
@@ -59,6 +61,8 @@ export function ChapterSummary({
   regenerating: boolean;
   world: WorldState;
   pastChapters: Chapter[];
+  timelineItems?: TimelineChapter[];
+  onTimelineSelect?: (id: string) => void;
   presentationMode?: GameMode;
 }) {
   const [viewMode, setViewMode] = useState<"dialogue" | "result">("dialogue");
@@ -82,36 +86,47 @@ export function ChapterSummary({
   );
 
   const protagonist = world.characters[world.protagonistId];
+  const protagonistCharacter = protagonist
+    ? {
+        id: protagonist.id,
+        name: protagonist.identity.name,
+        ...(presentation.protagonist.avatarUrl ? { avatarUrl: presentation.protagonist.avatarUrl } : {}),
+        position: "center" as const,
+        emotion: protagonist.emotionState || "平静",
+      }
+    : undefined;
   const hudContent = (
-    <>
-      <PlayerHud
-        presentation={presentation.protagonist}
-        goals={protagonist?.state.currentGoals ?? []}
-        dilemmas={protagonist?.state.currentDilemmas ?? []}
-      />
-      <RelationshipHud relationships={presentation.relationships} />
-    </>
+    <StatusHUD
+      presentation={presentation.protagonist}
+      goals={protagonist?.state.currentGoals ?? []}
+      dilemmas={protagonist?.state.currentDilemmas ?? []}
+      relationships={presentation.relationships}
+    />
   );
 
   const timelineContent = (
-    <div className="life-vn-timeline">
-      {pastChapters.map((past) => (
-        <div className="life-vn-tl-entry" key={past.id}>
-          <small>
-            第 {pad(past.index + 1)} 章 · {past.startYear}—{past.endYear}
-          </small>
-          <h3>{past.novel.title}</h3>
-          <p>{past.summary.keyEvents.slice(0, 2).join("；")}</p>
-        </div>
-      ))}
-      <div className="life-vn-tl-entry active">
-        <small>
-          第 {pad(chapter.index + 1)} 章 · {chapter.startYear}—{chapter.endYear}
-        </small>
-        <h3>{chapter.novel.title}</h3>
-        <p>本章 · 正在结算</p>
-      </div>
-    </div>
+    <Timeline
+      chapters={
+        timelineItems ?? [
+          ...pastChapters
+            .filter((past) => past.id !== chapter.id)
+            .map((past) => ({
+              id: past.id,
+              label: `第 ${pad(past.index + 1)} 章 · ${past.startYear}—${past.endYear}`,
+              title: past.novel.title,
+              summary: past.summary.keyEvents.slice(0, 2).join("；"),
+            })),
+          {
+            id: chapter.id,
+            label: `第 ${pad(chapter.index + 1)} 章 · ${chapter.startYear}—${chapter.endYear}`,
+            title: chapter.novel.title,
+            summary: "本章 · 正在结算",
+            active: true,
+          },
+        ]
+      }
+      onSelect={onTimelineSelect}
+    />
   );
 
   function nextDialogueBlock() {
@@ -142,20 +157,14 @@ export function ChapterSummary({
         : undefined;
   }
 
-  function blockPortrait(): string | null | undefined {
-    if (activeBlock?.type !== "dialogue") return presentation.protagonist.avatarUrl;
-    return (
-      activeBlock.avatar ??
-      activeDialogueScene?.characters.find((character) => character.id === activeBlock.speakerId)?.avatarUrl ??
-      presentation.protagonist.avatarUrl
-    );
-  }
-
   const galgameCenter = (
     <SceneStage
+      key={activeDialogueScene?.id ?? sceneDef.id}
       scene={sceneDef}
       meta={activeDialogueScene?.timeLabel ?? `${chapter.startYear} 年`}
-      portraitUrl={blockPortrait()}
+      characters={activeDialogueScene?.characters}
+      activeCharacterId={activeBlock?.type === "dialogue" ? activeBlock.speakerId : null}
+      fallbackCharacter={protagonistCharacter}
       children={
         <DialogueBox
           speaker={blockSpeaker()}
@@ -204,6 +213,12 @@ export function ChapterSummary({
         regenerating={regenerating}
         theme={chapter.narrative?.plan.theme}
         mainConflict={chapter.narrative?.plan.mainConflict}
+        directorBrief={chapter.narrative?.plan.directorBrief}
+        directorFocusName={
+          chapter.narrative?.plan.directorBrief
+            ? world.characters[chapter.narrative.plan.directorBrief.focusCharacterId]?.identity.name
+            : undefined
+        }
       />
     </div>
   );
@@ -229,6 +244,12 @@ export function ChapterSummary({
           regenerating={regenerating}
           theme={chapter.narrative?.plan.theme}
           mainConflict={chapter.narrative?.plan.mainConflict}
+          directorBrief={chapter.narrative?.plan.directorBrief}
+          directorFocusName={
+            chapter.narrative?.plan.directorBrief
+              ? world.characters[chapter.narrative.plan.directorBrief.focusCharacterId]?.identity.name
+              : undefined
+          }
           showRegenerate={false}
         />
       </div>

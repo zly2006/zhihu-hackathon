@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import type { NarrativeDirectorBrief } from "@/lib/domain/narrative";
 import type { SimulationEvent } from "@/lib/domain/simulation";
 import type { LifeExperience } from "@/lib/domain/experience";
 import { RealityEvidenceDrawer } from "./RealityEvidenceDrawer";
@@ -24,6 +25,8 @@ export function ChapterResult({
   regenerating,
   theme,
   mainConflict,
+  directorBrief,
+  directorFocusName,
   showRegenerate = true,
   children,
 }: {
@@ -43,6 +46,8 @@ export function ChapterResult({
   regenerating: boolean;
   theme?: string;
   mainConflict?: string;
+  directorBrief?: NarrativeDirectorBrief;
+  directorFocusName?: string;
   showRegenerate?: boolean;
   children?: React.ReactNode;
 }) {
@@ -65,6 +70,17 @@ export function ChapterResult({
         </div>
       )}
 
+      {directorBrief && (
+        <section className="life-vn-card">
+          <div className="life-vn-hud-title">
+            <span>下一幕聚焦（Narrative Director）</span>
+            <span className="life-vn-pill">张力：{directorBrief.tensionLevel}</span>
+          </div>
+          {directorFocusName && <div className="life-vn-change">聚焦角色：{directorFocusName}</div>}
+          <div className="life-vn-change">{directorBrief.dramaticQuestion}</div>
+        </section>
+      )}
+
       {children}
 
       <section className="life-vn-card">
@@ -79,6 +95,9 @@ export function ChapterResult({
             </time>
             <p>
               <strong>{event.title}</strong>
+              {event.causes.some((cause) => cause.type === "npc_goal") && (
+                <span className="life-vn-pill" style={{ marginLeft: 8 }}>NPC 主动</span>
+              )}
               {event.summary ? ` — ${event.summary}` : ""}
             </p>
           </div>

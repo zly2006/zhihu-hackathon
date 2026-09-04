@@ -43,6 +43,41 @@ export type NarrativeReference = {
   qualityScore: number;
 };
 
+export type NarrativeChoicePattern = {
+  id: string;
+  fragmentId: string;
+  type: string;
+  options: string[];
+  effects: Record<string, unknown>;
+  sourceId: string;
+  similarity: number;
+};
+
+export type NarrativeCharacterArcPattern = {
+  id: string;
+  fragmentId: string;
+  stage: string;
+  stateBefore: string;
+  stateAfter: string;
+  sourceId: string;
+  similarity: number;
+};
+
+export type NarrativeDirectorTrigger =
+  | "npc_goal"
+  | "relationship"
+  | "player_choice"
+  | "canonical_event";
+
+export type NarrativeDirectorBrief = {
+  trigger: NarrativeDirectorTrigger;
+  focusCharacterId: string;
+  focusEventIds: string[];
+  focusThreadIds: string[];
+  dramaticQuestion: string;
+  tensionLevel: "quiet" | "rising" | "high";
+};
+
 export type NarrativeEvidenceBundle = {
   querySummary: string;
   arcPatterns: NarrativeReference[];
@@ -51,6 +86,9 @@ export type NarrativeEvidenceBundle = {
   pacingPatterns: NarrativeReference[];
   endingPatterns: NarrativeReference[];
   total: number;
+  // V2.5：兼容旧响应；新 bundle 始终填充这两个数组。
+  choicePatterns?: NarrativeChoicePattern[];
+  characterArcPatterns?: NarrativeCharacterArcPattern[];
 };
 
 export type ScenePlan = {
@@ -95,4 +133,6 @@ export type NarrativePlan = {
   };
   referenceFragmentIds: string[];
   canonicalEventIds: string[];
+  // V3.2：程序从公开状态推导的下一幕聚焦建议；不携带 NPC 私密字段。
+  directorBrief?: NarrativeDirectorBrief;
 };

@@ -3,7 +3,12 @@
 // Director 只能决定“如何呈现”，不能新增/篡改 canonical 事实。
 import { callGameModel } from "../llm";
 import type { ChapterSpan } from "../domain/shared";
-import type { NarrativeEvidenceBundle, NarrativeNeed, NarrativePlan } from "../domain/narrative";
+import type {
+  NarrativeDirectorBrief,
+  NarrativeEvidenceBundle,
+  NarrativeNeed,
+  NarrativePlan,
+} from "../domain/narrative";
 import type { SimulationEvent } from "../domain/simulation";
 import type { WorldState } from "../domain/world";
 import type { ChapterDecision } from "../domain/chapter";
@@ -91,7 +96,47 @@ function describeEvidence(bundle: NarrativeEvidenceBundle): string {
       );
     }
   }
+  const choicePatterns = bundle.choicePatterns ?? [];
+  if (choicePatterns.length) {
+    lines.push("## 选择设计模式（choice pattern）");
+    for (const pattern of choicePatterns.slice(0, 6)) {
+      lines.push(
+        `- id=${pattern.id}｜类型 ${pattern.type}｜选项形态 ${pattern.options.join(" / ")}｜结果结构 ${JSON.stringify(pattern.effects)}｜仅作机制参考`,
+      );
+    }
+  }
+  const characterArcPatterns = bundle.characterArcPatterns ?? [];
+  if (characterArcPatterns.length) {
+    lines.push("## 人物弧结构参考（character arc）");
+    for (const pattern of characterArcPatterns.slice(0, 6)) {
+      lines.push(
+        `- id=${pattern.id}｜阶段 ${pattern.stage}｜状态变化 ${pattern.stateBefore || "未标注"} → ${pattern.stateAfter || "未标注"}｜仅作结构参考`,
+      );
+    }
+  }
   return lines.join("\n");
+}
+
+function describeDirectorBrief(brief: NarrativeDirectorBrief, info: DirectorWorldInfo): string {
+  const focusCharacter = info.world.characters[brief.focusCharacterId];
+  const eventLabels = brief.focusEventIds
+    .map((eventId) => info.events.find((event) => event.id === eventId))
+    .filter(Boolean)
+    .map((event) => `${event?.id}｜${event?.title}`)
+    .join("、") || "无";
+  const threadLabels = brief.focusThreadIds
+    .map((threadId) => info.world.openThreads.find((thread) => thread.id === threadId))
+    .filter(Boolean)
+    .map((thread) => `${thread?.id}｜${thread?.label}`)
+    .join("、") || "无";
+  return [
+    "# V3.2 Narrative Director Brief（下一幕聚焦建议）",
+    `触发类型：${brief.trigger}；张力等级：${brief.tensionLevel}`,
+    `聚焦角色：${focusCharacter?.identity.name ?? brief.focusCharacterId}；聚焦事件：${eventLabels}`,
+    `继续推进的开放线索：${threadLabels}`,
+    `戏剧问题：${brief.dramaticQuestion}`,
+    "这是程序从公开状态推导的呈现建议，不是新事实；只能改变叙事切入方式，不能修改 canonical 事件或补写 NPC 私密信息。",
+  ].join("\n");
 }
 
 export function buildDirectorPrompt(args: {
@@ -99,8 +144,9 @@ export function buildDirectorPrompt(args: {
   bundle: NarrativeEvidenceBundle;
   info: DirectorWorldInfo;
   previousErrors?: string[];
+  directorBrief?: NarrativeDirectorBrief;
 }): string {
-  const { need, bundle, info, previousErrors } = args;
+  const { need, bundle, info, previousErrors, directorBrief } = args;
   const [minScenes, maxScenes] = SCENE_COUNT_RANGE[info.span];
   const aliasTables = buildAliasTables(info.events, info.world);
   const allowedFragmentIds = [
@@ -122,6 +168,7 @@ export function buildDirectorPrompt(args: {
     `7. 每个场景必须给出 visibleGoal、conflict、endingBeat、location。`,
     `8. 不得新增重大人生事实（婚姻/死亡/怀孕/裁员/重大疾病等），不得改变事件年份、结果、人物变化、关系变化；不得把参考知识中的角色或情节复制进游戏；不得把 NPC 隐藏状态当作主角已知事实；不得为戏剧化让 NPC 突然反常。`,
     `9. 本章主题与主冲突必须能在 JSON 的 theme / mainConflict 字段中被明确指出（不可含糊）。`,
+    `10. choice pattern 与 character arc 只提供抽象结构和风险/关系机制参考；不得复制参考中的角色、情节、原文或把参考选择当作本章 canonical 结算。`,
   ].join("\n");
 
   const outputSpec = [
@@ -198,6 +245,10 @@ export function buildDirectorPrompt(args: {
     );
   }
 
+  if (directorBrief) {
+    sections.push(describeDirectorBrief(directorBrief, info), "");
+  }
+
   sections.push(hardConstraints, outputSpec);
   return sections.join("\n");
 }
@@ -268,6 +319,7 @@ export async function generateNarrativePlan(args: {
   bundle: NarrativeEvidenceBundle;
   info: DirectorWorldInfo;
   previousErrors?: string[];
+  directorBrief?: NarrativeDirectorBrief;
 }): Promise<NarrativePlan> {
   const prompt = buildDirectorPrompt(args);
   const modeled = await callGameModel<ModelPlan>("narrative-plan", DIRECTOR_SYSTEM, prompt, {
@@ -275,5 +327,6 @@ export async function generateNarrativePlan(args: {
     timeoutMs: 180_000,
   });
   const aliasTables = buildAliasTables(args.info.events, args.info.world);
-  return resolvePlanAliases(parsePlan(modeled), aliasTables);
+  const resolved = resolvePlanAliases(parsePlan(modeled), aliasTables);
+  return args.directorBrief ? { ...resolved, directorBrief: args.directorBrief } : resolved;
 }

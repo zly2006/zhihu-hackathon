@@ -6,7 +6,11 @@ import type { ChapterSpan } from "../domain/shared";
 import type { ChapterDecision } from "../domain/chapter";
 import type { SimulationEvent } from "../domain/simulation";
 import type { WorldState } from "../domain/world";
-import type { NarrativeEvidenceBundle, NarrativePlan } from "../domain/narrative";
+import type {
+  NarrativeDirectorBrief,
+  NarrativeEvidenceBundle,
+  NarrativePlan,
+} from "../domain/narrative";
 import { buildNarrativeNeed } from "./need-builder";
 import { retrieveNarrativeEvidence } from "./retriever";
 import { generateNarrativePlan } from "./planner";
@@ -20,6 +24,7 @@ export type NarrativeEngineInput = {
   decision: ChapterDecision;
   startYear: number;
   endYear: number;
+  directorBrief?: NarrativeDirectorBrief;
 };
 
 export type NarrativeEngineResult = {
@@ -36,7 +41,7 @@ export type NarrativeEngineResult = {
 const MAX_DIRECTOR_ATTEMPTS = 3;
 
 export async function runNarrativeEngine(input: NarrativeEngineInput): Promise<NarrativeEngineResult> {
-  const { chapterId, span, world, events, decision, startYear, endYear } = input;
+  const { chapterId, span, world, events, decision, startYear, endYear, directorBrief } = input;
 
   const need = buildNarrativeNeed({ chapterId, span, world, events, decision });
   const bundle = retrieveNarrativeEvidence(need);
@@ -47,7 +52,7 @@ export async function runNarrativeEngine(input: NarrativeEngineInput): Promise<N
   let attempts = 0;
 
   for (attempts = 1; attempts <= MAX_DIRECTOR_ATTEMPTS; attempts++) {
-    plan = await generateNarrativePlan({ need, bundle, info, previousErrors });
+    plan = await generateNarrativePlan({ need, bundle, info, previousErrors, directorBrief });
     const validation = validateNarrativePlan({ plan, need, bundle, world, events, span, startYear, endYear });
     if (validation.valid) {
       return {

@@ -27,11 +27,11 @@ export function retrieveFragments(query, { stage, limit = 5 } = {}) {
     .prepare(
       `SELECT e.fragment_id, e.vector, f.event, f.scene_type, f.conflict_type, f.life_stage,
               f.emotion_curve, f.relationship_effect, f.choices, f.tags, f.transferable_rule, f.excerpt,
-              f.quality_score, s.title, s.rights_status
+              f.quality_score, s.title, s.rights_status, s.rag_allowed, s.quote_allowed
        FROM embeddings e
        JOIN narrative_fragment f ON f.id = e.fragment_id
        JOIN source_document s ON s.id = f.source_document_id
-       ${stage ? "WHERE f.life_stage = ?" : ""}`,
+       WHERE s.rag_allowed = 1${stage ? " AND f.life_stage = ?" : ""}`,
     )
     .all(...(stage ? [stage] : []));
 
@@ -137,7 +137,7 @@ export function narrativeScene({ event, characters = [], relationship = "", limi
     dialogue_style: dialogue
       ? {
           basis: dialogue.scene_type,
-          excerpt: (dialogue.excerpt || "").slice(0, 120),
+          ...(dialogue.quote_allowed === 1 ? { excerpt: (dialogue.excerpt || "").slice(0, 120) } : {}),
           relationship_effect: dialogue.relationship_effect ? JSON.parse(dialogue.relationship_effect) : null,
           source: dialogue.title,
         }

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server";
 import type { NovelScene } from "@/lib/domain/chapter";
-import type { NarrativePlan } from "@/lib/domain/narrative";
+import type { NarrativeEvidenceBundle, NarrativePlan } from "@/lib/domain/narrative";
 import type { SimulationEvent } from "@/lib/domain/simulation";
 import type { WorldState } from "@/lib/domain/world";
 import {
@@ -17,6 +17,7 @@ type DialogueRequestBody = {
   events: SimulationEvent[];
   novelScenes: NovelScene[];
   narrativePlan?: NarrativePlan;
+  narrativeEvidence?: NarrativeEvidenceBundle;
 };
 
 function isRecord(value: unknown): value is Record<string, unknown> {
@@ -61,6 +62,9 @@ function parseBody(value: unknown): DialogueRequestBody {
     events: value.events as SimulationEvent[],
     novelScenes: value.novelScenes as NovelScene[],
     narrativePlan: isRecord(value.narrativePlan) ? (value.narrativePlan as unknown as NarrativePlan) : undefined,
+    narrativeEvidence: isRecord(value.narrativeEvidence)
+      ? (value.narrativeEvidence as unknown as NarrativeEvidenceBundle)
+      : undefined,
   };
 }
 
@@ -73,6 +77,7 @@ export async function POST(request: Request) {
       events: body.events,
       novelScenes: body.novelScenes,
       narrativePlan: body.narrativePlan,
+      narrativeEvidence: body.narrativeEvidence,
     };
   } catch (error) {
     return NextResponse.json(

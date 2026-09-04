@@ -1,6 +1,6 @@
 // 全量测试运行器（Phase 7 交付物）
 // 1. 用 tsc 编译全部 lib 代码到 .tmp/test-all
-// 2. 依次运行 6 个冒烟测试套件
+// 2. 依次运行全部冒烟/回归测试套件
 // 用法：node scripts/test-all.mjs
 
 import { execSync } from "node:child_process";
@@ -24,6 +24,7 @@ const sources = [
   "lib/database.ts",
   "lib/era.ts",
   ...listTs(path.join(root, "lib", "game")),
+  ...listTs(path.join(root, "lib", "narrative")),
 ];
 
 console.log("==> 编译 lib 代码 ...");
@@ -41,6 +42,11 @@ const suites = [
   { file: "test/phase7-stability.smoke.mjs", env: "PHASE7_TEST_DIR" },
   { file: "test/reflection-engine.test.mjs", env: "REFLECTION_TEST_DIR" },
   { file: "test/v21-interactive-life.test.mjs", env: "V21_TEST_DIR" },
+  { file: "test/v22-galgame-ui.test.mjs", env: "V22_TEST_DIR" },
+  { file: "test/v23-snapshot-replay.test.mjs", env: "V23_TEST_DIR" },
+  { file: "test/v24-performance.test.mjs", env: "V24_TEST_DIR" },
+  { file: "test/v25-narrative-kb.test.mjs", env: "V25_TEST_DIR" },
+  { file: "test/v31-v32-agents.test.mjs", env: "V31_V32_TEST_DIR" },
 ];
 
 let failed = 0;

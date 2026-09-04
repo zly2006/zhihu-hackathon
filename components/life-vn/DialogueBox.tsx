@@ -1,13 +1,10 @@
 "use client";
 
 import type { ReactNode } from "react";
+import type { DialogueChoiceId } from "@/lib/domain/dialogue";
+import { ChoicePanel, type ChoicePanelOption } from "./ChoicePanel";
 
-export type DialogueOption = {
-  id: "A" | "B" | "C";
-  label: string;
-  description?: string;
-  disabled?: boolean;
-};
+export type DialogueOption = ChoicePanelOption;
 
 // 对白框：说话人 + 正文 + 选项（可选）+ 右下角继续
 export function DialogueBox({
@@ -38,21 +35,11 @@ export function DialogueBox({
       {speaker && <span className="life-vn-speaker">{speaker}</span>}
       <p className="life-vn-copy">{copy}</p>
       {options && options.length > 0 && (
-        <div className="life-vn-choices" aria-label="对话选择">
-          {options.map((option) => (
-            <button
-              key={option.id}
-              type="button"
-              className="life-vn-choice"
-              aria-pressed={selectedOptionId === option.id}
-              disabled={option.disabled}
-              onClick={() => onSelect?.(option.id)}
-            >
-              <span className="life-vn-choice-key">{option.id}</span>
-              <span>{option.label}</span>
-            </button>
-          ))}
-        </div>
+        <ChoicePanel
+          options={options}
+          selectedOptionId={selectedOptionId}
+          onSelect={(id: DialogueChoiceId) => onSelect?.(id)}
+        />
       )}
       {children}
       <div className="life-vn-dialogue-foot">

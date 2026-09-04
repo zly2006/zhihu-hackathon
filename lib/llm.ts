@@ -6,6 +6,8 @@ import type { ModelConversationMessage } from "./types";
 const DEFAULT_ENDPOINT = "https://opencode.ai/zen/go/v1/chat/completions";
 const DEFAULT_MODEL = "deepseek-v4-flash";
 const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
+const CCFUCK_BASE_URL = "https://api.ccfuck.me";
+const FREEAPP_BASE_URL = "https://newapi.freeapp.tech";
 export type ModelProgress = {
   stage: "connected" | "generating" | "complete" | "retrying";
   elapsedMs: number;
@@ -22,6 +24,7 @@ export type ModelProgress = {
 export type ModelMessage = ModelConversationMessage;
 type CallOptions = {
   onProgress?: (progress: ModelProgress) => void;
+  onToken?: (token: string) => void;
   signal?: AbortSignal;
   prefixMessages?: ModelMessage[];
   appendMessages?: ModelMessage[];
@@ -29,6 +32,7 @@ type CallOptions = {
   slowRetryAttempt?: number;
   maxTokens?: number;
   timeoutMs?: number;
+  responseFormat?: "json" | "text";
 };
 function environment(name: string) {
   return process.env[name];
@@ -42,7 +46,13 @@ function reasoningEffort() {
   return value;
 }
 
-type ModelProvider = "opencodego" | "deepseek";
+type ModelProvider = "opencodego" | "deepseek" | "ccfuck" | "freeapp";
+
+function chatCompletionsEndpoint(baseUrl: string) {
+  const base = baseUrl.trim().replace(/\/+$/, "");
+  if (base.endsWith("/chat/completions")) return base;
+  return `${base}${base.endsWith("/v1") ? "" : "/v1"}/chat/completions`;
+}
 
 function providerConfig() {
   const provider = (environment("MODEL_PROVIDER") || "opencodego") as ModelProvider;
@@ -62,7 +72,23 @@ function providerConfig() {
       apiKey: environment("CPA_API_KEY") || "",
     };
   }
-  throw new Error("MODEL_PROVIDER 必须是 opencodego 或 deepseek");
+  if (provider === "ccfuck") {
+    return {
+      provider,
+      endpoint: chatCompletionsEndpoint(environment("CCFUCK_BASE_URL") || CCFUCK_BASE_URL),
+      model: environment("CCFUCK_MODEL") || DEFAULT_MODEL,
+      apiKey: environment("CCFUCK_API_KEY") || "",
+    };
+  }
+  if (provider === "freeapp") {
+    return {
+      provider,
+      endpoint: chatCompletionsEndpoint(environment("FREEAPP_BASE_URL") || FREEAPP_BASE_URL),
+      model: environment("FREEAPP_MODEL") || DEFAULT_MODEL,
+      apiKey: environment("FREEAPP_API_KEY") || "",
+    };
+  }
+  throw new Error("MODEL_PROVIDER 必须是 opencodego、deepseek、ccfuck 或 freeapp");
 }
 
 function contentText(content: unknown): string {
@@ -179,14 +205,31 @@ export async function callGameModel<T>(
 
   try {
     if (!provider.apiKey) {
+      const apiKeyName =
+        provider.provider === "opencodego"
+          ? "CPA_API_KEY"
+          : provider.provider === "deepseek"
+            ? "DEEPSEEK_API_KEY"
+            : provider.provider === "ccfuck"
+              ? "CCFUCK_API_KEY"
+              : "FREEAPP_API_KEY";
       throw new Error(
-        `未配置 ${provider.provider === "deepseek" ? "DEEPSEEK_API_KEY" : "CPA_API_KEY"}，无法调用大模型`,
+        `未配置 ${apiKeyName}，无法调用大模型`,
       );
     }
     const providerOptions =
       provider.provider === "deepseek"
-        ? { thinking: { type: "disabled" }, response_format: { type: "json_object" } }
-        : { reasoning_effort: effort };
+        ? {
+            thinking: { type: "disabled" },
+            ...(options.responseFormat === "text"
+              ? {}
+              : { response_format: { type: "json_object" } }),
+          }
+        : provider.provider === "opencodego"
+          ? { reasoning_effort: effort }
+          : options.responseFormat === "text"
+            ? {}
+            : { response_format: { type: "json_object" } };
     const response = await fetch(endpoint, {
       method: "POST",
       headers: { Authorization: `Bearer ${provider.apiKey}`, "Content-Type": "application/json" },
@@ -241,6 +284,7 @@ export async function callGameModel<T>(
       if (content || reasoning) {
         if (firstTokenMs === null) firstTokenMs = Math.round(performance.now() - startedClock);
         modelContent += content;
+        if (content) options.onToken?.(content);
         activityContent += content || reasoning;
         if (tokenCountEstimated) completionTokens = estimatedTokens(activityContent);
         progress("generating");
@@ -268,15 +312,20 @@ export async function callGameModel<T>(
     if (buffer.trim()) consumeLine(buffer);
     modelContent = modelContent.trim();
     progress("complete", true);
-    // 无 response_format 约束的网关（如 opencodego）模型可能包裹 ```json ... ``` 围栏，统一剥除
-    const fenceMatch = modelContent.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
-    if (fenceMatch) modelContent = fenceMatch[1].trim();
-    if (!modelContent.startsWith("{") || !modelContent.endsWith("}"))
-      throw new Error("大模型未返回完整 JSON 对象");
-    try {
-      parsedResponse = JSON.parse(modelContent) as T;
-    } catch {
-      throw new Error("大模型返回的 JSON 无法解析");
+    if (options.responseFormat === "text") {
+      if (!modelContent) throw new Error("大模型未返回文本内容");
+      parsedResponse = modelContent as T;
+    } else {
+      // 无 response_format 约束的网关（如 opencodego）模型可能包裹 ```json ... ``` 围栏，统一剥除
+      const fenceMatch = modelContent.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+      if (fenceMatch) modelContent = fenceMatch[1].trim();
+      if (!modelContent.startsWith("{") || !modelContent.endsWith("}"))
+        throw new Error("大模型未返回完整 JSON 对象");
+      try {
+        parsedResponse = JSON.parse(modelContent) as T;
+      } catch {
+        throw new Error("大模型返回的 JSON 无法解析");
+      }
     }
     options.onCompletedMessage?.(modelContent);
     return parsedResponse;

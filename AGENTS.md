@@ -51,3 +51,13 @@ npm run build
 - 设计长对话记忆时，必须先确认供应商缓存按哪个前缀命中，再决定消息布局；不能只按“最近若干轮”滚动截断，因为删除头部会让后续请求前缀整体变化并持续丢失缓存。
 - 正常回合只允许在稳定前缀末尾 append 新消息。compact 必须由明确阈值触发，并产出新的稳定摘要检查点；检查点建立后继续只追加，直到下一次阈值触发。
 - compact 边界必须可重现，不能随生成文本长度或模糊判断每轮漂移。数值状态仍以程序结算为准，摘要只承载叙事事实和长期影响。
+
+<!-- BEGIN:nextjs-agent-rules -->
+
+# This is NOT the Next.js you know
+
+This version has breaking changes — APIs, conventions, and file structure may all differ from your training data. Read the relevant guide in `node_modules/next/dist/docs/` (resolved from this file's directory; in monorepos the `next` package may not be visible from the repo root) before writing any code. Heed deprecation notices.
+
+This block is written and re-added by `next dev` — verify at `node_modules/next/dist/server/lib/generate-agent-files.js`. Removing it from a diff only re-creates the uncommitted change; committing it with your work keeps the tree clean.
+
+<!-- END:nextjs-agent-rules -->

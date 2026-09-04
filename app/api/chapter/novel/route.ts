@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { writeNovel, type NovelWriterInput } from "@/lib/game/novel-writer";
+import {
+  writeNovel,
+  writeNovelStream,
+  type NovelWriterInput,
+} from "@/lib/game/novel-writer";
 import type { ChapterSpan } from "@/lib/domain/shared";
 import type { CharacterMemory } from "@/lib/domain/memory";
 import type { SimulationEvent } from "@/lib/domain/simulation";
@@ -20,7 +24,57 @@ type NovelRequest = {
   // V1.1：可选 Director 规划与叙事参考
   narrativePlan?: NarrativePlan;
   narrativeReferences?: NarrativeReference[];
+  // V2.4：存在 Scene Plan 时可显式请求增量 SSE；缺省保持 JSON 兼容。
+  stream?: boolean;
 };
+
+function streamNovelResponse(input: NovelWriterInput, version: number, signal: AbortSignal): Response {
+  const encoder = new TextEncoder();
+  const stream = new ReadableStream({
+    async start(controller) {
+      let closed = false;
+      const send = (event: "progress" | "scene_start" | "delta" | "scene" | "complete" | "error", data: object) => {
+        if (closed) return;
+        try {
+          controller.enqueue(encoder.encode(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`));
+        } catch {
+          closed = true;
+        }
+      };
+      try {
+        send("progress", { stage: "started", message: "正在准备场景生成" });
+        const novel = await writeNovelStream(input, version, {
+          signal,
+          onSceneStart: (sceneIndex, scenePlan) =>
+            send("scene_start", { sceneIndex, scenePlan }),
+          onToken: (sceneIndex, token) => send("delta", { sceneIndex, delta: token }),
+          onScene: (sceneIndex, scene) => send("scene", { sceneIndex, scene }),
+        });
+        send("complete", { novel });
+      } catch (error) {
+        if (!signal.aborted) {
+          console.error("streaming novel generation failed", error);
+          send("error", { message: error instanceof Error ? error.message : "小说生成失败，请重试" });
+        }
+      } finally {
+        closed = true;
+        try {
+          controller.close();
+        } catch {
+          /* 客户端提前断开时流已关闭。 */
+        }
+      }
+    },
+  });
+  return new Response(stream, {
+    headers: {
+      "Content-Type": "text/event-stream; charset=utf-8",
+      "Cache-Control": "no-cache, no-transform",
+      Connection: "keep-alive",
+      "X-Accel-Buffering": "no",
+    },
+  });
+}
 
 export async function POST(request: Request) {
   let body: NovelRequest;
@@ -38,6 +92,7 @@ export async function POST(request: Request) {
     version = 1,
     narrativePlan,
     narrativeReferences,
+    stream: streamRequested = false,
   } = body;
   if (!stateBefore || stateBefore.schemaVersion !== 1 || !stateBefore.protagonistId) {
     return NextResponse.json({ error: "无效的 stateBefore" }, { status: 400 });
@@ -63,6 +118,9 @@ export async function POST(request: Request) {
       narrativePlan,
       narrativeReferences,
     };
+    if (streamRequested && narrativePlan?.scenes?.length) {
+      return streamNovelResponse(input, version, request.signal);
+    }
     const novel = await writeNovel(input, version);
     return NextResponse.json({ novel });
   } catch (error) {

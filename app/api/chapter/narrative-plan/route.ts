@@ -1,5 +1,6 @@
 import { NextResponse } from "next/server";
 import { runNarrativeEngine } from "@/lib/narrative/engine";
+import { buildNarrativeDirectorBrief } from "@/lib/game/narrative-director";
 import type { ChapterSpan } from "@/lib/domain/shared";
 import type { ChapterDecision } from "@/lib/domain/chapter";
 import type { SimulationEvent } from "@/lib/domain/simulation";
@@ -43,6 +44,15 @@ export async function POST(request: Request) {
       };
       try {
         send("progress", { stage: "retrieving", message: "正在从叙事知识库检索本章参考" });
+        const directorBrief = buildNarrativeDirectorBrief({
+          chapterId,
+          world: stateBefore,
+          events,
+          decision,
+          span,
+          startYear: stateBefore.currentYear,
+          endYear: stateBefore.currentYear + span,
+        });
         const result = await runNarrativeEngine({
           chapterId,
           span,
@@ -51,6 +61,7 @@ export async function POST(request: Request) {
           decision,
           startYear: stateBefore.currentYear,
           endYear: stateBefore.currentYear + span,
+          directorBrief,
         });
         send("progress", {
           stage: "validating",

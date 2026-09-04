@@ -8,6 +8,8 @@ import type { ChapterSpan } from "../domain/shared";
 import type { ChapterChoice } from "../domain/chapter";
 import type { WorldState } from "../domain/world";
 import type { Relationship } from "../domain/relationship";
+import { hashState } from "./hash";
+import { BoundedTtlCache, stableCacheKey } from "./performance-cache";
 
 type ModelOption = {
   id?: unknown;
@@ -157,10 +159,22 @@ function describeWorld(world: WorldState, span: ChapterSpan): string {
 const CHOICE_SYSTEM =
   "你是中文互动人生小说的选择生成器。只输出严格 JSON，不写 Markdown。玩家只选择行动方向，不直接选择成功或失败。你必须从主角当前的真实处境、资源状态、关系与目标中生长出一个具体困境，再给出三个机制互不相同的行动方向。不要给低风险选项同时塞多项高收益，也不要把三个选项写成同一风险轴上的稳妥/探索/激进。禁止编造真实政策、名人或历史事件。";
 
-export async function generateChapterChoice(world: WorldState, span: ChapterSpan): Promise<ChapterChoice> {
-  const worldDescription = describeWorld(world, span);
-  const prompt = `请根据以下当前世界状态，生成本章的核心困境与三个行动方向。\n\n${worldDescription}\n\n要求：\n1. context 是一个具体的当下困境（80-200字），从一个可见的处境切入，不要抽象的人生规划。\n2. 三个选项必须改变行动机制（例如：留任争取 / 接受邀请 / 迁移换环境；自己承担 / 借助他人 / 改变目标），strategyTag 互不相同。\n3. estimatedRisk 是资源正常的人执行该行动的 0-100 结构风险；stateFit 表示该行动相对主角当前处境的契合度（顺势/可行/吃力）。\n4. 只输出 JSON，格式如下：\n{"promptTitle":"16字内","context":"200字内困境","options":[{"id":"A","label":"12字内","description":"40字内","strategyTag":"行动机制","estimatedRisk":0到100,"stateFit":"顺势|可行|吃力"},{"id":"B","label":"...","description":"...","strategyTag":"...","estimatedRisk":0到100,"stateFit":"..."},{"id":"C","label":"...","description":"...","strategyTag":"...","estimatedRisk":0到100,"stateFit":"..."}]}`;
+const choiceCache = new BoundedTtlCache<ChapterChoice>({
+  ttlMs: 60_000,
+  maxEntries: 32,
+});
 
-  const modeled = await callGameModel<ModelChoice>("chapter-choice", CHOICE_SYSTEM, prompt);
-  return validateChoice(modeled);
+export function clearChoiceCache(): void {
+  choiceCache.clear();
+}
+
+export async function generateChapterChoice(world: WorldState, span: ChapterSpan): Promise<ChapterChoice> {
+  const key = stableCacheKey("chapter-choice", { stateHash: hashState(world), span });
+  return choiceCache.getOrSet(key, async () => {
+    const worldDescription = describeWorld(world, span);
+    const prompt = `请根据以下当前世界状态，生成本章的核心困境与三个行动方向。\n\n${worldDescription}\n\n要求：\n1. context 是一个具体的当下困境（80-200字），从一个可见的处境切入，不要抽象的人生规划。\n2. 三个选项必须改变行动机制（例如：留任争取 / 接受邀请 / 迁移换环境；自己承担 / 借助他人 / 改变目标），strategyTag 互不相同。\n3. estimatedRisk 是资源正常的人执行该行动的 0-100 结构风险；stateFit 表示该行动相对主角当前处境的契合度（顺势/可行/吃力）。\n4. 只输出 JSON，格式如下：\n{"promptTitle":"16字内","context":"200字内困境","options":[{"id":"A","label":"12字内","description":"40字内","strategyTag":"行动机制","estimatedRisk":0到100,"stateFit":"顺势|可行|吃力"},{"id":"B","label":"...","description":"...","strategyTag":"...","estimatedRisk":0到100,"stateFit":"..."},{"id":"C","label":"...","description":"...","strategyTag":"...","estimatedRisk":0到100,"stateFit":"..."}]}`;
+
+    const modeled = await callGameModel<ModelChoice>("chapter-choice", CHOICE_SYSTEM, prompt);
+    return validateChoice(modeled);
+  });
 }

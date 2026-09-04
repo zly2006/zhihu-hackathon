@@ -5,7 +5,7 @@ import { callGameModel } from "../llm";
 import type { Character } from "../domain/character";
 import type { NovelScene } from "../domain/chapter";
 import type { DialogueBlock, DialogueChoice, DialogueChoiceId, DialogueScene } from "../domain/dialogue";
-import type { NarrativePlan } from "../domain/narrative";
+import type { NarrativeEvidenceBundle, NarrativePlan } from "../domain/narrative";
 import type { SimulationEvent } from "../domain/simulation";
 import type { WorldState } from "../domain/world";
 import { resolveAvatarUrl } from "./avatar-registry";
@@ -16,6 +16,7 @@ export type DialogueWriterInput = {
   events: SimulationEvent[];
   novelScenes: NovelScene[];
   narrativePlan?: NarrativePlan;
+  narrativeEvidence?: NarrativeEvidenceBundle;
 };
 
 type ModelDialogue = {
@@ -122,7 +123,7 @@ function describeEvent(event: SimulationEvent, input: DialogueWriterInput): stri
 }
 
 function describePlan(plan: NarrativePlan, input: DialogueWriterInput): string {
-  return plan.scenes
+  const scenes = plan.scenes
     .map((scene) => {
       const participants = scene.participantIds
         .map((id) => publicCharacters(input).find((item) => item.character.id === id)?.alias ?? id)
@@ -134,6 +135,41 @@ function describePlan(plan: NarrativePlan, input: DialogueWriterInput): string {
       ].join("；");
     })
     .join("\n");
+  const brief = plan.directorBrief
+    ? `下一幕聚焦（Narrative Director）：${plan.directorBrief.dramaticQuestion}；聚焦角色：${plan.directorBrief.focusCharacterId}；张力：${plan.directorBrief.tensionLevel}`
+    : "";
+  return [brief, scenes].filter(Boolean).join("\n");
+}
+
+function describeNarrativeEvidence(bundle: NarrativeEvidenceBundle): string {
+  const sections: string[] = [];
+  const choicePatterns = bundle.choicePatterns ?? [];
+  if (choicePatterns.length) {
+    sections.push(
+      "选择设计模式：\n" +
+        choicePatterns
+          .slice(0, 6)
+          .map(
+            (pattern) =>
+              `- ${pattern.type}｜选项形态：${pattern.options.join(" / ")}｜结果机制：${JSON.stringify(pattern.effects)}`,
+          )
+          .join("\n"),
+    );
+  }
+  const characterArcPatterns = bundle.characterArcPatterns ?? [];
+  if (characterArcPatterns.length) {
+    sections.push(
+      "人物弧结构：\n" +
+        characterArcPatterns
+          .slice(0, 6)
+          .map(
+            (pattern) =>
+              `- ${pattern.stage}｜${pattern.stateBefore || "未标注"} → ${pattern.stateAfter || "未标注"}`,
+          )
+          .join("\n"),
+    );
+  }
+  return sections.join("\n");
 }
 
 export function buildDialoguePrompt(input: DialogueWriterInput): string {
@@ -155,6 +191,13 @@ export function buildDialoguePrompt(input: DialogueWriterInput): string {
   if (input.narrativePlan) {
     sections.push("", "# 叙事导演规划", describePlan(input.narrativePlan, input));
   }
+  if (input.narrativeEvidence) {
+    sections.push(
+      "",
+      "# Narrative KB 结构参考（只借鉴机制，不复制角色、情节或原文）",
+      describeNarrativeEvidence(input.narrativeEvidence) || "（无结构模式）",
+    );
+  }
   sections.push(
     "",
     "# 输出格式",
@@ -168,6 +211,7 @@ export function buildDialoguePrompt(input: DialogueWriterInput): string {
     "5. dialogue 只能写角色可观察、玩家可知的内容；不得输出任何隐藏心理、隐藏目标、私密信念或未公开因果。",
     "6. choice 的 id 只能是 A/B/C 且每个场景最多 3 个；本次选择仅供展示，不改变 canonical 结算。",
     "7. 只能输出 JSON，不要输出解释、Markdown 或额外字段说明。",
+    "8. Narrative KB 只提供对白节奏、选择形态和人物弧结构参考；不得把参考模式当作已发生事实。",
   );
   return sections.join("\n");
 }

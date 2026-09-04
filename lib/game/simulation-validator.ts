@@ -5,6 +5,7 @@
 import type { ChapterSpan } from "../domain/shared";
 import { isFiniteNumber } from "../domain/shared";
 import type { WorldSimulationOutput } from "../domain/simulation";
+import type { NpcAgentDirective } from "../domain/npc-agent";
 import {
   EVENTS_PER_YEAR_SPAN,
   MAX_MAJOR_EVENTS_PER_CHAPTER,
@@ -29,6 +30,7 @@ export type ValidationContext = {
   relationshipIds: Set<string>;
   evidenceIds: Set<string>;
   currentRealYear: number; // 用于未来年份捏造检查
+  npcAgentDirectives?: NpcAgentDirective[];
 };
 
 export function validateSimulationOutput(
@@ -83,6 +85,22 @@ export function validateSimulationOutput(
     for (const evidenceId of event.evidenceIds) {
       if (!context.evidenceIds.has(evidenceId)) {
         throw new Error(`事件 ${event.id} 的 evidenceIds 引用了不在本次 EvidenceBundle 中的 ${evidenceId}`);
+      }
+    }
+
+    for (const cause of event.causes) {
+      if (cause.type !== "npc_goal" || !context.npcAgentDirectives) continue;
+      if (!context.npcAgentDirectives.length) {
+        throw new Error(`事件 ${event.id} 使用 npc_goal，但本章没有可用的 NPC Agent directive`);
+      }
+      const directive = cause.refId
+        ? context.npcAgentDirectives.find((item) => item.sourceGoalIds.includes(cause.refId as string))
+        : context.npcAgentDirectives.find((item) => event.participantIds.includes(item.characterId));
+      if (!directive) {
+        throw new Error(`事件 ${event.id} 的 npc_goal 必须引用本章 NPC Agent 的当前目标，或包含对应 NPC 参与者`);
+      }
+      if (!event.participantIds.includes(directive.characterId)) {
+        throw new Error(`事件 ${event.id} 的 npc_goal 角色 ${directive.characterId} 必须参与该事件`);
       }
     }
 

@@ -38,10 +38,10 @@ node narrative-kb/pipeline/contract.mjs scene "城市选择"       # → {scene_
 
 | 端点契约 | 输入 | 输出 | 本仓库实现 |
 |---|---|---|---|
-| `POST /api/narrative/search` | `{event, stage}` | `{scene_pattern, choice_pattern, emotion_curve}` | `pipeline/contract.mjs#narrativeSearch`（词法向量召回 + 结构化聚合） |
-| `POST /api/narrative/scene` | `{event, characters, relationship}` | `{scene_structure, dialogue_style, choices}` | `pipeline/contract.mjs#narrativeScene` |
+| `POST /api/narrative/search` | `{event, stage}` | `{scene_pattern, choice_pattern, emotion_curve}` | `pipeline/contract.mjs#narrativeSearch`；游戏侧 `app/api/narrative/search/route.ts` |
+| `POST /api/narrative/scene` | `{event, characters, relationship}` | `{scene_structure, dialogue_style, choices}` | `pipeline/contract.mjs#narrativeScene`；游戏侧 `app/api/narrative/scene/route.ts` |
 
-> v0 为数据侧契约封装；游戏侧接入（阶段 3）以 query adapter 复用，narrative-kb 独立 FastAPI 服务化为后续演进。
+> V2.5 游戏侧通过 `lib/narrative/kb-service.ts` 复用 query adapter，所有查询固定过滤 `rag_allowed=1`；仅 `quote_allowed=1` 的来源允许输出短 excerpt。narrative-kb 独立 FastAPI 服务化仍可沿用同一契约。
 
 ## 数据源与权利（v0）
 

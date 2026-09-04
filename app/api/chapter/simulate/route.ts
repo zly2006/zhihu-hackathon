@@ -10,6 +10,7 @@ import { runWorldSimulator } from "@/lib/game/world-simulator";
 import { validateSimulationOutput, type ValidationContext } from "@/lib/game/simulation-validator";
 import { reduceWorldState } from "@/lib/game/world-reducer";
 import { hashState } from "@/lib/game/hash";
+import { planNpcAgentDirectives } from "@/lib/game/npc-agent";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -67,6 +68,15 @@ export async function POST(request: Request) {
         const endYear = startYear + span;
         const chapterId = `chapter-${randomUUID()}`;
 
+        // V3.1：每章只规划一次重要 NPC 的自主驱动；planner 是纯函数，不修改世界。
+        const npcAgentDirectives = planNpcAgentDirectives({
+          chapterId,
+          world: worldState,
+          decision,
+          startYear,
+          endYear,
+        });
+
         // 2. 确定性结果锚点
         send("progress", { stage: "resolving", message: "正在计算本章结果锚点" });
         const resolution = resolveDecision({
@@ -80,17 +90,17 @@ export async function POST(request: Request) {
           eraContext: worldState.eraContext ?? null,
         });
 
-        // 3. 知乎证据召回
-        send("progress", { stage: "retrieval", message: "正在召回知乎真实经历" });
-        const evidenceBundle = await retrieveEvidence({
-          world: worldState,
-          decision: choice,
-          selectedOptionId: selection.optionId,
-          usedExperienceIds,
-        });
-
-        // 4. 相关记忆
-        const relevantMemories = selectRelevantMemories(worldState);
+        // 3/4. 证据召回与记忆选择互不依赖，合并等待窗口。
+        send("progress", { stage: "parallel", message: "正在并行召回现实经历与整理相关记忆" });
+        const [evidenceBundle, relevantMemories] = await Promise.all([
+          retrieveEvidence({
+            world: worldState,
+            decision: choice,
+            selectedOptionId: selection.optionId,
+            usedExperienceIds,
+          }),
+          Promise.resolve(selectRelevantMemories(worldState)),
+        ]);
 
         const input = {
           chapter: { id: chapterId, startYear, endYear, span },
@@ -102,6 +112,7 @@ export async function POST(request: Request) {
           decision,
           resolution,
           evidenceBundle,
+          npcAgentDirectives,
           eraContext: worldState.eraContext ?? null,
         };
 
@@ -122,6 +133,7 @@ export async function POST(request: Request) {
           relationshipIds: new Set(Object.keys(worldState.relationships)),
           evidenceIds,
           currentRealYear: new Date().getFullYear(),
+          npcAgentDirectives,
         };
 
         // 5. World Simulator（校验失败追加具体项重试）

@@ -2122,6 +2122,19 @@ body {
   background-repeat: no-repeat;
   background-position: center center;
 }
+.life-vn-scene-enter {
+  animation: life-vn-scene-in 260ms ease-out;
+}
+@keyframes life-vn-scene-in {
+  from {
+    opacity: 0.72;
+    transform: scale(1.012);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
 .life-vn-scene:before {
   position: absolute;
   z-index: 1;
@@ -2166,6 +2179,89 @@ body {
   transform: translateX(-50%);
   filter: drop-shadow(0 18px 22px rgba(70, 45, 20, 0.25));
 }
+.life-vn-character-layer {
+  position: absolute;
+  z-index: 2;
+  inset: 0;
+  pointer-events: none;
+}
+.life-vn-character {
+  --lv-character-offset: 0px;
+  position: absolute;
+  bottom: 0;
+  display: flex;
+  width: min(34%, 300px);
+  height: 88%;
+  align-items: flex-end;
+  justify-content: center;
+  opacity: 0.48;
+  filter: saturate(0.7);
+  transform: translateX(calc(-50% + var(--lv-character-offset))) scale(0.95);
+  transition: opacity 0.24s ease, filter 0.24s ease, transform 0.24s ease;
+}
+.life-vn-character-left {
+  left: 18%;
+}
+.life-vn-character-center {
+  left: 50%;
+}
+.life-vn-character-right {
+  left: 82%;
+}
+.life-vn-character.active {
+  z-index: 3;
+  opacity: 1;
+  filter: saturate(1);
+  transform: translateX(calc(-50% + var(--lv-character-offset))) scale(1);
+}
+.life-vn-character-figure {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: flex-end;
+  justify-content: center;
+}
+.life-vn-character-figure img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  object-position: center bottom;
+  filter: drop-shadow(0 18px 22px rgba(70, 45, 20, 0.25));
+}
+.life-vn-character-placeholder {
+  display: grid;
+  width: min(40%, 120px);
+  aspect-ratio: 0.72;
+  place-items: center;
+  border: 1px solid rgba(216, 155, 88, 0.7);
+  border-radius: 48% 48% 12% 12%;
+  color: #fff4e3;
+  background: linear-gradient(160deg, rgba(159, 90, 86, 0.9), rgba(82, 62, 55, 0.92));
+  font: 600 clamp(24px, 4vw, 48px) var(--lv-serif);
+  box-shadow: 0 18px 28px rgba(70, 45, 20, 0.24);
+}
+.life-vn-character-caption {
+  position: absolute;
+  bottom: 8%;
+  display: grid;
+  gap: 2px;
+  min-width: 90px;
+  padding: 5px 10px;
+  border: 1px solid rgba(232, 185, 126, 0.65);
+  border-radius: 7px;
+  color: #fff3de;
+  background: rgba(79, 52, 44, 0.78);
+  text-align: center;
+  text-shadow: 0 1px 2px rgba(0, 0, 0, 0.35);
+}
+.life-vn-character-caption b {
+  font: 600 12px var(--lv-serif);
+}
+.life-vn-character-caption small {
+  color: #f3d8b6;
+  font-size: 9px;
+}
 .life-vn-dialogue {
   position: absolute;
   z-index: 7;
@@ -2176,7 +2272,7 @@ body {
   border: 1px solid rgba(216, 155, 88, 0.78);
   border-radius: 14px;
   color: var(--lv-ink);
-  background: rgba(255, 249, 240, 0.97);
+  background: linear-gradient(145deg, rgba(255, 249, 240, 0.83), rgba(255, 249, 240, 0.94));
   box-shadow:
     0 24px 54px rgba(80, 52, 22, 0.3),
     inset 0 0 0 3px rgba(255, 250, 240, 0.72);
@@ -2224,12 +2320,34 @@ body {
   font-size: 12px;
   line-height: 1.45;
 }
+.life-vn-choice-copy {
+  display: grid;
+  gap: 2px;
+}
+.life-vn-choice-copy b {
+  font-weight: 600;
+}
+.life-vn-choice-copy small {
+  color: var(--lv-muted);
+  font-size: 10px;
+  line-height: 1.35;
+}
 .life-vn-choice:hover,
 .life-vn-choice[aria-pressed="true"] {
   border-color: #b9803e;
   background: rgba(255, 247, 230, 0.99);
   box-shadow: 0 5px 16px rgba(115, 76, 37, 0.16);
   transform: translateY(-1px);
+}
+.life-vn-choice:disabled {
+  opacity: 0.58;
+  cursor: not-allowed;
+  box-shadow: none;
+  transform: none;
+}
+.life-vn-choice:disabled:hover {
+  border-color: rgba(115, 78, 39, 0.28);
+  background: rgba(255, 251, 240, 0.82);
 }
 .life-vn-choice-key {
   display: grid;
@@ -2403,7 +2521,9 @@ body {
 }
 .life-vn-timeline {
   position: relative;
+  margin: 0;
   padding: 12px 8px 12px 30px;
+  list-style: none;
 }
 .life-vn-timeline:before {
   position: absolute;
@@ -2451,6 +2571,130 @@ body {
   color: var(--lv-muted);
   font-size: 10px;
   line-height: 1.6;
+}
+.life-vn-tl-entry.selected:before {
+  background: var(--lv-blue);
+  box-shadow: 0 0 0 1px var(--lv-blue);
+}
+.life-vn-tl-button,
+.life-vn-tl-content {
+  display: block;
+  width: 100%;
+  padding: 0;
+  border: 0;
+  color: inherit;
+  text-align: left;
+}
+.life-vn-tl-button {
+  cursor: pointer;
+  background: transparent;
+}
+.life-vn-tl-button:hover h3,
+.life-vn-tl-button:focus-visible h3 {
+  color: var(--lv-blue);
+}
+.life-vn-tl-button:focus-visible {
+  outline: 2px solid var(--lv-blue);
+  outline-offset: 4px;
+  border-radius: 4px;
+}
+.life-vn-snapshot-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 16px;
+}
+.life-vn-snapshot-actions.inline {
+  justify-content: flex-start;
+  margin-top: 18px;
+  margin-bottom: 0;
+}
+.life-vn-snapshot-scroll {
+  position: absolute;
+  inset: 0;
+  overflow: auto;
+  padding: 20px;
+}
+.life-vn-snapshot-card {
+  max-width: 720px;
+  margin: 0 auto;
+}
+.life-vn-snapshot-card h2 {
+  margin: 14px 0 8px;
+  color: var(--lv-ink);
+  font: 600 24px var(--lv-serif);
+}
+.life-vn-snapshot-card p,
+.life-vn-snapshot-summary p {
+  margin: 0;
+  color: var(--lv-muted);
+  line-height: 1.8;
+}
+.life-vn-snapshot-summary {
+  margin-top: 24px;
+}
+.life-vn-snapshot-legacy-notice {
+  margin: 0 0 12px;
+  padding: 9px 12px;
+  border-left: 3px solid var(--lv-gold-strong);
+  border-radius: 6px;
+  color: var(--lv-muted);
+  background: rgba(245, 232, 211, 0.72);
+  font-size: 12px;
+  line-height: 1.6;
+}
+.life-vn-snapshot-stage-actions {
+  position: absolute;
+  z-index: 12;
+  top: 14px;
+  right: 14px;
+  left: 14px;
+}
+.life-vn-streaming-preview {
+  margin-top: 18px;
+  padding: 16px;
+  border: 1px solid var(--lv-gold-line);
+  border-radius: 10px;
+  background: rgba(255, 252, 244, 0.82);
+  text-align: left;
+}
+.life-vn-streaming-kicker {
+  color: var(--lv-blue);
+  font-size: 11px;
+  letter-spacing: 0.12em;
+}
+.life-vn-streaming-preview h3 {
+  margin: 5px 0 12px;
+  color: var(--lv-ink);
+  font: 600 20px var(--lv-serif);
+}
+.life-vn-streaming-scene {
+  padding: 11px 0;
+  border-top: 1px solid rgba(170, 137, 92, 0.22);
+}
+.life-vn-streaming-scene-meta {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  color: var(--lv-muted);
+  font-size: 11px;
+}
+.life-vn-streaming-scene-heading {
+  margin-top: 5px;
+  color: var(--lv-blue);
+  font-size: 12px;
+}
+.life-vn-streaming-scene p {
+  margin: 7px 0 0;
+  color: var(--lv-ink);
+  font: 15px/1.85 var(--lv-serif);
+  white-space: pre-wrap;
+}
+.life-vn-streaming-status {
+  margin-top: 8px;
+  color: var(--lv-muted);
+  font-size: 12px;
 }
 .life-vn-dock {
   display: grid;
@@ -2721,6 +2965,22 @@ body {
     left: 42%;
     width: 66%;
     height: 82%;
+  }
+  .life-vn-character {
+    width: 48%;
+    height: 72%;
+  }
+  .life-vn-character-left {
+    left: 16%;
+  }
+  .life-vn-character-center {
+    left: 50%;
+  }
+  .life-vn-character-right {
+    left: 84%;
+  }
+  .life-vn-character-caption {
+    bottom: 5%;
   }
   .life-vn-dialogue {
     right: 8px;

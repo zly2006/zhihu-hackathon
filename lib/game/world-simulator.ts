@@ -20,6 +20,7 @@ import type {
   WorldSimulationOutput,
 } from "../domain/simulation";
 import type { LifeExperience } from "../domain/experience";
+import type { NpcAgentDirective } from "../domain/npc-agent";
 
 // ---- 模型原始输出（服务器负责补齐 id 与引用） ----
 
@@ -152,6 +153,29 @@ function describeEvidence(experiences: LifeExperience[], evidenceToAlias: Record
     .join("\n");
 }
 
+function describeNpcAgentDirectives(
+  directives: NpcAgentDirective[] | undefined,
+  charAlias: (id: string) => string,
+  relAlias: (id: string) => string,
+  goalAlias: (id: string) => string,
+): string {
+  if (!directives?.length) return "（本章没有满足条件的 NPC Agent 自主驱动）";
+  return [
+    "# V3.1 NPC Agent（本章一次，非后台常驻）",
+    "以下驱动由程序根据 NPC 当前状态预先整理，仅用于本章世界推演。每条驱动最多落为一个自主事件，也可以合并到已有事件；NPC Agent 不直接修改 WorldState。",
+    ...directives.map((directive) => {
+      const targets = directive.targetCharacterIds.map(charAlias).join("、") || "无指定对象";
+      const relationships = directive.relationshipIds.map(relAlias).join("、") || "无关系引用";
+      const goals = directive.sourceGoalIds.map(goalAlias).join("、") || "无可公开目标引用（可用 npc_goal 但不得伪造 goal refId）";
+      return [
+        `- ${directive.id}｜角色 ${charAlias(directive.characterId)}｜行动 ${directive.action}｜紧迫度 ${directive.urgency}`,
+        `  目标角色：${targets}；关系：${relationships}；当前目标：${goals}`,
+        `  服务端私有行动意图（只能通过可观察行为体现，不得原文写入主角知情内容）：${directive.privateIntent}`,
+      ].join("\n");
+    }),
+  ].join("\n");
+}
+
 const SIMULATOR_SYSTEM =
   "你是中文互动人生小说的世界模拟器。只输出严格 JSON，不写 Markdown。你不是在写小说，而是在决定这一章结构化发生什么。你只能改变程序允许的 delta，不能改写已经发生的历史事实。知乎证据只是个案参考，不代表同样行动必然成功。NPC 是独立的人，不会为了服务主角而自动服从。禁止在未来年份伪造真实政策、公司、价格或名人的行为。引用任何人物、关系、证据、线索、目标、Hook、矛盾时，只能使用程序给出的短别名（如 C1、R1、E3、T1、G1、H1、I1），绝不使用长字符串 id。";
 
@@ -243,6 +267,8 @@ export function buildSimulatorPrompt(input: WorldSimulationInput): string {
         ? "mixed = 有得有失：同时包含收益、代价与未解决问题，是最常见的结果。"
         : "setback = 受挫：主目标受挫，但必须保留现实可恢复性，不等于人生毁灭。",
     ``,
+    describeNpcAgentDirectives(input.npcAgentDirectives, charAlias, relAlias, goalAlias),
+    ``,
     `# 知乎现实参照（个案，非因果）`,
     evidenceLines,
     ``,
@@ -270,6 +296,7 @@ export function buildSimulatorPrompt(input: WorldSimulationInput): string {
     `7. 每章必须产生 3 到 6 条 newMemories，每条 year 在章节区间内、characterId 用 C#、importance 0-100、emotionalValence 取 -2/-1/0/1/2。`,
     `8. newMemories 的 type 只能是 event/relationship/achievement/setback/promise/conflict/reflection。`,
     `9. 可选字段（如 characterChanges、relationshipChanges、evidenceIds、causes、createsThreadLabels、resolvesThreadIds、goalUpdates、hookUpdates）在无变化时省略或给空数组 []。`,
+    `10. 如果采用 V3.1 NPC Agent 驱动，事件原因可使用 npc_goal；refId 只能引用上述当前目标 G#，隐藏目标没有对应 G# 时省略 refId。每条 directive 在本章最多对应一个自主事件，不得把私有行动意图原文写进主角已知信息。`,
   ].join("\n");
 
   const worldRules = [
@@ -304,6 +331,9 @@ function describeCharacterWithAlias(character: Character, charAlias: string, goa
     `目标：${character.state.currentGoals.map((g) => `${g.label}（${goalAlias(g.id)}）`).join("、") || "无"}`,
     `困境：${character.state.currentDilemmas.join("、") || "无"}`,
   ];
+  if (character.role === "npc" && character.privateState?.currentEmotionalTrend) {
+    lines.push(`当前情绪趋势：${character.privateState.currentEmotionalTrend}`);
+  }
   if (character.role === "npc" && character.privateState) {
     lines.push(
       `隐藏目标：${character.privateState.hiddenGoals.join("、") || "无"}`,

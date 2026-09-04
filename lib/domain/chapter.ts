@@ -8,6 +8,7 @@ import type { SimulationEvent } from "./simulation";
 import type { LifeExperience } from "./experience";
 import type { NarrativePlan } from "./narrative";
 import type { DialogueScene } from "./dialogue";
+import type { BranchId, GameBranch, SnapshotId, WorldSnapshot } from "./snapshot";
 
 export type ChapterDecision = {
   id: string;
@@ -120,4 +121,9 @@ export type GameSave = {
 
   // 旧存档缺失时由 parseGameSave 归一为 galgame。
   presentationMode?: GameMode;
+
+  // V2.3：可选字段保持 GameSave schemaVersion=1，便于读取 V2.1/V2.2 旧存档。
+  snapshots?: Record<SnapshotId, WorldSnapshot>;
+  branches?: Record<BranchId, GameBranch>;
+  activeBranchId?: BranchId;
 };
