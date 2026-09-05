@@ -29,6 +29,7 @@ export type ReduceOptions = {
   endYear: number;
   now?: string;
   newId?: () => string;
+  recordChapter?: boolean;
 };
 
 export const MAX_RELATIONSHIP_HISTORY = 12;
@@ -293,9 +294,11 @@ export function reduceWorldState(
   }
 
   // 7. 章节记录
-  const chapterIds = world.chapterIds.includes(options.chapterId)
-    ? world.chapterIds
-    : [...world.chapterIds, options.chapterId];
+  const chapterIds = options.recordChapter === false
+    ? [...world.chapterIds]
+    : world.chapterIds.includes(options.chapterId)
+      ? world.chapterIds
+      : [...world.chapterIds, options.chapterId];
 
   // 8. 角色时间推进
   for (const characterId of Object.keys(characters)) {

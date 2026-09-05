@@ -9,6 +9,7 @@ import type {
   SnapshotKind,
   WorldSnapshot,
 } from "../domain/snapshot";
+import type { SceneActionRecord, SceneRuntimeState } from "../domain/scene";
 
 export const MAIN_BRANCH_ID: BranchId = "main";
 
@@ -22,11 +23,37 @@ export type CreateSnapshotOptions = {
   chapterId?: string;
   chapterIndex?: number;
   now?: string;
+  sequence?: number;
+  packageId?: string;
+  packageVersion?: number;
+  sceneId?: string;
+  blockId?: string;
+  sceneRuntime?: SceneRuntimeState;
+  sceneActions?: SceneActionRecord[];
+  sceneFlags?: Record<string, boolean>;
 };
 
 export type AppendSnapshotOptions = {
   chapterId?: string;
   id?: SnapshotId;
+  now?: string;
+};
+
+export type AppendSceneChoiceCheckpointOptions = {
+  chapterId: string;
+  packageId: string;
+  packageVersion: number;
+  sceneId: string;
+  blockId: string;
+  sequence?: number;
+  runtime?: SceneRuntimeState;
+  actions?: SceneActionRecord[];
+  flags?: Record<string, boolean>;
+  now?: string;
+};
+
+export type CreateSceneBranchOptions = {
+  name?: string;
   now?: string;
 };
 
@@ -40,6 +67,7 @@ export type SnapshotTimelineNode = {
   snapshotId?: SnapshotId;
   chapterId?: string;
   chapterIndex: number;
+  sequence?: number;
   year: number;
   label: string;
   title: string;
@@ -72,7 +100,11 @@ function lastChapterId(save: SnapshotSource): string | undefined {
 function branchSnapshotIds(branch: GameBranch, snapshots: Record<SnapshotId, WorldSnapshot>): SnapshotId[] {
   return [...branch.snapshotIds]
     .filter((id) => Boolean(snapshots[id]))
-    .sort((a, b) => snapshots[a].chapterIndex - snapshots[b].chapterIndex);
+    .sort((a, b) => {
+      const left = snapshots[a];
+      const right = snapshots[b];
+      return left.chapterIndex - right.chapterIndex || (left.sequence ?? -1) - (right.sequence ?? -1) || left.id.localeCompare(right.id);
+    });
 }
 
 function activeBranch(save: GameSave): GameBranch | undefined {
@@ -103,6 +135,14 @@ export function createWorldSnapshot(source: SnapshotSource, options: CreateSnaps
     ...(options.chapterId ? { chapterId: options.chapterId } : {}),
     chapterIndex,
     createdAt: options.now ?? new Date().toISOString(),
+    ...(options.sequence !== undefined ? { sequence: options.sequence } : {}),
+    ...(options.packageId ? { packageId: options.packageId } : {}),
+    ...(options.packageVersion !== undefined ? { packageVersion: options.packageVersion } : {}),
+    ...(options.sceneId ? { sceneId: options.sceneId } : {}),
+    ...(options.blockId ? { blockId: options.blockId } : {}),
+    ...(options.sceneRuntime ? { sceneRuntime: clone(options.sceneRuntime) } : {}),
+    ...(options.sceneActions ? { sceneActions: clone(options.sceneActions) } : {}),
+    ...(options.sceneFlags ? { sceneFlags: clone(options.sceneFlags) } : {}),
   };
 }
 
@@ -195,6 +235,88 @@ export function appendSnapshot(save: GameSave, options: AppendSnapshotOptions = 
   };
 }
 
+function nextSceneSequence(save: GameSave, branch: GameBranch, chapterId: string): number {
+  const sequences = branch.snapshotIds
+    .map((id) => save.snapshots?.[id])
+    .filter((snapshot): snapshot is WorldSnapshot => Boolean(snapshot))
+    .filter((snapshot) => snapshot.kind === "scene-choice" && snapshot.chapterId === chapterId)
+    .map((snapshot) => snapshot.sequence ?? 0);
+  return (sequences.length > 0 ? Math.max(...sequences) : 0) + 1;
+}
+
+function existingSceneSequence(
+  save: GameSave,
+  branch: GameBranch,
+  options: AppendSceneChoiceCheckpointOptions,
+): number | undefined {
+  return branch.snapshotIds
+    .map((id) => save.snapshots?.[id])
+    .find(
+      (snapshot) =>
+        snapshot?.kind === "scene-choice" &&
+        snapshot.chapterId === options.chapterId &&
+        snapshot.packageId === options.packageId &&
+        snapshot.packageVersion === options.packageVersion &&
+        snapshot.sceneId === options.sceneId &&
+        snapshot.blockId === options.blockId,
+    )?.sequence;
+}
+
+/**
+ * 为一个可重开的 choice block 保存完整投影。sequence 是同一章节内的稳定顺序，
+ * 因此两个 choice block 不会因为共享 chapterIndex 而互相覆盖。
+ */
+export function appendSceneChoiceCheckpoint(
+  save: GameSave,
+  options: AppendSceneChoiceCheckpointOptions,
+): GameSave {
+  const now = options.now ?? new Date().toISOString();
+  const prepared = initializeSnapshotState(save, now);
+  const branch = activeBranch(prepared);
+  if (!branch || !prepared.snapshots) throw new Error("活动分支快照状态未初始化");
+  const sequence = options.sequence ?? existingSceneSequence(prepared, branch, options) ?? nextSceneSequence(prepared, branch, options.chapterId);
+  const id = `${branch.id}:scene-choice:${options.chapterId}:${options.packageId}:v${options.packageVersion}:${options.sceneId}:${options.blockId}:${sequence}`;
+  const existing = prepared.snapshots[id];
+  if (existing) {
+    return {
+      ...prepared,
+      ...(options.runtime ? { sceneRuntime: clone(options.runtime) } : {}),
+      ...(options.actions ? { sceneActions: clone(options.actions) } : {}),
+      ...(options.flags ? { sceneFlags: clone(options.flags) } : {}),
+    };
+  }
+  const snapshot = createWorldSnapshot(prepared, {
+    branchId: branch.id,
+    id,
+    kind: "scene-choice",
+    replayable: true,
+    chapterId: options.chapterId,
+    chapterIndex: prepared.worldState.chapterIds.length,
+    now,
+    sequence,
+    packageId: options.packageId,
+    packageVersion: options.packageVersion,
+    sceneId: options.sceneId,
+    blockId: options.blockId,
+    sceneRuntime: options.runtime,
+    sceneActions: options.actions,
+    sceneFlags: options.flags,
+  });
+  const nextBranch: GameBranch = {
+    ...branch,
+    snapshotIds: [...branch.snapshotIds, snapshot.id],
+    headSnapshotId: snapshot.id,
+  };
+  return {
+    ...prepared,
+    snapshots: { ...prepared.snapshots, [snapshot.id]: snapshot },
+    branches: { ...prepared.branches, [branch.id]: nextBranch },
+    ...(options.runtime ? { sceneRuntime: clone(options.runtime) } : {}),
+    ...(options.actions ? { sceneActions: clone(options.actions) } : {}),
+    ...(options.flags ? { sceneFlags: clone(options.flags) } : {}),
+  };
+}
+
 /** 小说重写不应制造新时间线节点，只刷新活动分支头部的章节内容。 */
 export function refreshActiveSnapshot(save: GameSave, now = new Date().toISOString()): GameSave {
   const prepared = initializeSnapshotState(save, now);
@@ -208,7 +330,15 @@ export function refreshActiveSnapshot(save: GameSave, now = new Date().toISOStri
     id: head.id,
     kind: head.kind,
     replayable: head.replayable,
-    chapterId: lastChapterId(prepared),
+    chapterId: head.chapterId ?? lastChapterId(prepared),
+    sequence: head.sequence,
+    packageId: head.packageId,
+    packageVersion: head.packageVersion,
+    sceneId: head.sceneId,
+    blockId: head.blockId,
+    sceneRuntime: head.sceneRuntime,
+    sceneActions: head.sceneActions,
+    sceneFlags: head.sceneFlags,
     now,
   });
   return {
@@ -292,16 +422,144 @@ export function createBranchFromSnapshot(
   };
 }
 
+function snapshotOrder(snapshot: WorldSnapshot): [number, number] {
+  return [snapshot.chapterIndex, snapshot.sequence ?? -1];
+}
+
+function compareSnapshotOrder(left: WorldSnapshot, right: WorldSnapshot): number {
+  const [leftChapter, leftSequence] = snapshotOrder(left);
+  const [rightChapter, rightSequence] = snapshotOrder(right);
+  return leftChapter - rightChapter || leftSequence - rightSequence || left.id.localeCompare(right.id);
+}
+
+function sceneSnapshotId(branchId: BranchId, snapshot: WorldSnapshot): SnapshotId {
+  if (snapshot.kind !== "scene-choice") return snapshotIdFor(branchId, snapshot.chapterIndex);
+  return `${branchId}:scene-choice:${snapshot.chapterId ?? "chapter"}:${snapshot.packageId ?? "package"}:v${snapshot.packageVersion ?? 1}:${snapshot.sceneId ?? "scene"}:${snapshot.blockId ?? "block"}:${snapshot.sequence ?? 0}`;
+}
+
+function replaceSceneFieldsFromSnapshot(
+  save: GameSave,
+  snapshot: WorldSnapshot,
+  branchId: BranchId,
+  now: string,
+): GameSave {
+  const next: GameSave = {
+    ...save,
+    savedAt: now,
+    activeBranchId: branchId,
+    worldState: clone(snapshot.worldState),
+    chapters: clone(snapshot.chapterContent),
+    events: clone(snapshot.events),
+    experienceCache: clone(snapshot.experienceCache),
+    ...(snapshot.sceneRuntime
+      ? {
+          sceneRuntime: {
+            ...clone(snapshot.sceneRuntime),
+            branchId,
+            status: "awaiting_choice",
+            selectedActionId: undefined,
+            pendingAction: undefined,
+            feedbackNext: undefined,
+            errorCode: undefined,
+          },
+        }
+      : {}),
+    ...(snapshot.sceneActions ? { sceneActions: clone(snapshot.sceneActions) } : {}),
+    ...(snapshot.sceneFlags ? { sceneFlags: clone(snapshot.sceneFlags) } : {}),
+  };
+  if (!snapshot.sceneRuntime) delete next.sceneRuntime;
+  return next;
+}
+
+/** 从场景选择检查点开新分支，保留检查点之前的完整 immutable 投影。 */
+export function createBranchFromSceneCheckpoint(
+  save: GameSave,
+  snapshotId: SnapshotId,
+  options: CreateSceneBranchOptions = {},
+): GameSave {
+  const now = options.now ?? new Date().toISOString();
+  const prepared = initializeSnapshotState(save, now);
+  if (!prepared.snapshots || !prepared.branches) throw new Error("快照状态未初始化");
+  const source = prepared.snapshots[snapshotId];
+  if (!source || source.kind !== "scene-choice") throw new Error("找不到可重开的场景检查点");
+  if (!source.replayable) throw new Error("该场景检查点不可回溯");
+  const sourceBranch = prepared.branches[source.branchId];
+  const ancestors = (sourceBranch ? branchSnapshotIds(sourceBranch, prepared.snapshots) : [source.id])
+    .map((id) => prepared.snapshots?.[id])
+    .filter((item): item is WorldSnapshot => Boolean(item))
+    .filter((item) => compareSnapshotOrder(item, source) <= 0);
+  if (!ancestors.some((item) => item.id === source.id)) ancestors.push(source);
+  ancestors.sort(compareSnapshotOrder);
+  const branchId = nextBranchId(prepared.branches);
+  const clonedSnapshots = ancestors.map((item) => {
+    const cloned = clone(item);
+    cloned.id = sceneSnapshotId(branchId, item);
+    cloned.branchId = branchId;
+    cloned.createdAt = now;
+    if (cloned.sceneRuntime) cloned.sceneRuntime = { ...cloned.sceneRuntime, branchId };
+    return cloned;
+  });
+  const sourceIndex = ancestors.findIndex((item) => item.id === source.id);
+  const clonedSource = clonedSnapshots[sourceIndex];
+  if (!clonedSource) throw new Error("无法复制场景检查点");
+  const branch: GameBranch = {
+    id: branchId,
+    name: options.name?.trim() || `分支 ${Object.keys(prepared.branches).length}`,
+    parentBranchId: source.branchId,
+    sourceSnapshotId: source.id,
+    createdAt: now,
+    snapshotIds: clonedSnapshots.map((item) => item.id),
+    headSnapshotId: clonedSource.id,
+    chapterIds: [...source.worldState.chapterIds],
+  };
+  const copied = replaceSceneFieldsFromSnapshot(
+    {
+      ...prepared,
+      snapshots: { ...prepared.snapshots, ...Object.fromEntries(clonedSnapshots.map((item) => [item.id, item])) },
+      branches: { ...prepared.branches, [branchId]: branch },
+    },
+    source,
+    branchId,
+    now,
+  );
+  return { ...copied, branches: { ...copied.branches, [branchId]: branch } };
+}
+
+/** 切换到已有分支的头部投影；不修改任何源快照。 */
+export function switchBranch(save: GameSave, branchId: BranchId, now = new Date().toISOString()): GameSave {
+  const prepared = initializeSnapshotState(save, now);
+  const branch = prepared.branches?.[branchId];
+  const snapshot = branch && prepared.snapshots?.[branch.headSnapshotId];
+  if (!branch || !snapshot) throw new Error("找不到要切换的分支");
+  return replaceSceneFieldsFromSnapshot(prepared, snapshot, branchId, now);
+}
+
 function nodeForSnapshot(
   snapshot: WorldSnapshot,
   branch: GameBranch,
 ): SnapshotTimelineNode {
+  if (snapshot.kind === "scene-choice") {
+    return {
+      id: snapshot.id,
+      snapshotId: snapshot.id,
+      chapterId: snapshot.chapterId,
+      chapterIndex: snapshot.chapterIndex,
+      sequence: snapshot.sequence,
+      year: snapshot.year,
+      label: `场景检查点 · ${snapshot.sceneId ?? "未知场景"} · ${snapshot.sequence ?? 0}`,
+      title: "场景选择检查点",
+      summary: snapshot.blockId ? `选择位置 ${snapshot.blockId}` : undefined,
+      active: snapshot.id === branch.headSnapshotId,
+      canReplay: snapshot.replayable,
+    };
+  }
   const chapter = snapshot.chapterId ? snapshot.chapterContent[snapshot.chapterId] : undefined;
   if (!chapter) {
     return {
       id: snapshot.id,
       snapshotId: snapshot.id,
       chapterIndex: snapshot.chapterIndex,
+      sequence: snapshot.sequence,
       year: snapshot.year,
       label: `人生起点 · ${snapshot.year}`,
       title: "人生起点",
@@ -314,6 +572,7 @@ function nodeForSnapshot(
     snapshotId: snapshot.id,
     chapterId: chapter.id,
     chapterIndex: snapshot.chapterIndex,
+    sequence: snapshot.sequence,
     year: snapshot.year,
     label: `第 ${String(chapter.index + 1).padStart(2, "0")} 章 · ${chapter.startYear}—${chapter.endYear}`,
     title: chapter.novel.title,
@@ -358,5 +617,5 @@ export function getTimelineNodes(save: GameSave): SnapshotTimelineNode[] {
       if (!representedChapterIds.has(node.chapterId ?? "")) nodes.push(node);
     }
   }
-  return nodes.sort((a, b) => a.chapterIndex - b.chapterIndex);
+  return nodes.sort((a, b) => a.chapterIndex - b.chapterIndex || (a.sequence ?? -1) - (b.sequence ?? -1) || a.id.localeCompare(b.id));
 }

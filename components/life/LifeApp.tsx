@@ -14,11 +14,13 @@ import type { ChapterSpan, GameMode } from "@/lib/domain/shared";
 import type { WorldState } from "@/lib/domain/world";
 import type { WorldSimulationOutput } from "@/lib/domain/simulation";
 import type { EvidenceBundle, LifeExperience } from "@/lib/domain/experience";
+import type { SceneChoiceResponse, ScenePackage, SceneRuntimeState } from "@/lib/domain/scene";
 import type { NpcDraft, ProtagonistDraft } from "@/lib/game/character-factory";
 import type { NarrativeEvidenceBundle, NarrativePlan, NarrativeReference, ScenePlan } from "@/lib/domain/narrative";
 import { parseGameSave } from "@/lib/game/save";
 import {
   appendSnapshot,
+  appendSceneChoiceCheckpoint,
   createBranchFromSnapshot,
   getSnapshot,
   getTimelineNodes,
@@ -27,6 +29,17 @@ import {
   type SnapshotTimelineNode,
 } from "@/lib/game/snapshot-manager";
 import { buildLifePresentation } from "@/lib/game/presentation";
+import {
+  commitSceneChoice,
+  mergeSceneProjection,
+  normalizeSceneSave,
+  projectGameSave,
+  serializeSceneSave,
+} from "@/lib/game/scene-save";
+import { completePendingChapter, createPendingChapter, updatePendingChapterStage } from "@/lib/game/scene-save";
+import { adaptDialogueScenes } from "@/lib/game/scene-adapter";
+import { pendingSpan, recoverChapterChoice, recoverEvidenceBundle, recoverSelection } from "@/lib/game/pending-chapter";
+import { createSceneRuntime } from "@/lib/game/scene-runtime";
 import { findScene, DEFAULT_SCENE_ID, pickSceneForNovelScene } from "@/lib/game/scene-catalog";
 import { ProtagonistSetup } from "./ProtagonistSetup";
 import { NpcSetup } from "./NpcSetup";
@@ -40,8 +53,10 @@ import { StatusHUD } from "@/components/life-vn/StatusHUD";
 import { Timeline, type TimelineChapter } from "@/components/life-vn/Timeline";
 import { SnapshotViewer } from "@/components/life-vn/SnapshotViewer";
 import { StreamingNovelPreview } from "@/components/life-vn/StreamingNovelPreview";
+import { SceneRuntimePlayer } from "@/components/life-vn/SceneRuntimePlayer";
 
 const SAVE_KEY = "restart-life-save-v1";
+const DEMO_SAVE_KEY = "restart-life-neutral-scene-demo-v1";
 
 type Screen =
   | "landing"
@@ -51,6 +66,8 @@ type Screen =
   | "chapter_start"
   | "decision"
   | "chapter_summary"
+  | "demo_scene"
+  | "pending_recovery"
   | "snapshot_view";
 type SnapshotReturnScreen = Exclude<Screen, "snapshot_view">;
 
@@ -78,9 +95,18 @@ type SimulateResult = {
   stateAfterHash: string;
 };
 
+type NeutralDemoResponse = {
+  synthetic: true;
+  saveKey: string;
+  gameSave: GameSave;
+  scenePackage: ScenePackage;
+  packageIds: string[];
+};
+
 async function readJsonResponse<T>(response: Response): Promise<T> {
-  const payload = (await response.json()) as T & { error?: string };
-  if (!response.ok) throw new Error(payload?.error || `请求失败（HTTP ${response.status}）`);
+  const payload = (await response.json()) as T & { error?: string | { message?: string } };
+  const errorMessage = typeof payload?.error === "string" ? payload.error : payload?.error?.message;
+  if (!response.ok) throw new Error(errorMessage || `请求失败（HTTP ${response.status}）`);
   return payload;
 }
 
@@ -202,6 +228,10 @@ function protagonistDialogueCharacter(character: Character, avatarUrl: string | 
   };
 }
 
+function orderedDemoPackages(save: GameSave): ScenePackage[] {
+  return Object.values(save.scenePackages ?? {}).sort((left, right) => left.chapterId.localeCompare(right.chapterId));
+}
+
 async function fetchDialogue(
   worldBefore: WorldState,
   events: WorldSimulationOutput["events"],
@@ -255,15 +285,64 @@ export function LifeApp() {
   const [customText, setCustomText] = useState("");
   const [selectedSnapshotId, setSelectedSnapshotId] = useState<string | null>(null);
   const [snapshotReturnScreen, setSnapshotReturnScreen] = useState<SnapshotReturnScreen>("chapter_start");
+  const [demoPackage, setDemoPackage] = useState<ScenePackage | null>(null);
+  const [syntheticDemo, setSyntheticDemo] = useState(false);
 
   useEffect(() => {
+    if (new URLSearchParams(window.location.search).get("demo") === "neutral") {
+      let cancelled = false;
+      void fetch("/api/life/demo")
+        .then((response) => readJsonResponse<NeutralDemoResponse>(response))
+        .then((data) => {
+          if (cancelled) return;
+          let gameSave = normalizeSceneSave(data.gameSave);
+          const stored = window.localStorage.getItem(DEMO_SAVE_KEY);
+          if (stored) {
+            try {
+              const storedSave = normalizeSceneSave(JSON.parse(stored) as GameSave);
+              const storedRuntime = storedSave.sceneRuntime;
+              const storedPackage = storedRuntime
+                ? storedSave.scenePackages?.[storedRuntime.chapterId]
+                : undefined;
+              if (
+                storedRuntime &&
+                data.packageIds.includes(storedRuntime.packageId) &&
+                storedPackage?.id === storedRuntime.packageId &&
+                storedPackage.version === storedRuntime.packageVersion
+              ) {
+                gameSave = storedSave;
+              }
+            } catch {
+              // 合成 Demo 的损坏存档只回退到新夹具，不影响正式人生存档。
+            }
+          }
+          setSave(gameSave);
+          const activePackage = gameSave.sceneRuntime
+            ? gameSave.scenePackages?.[gameSave.sceneRuntime.chapterId]
+            : undefined;
+          setDemoPackage(activePackage ?? data.scenePackage);
+          setSyntheticDemo(true);
+          setMode("galgame");
+          setScreen("demo_scene");
+        })
+        .catch((err) => {
+          if (!cancelled) setError(err instanceof Error ? err.message : "中性 Demo 加载失败");
+        });
+      return () => {
+        cancelled = true;
+      };
+    }
     setHasSave(Boolean(window.localStorage.getItem(SAVE_KEY)));
+    return undefined;
   }, []);
 
   // 测试可观测接口：只暴露玩家可见信息，绝不输出 NPC privateState。
   useEffect(() => {
     const world = save?.worldState;
     const hero = world ? world.characters[world.protagonistId] : null;
+    const runtime = save?.sceneRuntime;
+    const runtimeScene = runtime && demoPackage?.scenes.find((scene) => scene.id === runtime.sceneId);
+    const runtimeBlock = runtime ? runtimeScene?.blocks.find((block) => block.id === runtime.blockId) : undefined;
     (window as unknown as Record<string, unknown>).render_game_to_text = () =>
       JSON.stringify({
         screen,
@@ -321,10 +400,38 @@ export function LifeApp() {
         activeBranchId: save?.activeBranchId ?? "main",
         snapshotView: selectedSnapshotId,
         activeScene: chapter ? { index: chapter.index, title: chapter.novel.title } : null,
+        synthetic: syntheticDemo,
+        pendingChapter: save?.pendingChapter
+          ? {
+              chapterId: save.pendingChapter.chapterId,
+              stage: save.pendingChapter.stage,
+              novelCompleted: Boolean(save.pendingChapter.novelCompleted),
+              dialogueCompleted: Boolean(save.pendingChapter.dialogueCompleted),
+            }
+          : null,
+        sceneRuntime: runtime
+          ? {
+              branchId: runtime.branchId,
+              packageId: runtime.packageId,
+              packageVersion: runtime.packageVersion,
+              sceneId: runtime.sceneId,
+              blockId: runtime.blockId,
+              status: runtime.status,
+              availableChoices:
+                runtimeBlock?.content.type === "choice"
+                  ? runtimeBlock.content.choices.map((item) => item.label)
+                  : [],
+              recentPublicActions: (save?.sceneActions ?? []).slice(-3).map((action) => ({
+                actionId: action.id,
+                label: action.label,
+                ruleId: action.ruleId,
+              })),
+            }
+          : null,
         loading,
         error,
       });
-  }, [screen, save, choice, selection, loading, error, chapter, selectedSnapshotId]);
+  }, [screen, save, choice, selection, loading, error, chapter, selectedSnapshotId, demoPackage, syntheticDemo]);
 
   // 测试可观测接口（迭代方案 §10.2）：window.__lifeTest 跳过 VN 动效直达终态。
   // 供自动化截图/长流程回归使用；等价于全局 prefers-reduced-motion，幂等可恢复。
@@ -415,14 +522,313 @@ export function LifeApp() {
     try {
       const raw = window.localStorage.getItem(SAVE_KEY);
       if (!raw) return;
-      const loadedSave = initializeSnapshotState(parseGameSave(JSON.parse(raw)));
+      const loadedSave = initializeSnapshotState(normalizeSceneSave(parseGameSave(JSON.parse(raw))));
       setSave(loadedSave);
       setMode(loadedSave.presentationMode ?? "galgame");
       setEntryIntent("continue");
+      const pending = loadedSave.pendingChapter;
+      if (pending) {
+        const recoveredChoice = recoverChapterChoice(pending);
+        const recoveredSelection = recoverSelection(pending);
+        if (!recoveredChoice || !recoveredSelection || !pending.simulationOutput || !pending.resolution) {
+          setError("发现未完成章节，但存档缺少可恢复的结算材料；请导出存档后再修复。");
+          setScreen("pending_recovery");
+          return;
+        }
+        const recoveredResult: SimulateResult = {
+          chapterId: pending.chapterId,
+          evidenceBundle: recoverEvidenceBundle(loadedSave, pending),
+          resolution: pending.resolution,
+          simulation: pending.simulationOutput,
+          worldStateAfter: loadedSave.worldState,
+          stateBeforeHash: pending.stateBeforeHash,
+          stateAfterHash: pending.stateAfterHash,
+        };
+        setChoice(recoveredChoice);
+        setSelection(recoveredSelection);
+        setSpan(pendingSpan(pending));
+        setPreWorld(pending.worldStateBefore);
+        setSimResult(recoveredResult);
+        setNovelPreview(pending.novel ? { title: pending.novel.title, scenes: pending.novel.scenes } : { title: "", scenes: [] });
+        if (pending.novel) {
+          setChapter(
+            assembleChapter({
+              choice: recoveredChoice,
+              selection: recoveredSelection,
+              span: pendingSpan(pending),
+              worldBefore: pending.worldStateBefore,
+              result: recoveredResult,
+              novel: pending.novel,
+              narrativePlan: pending.narrative?.plan,
+              dialogue: pending.dialogue,
+              worldStateAfter: loadedSave.worldState,
+            }),
+          );
+        } else {
+          setChapter(null);
+        }
+        setError("");
+        setScreen("pending_recovery");
+        return;
+      }
       setScreen("mode_select");
     } catch (err) {
       setError(err instanceof Error ? err.message : "存档读取失败");
     }
+  }, []);
+
+  const handleResumePending = useCallback(async () => {
+    if (!save?.pendingChapter) return;
+    const pending = save.pendingChapter;
+    const recoveredChoice = recoverChapterChoice(pending);
+    const recoveredSelection = recoverSelection(pending);
+    if (!recoveredChoice || !recoveredSelection || !pending.simulationOutput || !pending.resolution) {
+      setError("当前待恢复章节材料不完整，无法安全重放表现阶段。");
+      return;
+    }
+    const result: SimulateResult = {
+      chapterId: pending.chapterId,
+      evidenceBundle: recoverEvidenceBundle(save, pending),
+      resolution: pending.resolution,
+      simulation: pending.simulationOutput,
+      worldStateAfter: save.worldState,
+      stateBeforeHash: pending.stateBeforeHash,
+      stateAfterHash: pending.stateAfterHash,
+    };
+    const recoveredSpan = pendingSpan(pending);
+    let workingSave = save;
+    setLoading(true);
+    setNovelLoading(true);
+    setError("");
+    try {
+      let novel = pending.novel;
+      if (!novel) {
+        setNovelPreview({ title: "", scenes: [] });
+        novel = await fetchNovel(
+          result,
+          pending.worldStateBefore,
+          recoveredSpan,
+          1,
+          pending.narrative?.plan,
+          [],
+          createNovelStreamCallbacks(setNovelPreview, setPlanProgress),
+        );
+      }
+      setNovelPreview({ title: novel.title, scenes: novel.scenes });
+
+      let dialogue = pending.dialogue;
+      if (mode === "galgame" && !dialogue) {
+        try {
+          setPlanProgress("正在恢复互动对白…");
+          dialogue = await fetchDialogue(pending.worldStateBefore, result.simulation.events, novel, pending.narrative?.plan);
+        } catch (dialogueError) {
+          console.warn("dialogue recovery fallback:", dialogueError instanceof Error ? dialogueError.message : dialogueError);
+          dialogue = fallbackDialogueScenes(novel);
+        }
+      }
+
+      const recoveredChapter = assembleChapter({
+        choice: recoveredChoice,
+        selection: recoveredSelection,
+        span: recoveredSpan,
+        worldBefore: pending.worldStateBefore,
+        result,
+        novel,
+        narrativePlan: pending.narrative?.plan,
+        dialogue,
+        worldStateAfter: workingSave.worldState,
+      });
+      const scenePackage =
+        workingSave.scenePackages?.[recoveredChapter.id] ??
+        adaptDialogueScenes(dialogue ?? fallbackDialogueScenes(novel), {
+          chapterId: recoveredChapter.id,
+          year: recoveredChapter.endYear,
+          version: 1,
+        });
+      const now = new Date().toISOString();
+      workingSave = {
+        ...workingSave,
+        chapters: { ...workingSave.chapters, [recoveredChapter.id]: recoveredChapter },
+        events: {
+          ...workingSave.events,
+          ...Object.fromEntries(result.simulation.events.map((event) => [event.id, event])),
+        },
+        experienceCache: {
+          ...workingSave.experienceCache,
+          ...Object.fromEntries(allEvidence(result.evidenceBundle).map((experience) => [experience.id, experience])),
+        },
+        scenePackages: { ...(workingSave.scenePackages ?? {}), [recoveredChapter.id]: scenePackage },
+        pendingChapter: workingSave.pendingChapter
+          ? updatePendingChapterStage(workingSave.pendingChapter, pending.executionId, "ready", {
+              novel: recoveredChapter.novel,
+              dialogue,
+              novelCompleted: true,
+              dialogueCompleted: Boolean(dialogue),
+              updatedAt: now,
+            })
+          : undefined,
+        savedAt: now,
+      };
+      persist(workingSave);
+      setSave(workingSave);
+      const completedSave = workingSave.pendingChapter
+        ? completePendingChapter(workingSave, pending.executionId, recoveredChapter, scenePackage)
+        : workingSave;
+      const finalSave = appendSnapshot(completedSave, { chapterId: recoveredChapter.id, now });
+      persist(finalSave);
+      setSave(finalSave);
+      setChoice(recoveredChoice);
+      setSelection(recoveredSelection);
+      setPreWorld(pending.worldStateBefore);
+      setSimResult(result);
+      setChapter(recoveredChapter);
+      setScreen("chapter_summary");
+    } catch (err) {
+      const message = err instanceof Error ? err.message : "章节表现恢复失败";
+      setError(message);
+      try {
+        if (workingSave.pendingChapter) {
+          const failedSave = {
+            ...workingSave,
+            pendingChapter: updatePendingChapterStage(workingSave.pendingChapter, pending.executionId, "error", {
+              error: { code: "PENDING_RECOVERY_FAILED", message },
+              updatedAt: new Date().toISOString(),
+            }),
+            savedAt: new Date().toISOString(),
+          };
+          persist(failedSave);
+          setSave(failedSave);
+        }
+      } catch (persistError) {
+        console.error("pending recovery save failed", persistError);
+      }
+    } finally {
+      setLoading(false);
+      setNovelLoading(false);
+    }
+  }, [mode, save]);
+
+  const handleDemoPersistPosition = useCallback((runtime: SceneRuntimeState) => {
+    setSave((previous) => {
+      if (!previous || JSON.stringify(previous.sceneRuntime) === JSON.stringify(runtime)) return previous;
+      const nextSave = { ...previous, sceneRuntime: runtime, savedAt: new Date().toISOString() };
+      try {
+        window.localStorage.setItem(DEMO_SAVE_KEY, serializeSceneSave(nextSave));
+        return nextSave;
+      } catch {
+        setError("中性 Demo 场景位置保存失败；当前页面仍可继续，但刷新后会回到上次成功保存的位置。");
+        return previous;
+      }
+    });
+  }, []);
+
+  const handleDemoSelect = useCallback(
+    async (input: {
+      requestId: string;
+      issuedAt: string;
+      expectedRevision: number;
+      choiceId: "A" | "B" | "C";
+    }): Promise<SceneChoiceResponse> => {
+      if (!save?.sceneRuntime || !demoPackage) throw new Error("中性 Demo 场景尚未就绪");
+      const checkpointedSave = appendSceneChoiceCheckpoint(save, {
+        chapterId: demoPackage.chapterId,
+        packageId: demoPackage.id,
+        packageVersion: demoPackage.version,
+        sceneId: save.sceneRuntime.sceneId,
+        blockId: save.sceneRuntime.blockId,
+        runtime: save.sceneRuntime,
+        actions: save.sceneActions,
+        flags: save.sceneFlags,
+      });
+      const projection = projectGameSave(checkpointedSave, checkpointedSave.sceneRuntime ?? save.sceneRuntime, checkpointedSave.sceneActions, checkpointedSave.sceneFlags);
+      const response = await fetch("/api/chapter/scene-choice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projection, package: demoPackage, ...input }),
+      });
+      const data = await readJsonResponse<SceneChoiceResponse>(response);
+      const nextProjection = commitSceneChoice(projection, data);
+      const nextSave = mergeSceneProjection(checkpointedSave, nextProjection);
+      const activeBranch = nextSave.branches?.[nextSave.activeBranchId ?? "main"];
+      const checkpointHead = activeBranch?.headSnapshotId ? nextSave.snapshots?.[activeBranch.headSnapshotId] : undefined;
+      const persistedSave = appendSceneChoiceCheckpoint(nextSave, {
+        chapterId: demoPackage.chapterId,
+        packageId: demoPackage.id,
+        packageVersion: demoPackage.version,
+        sceneId: data.runtimeAfter.sceneId,
+        blockId: data.runtimeAfter.blockId,
+        sequence: (checkpointHead?.sequence ?? 0) + 1,
+        runtime: data.runtimeAfter,
+        actions: nextSave.sceneActions,
+        flags: nextSave.sceneFlags,
+        now: new Date().toISOString(),
+      });
+      try {
+        window.localStorage.setItem(DEMO_SAVE_KEY, serializeSceneSave(persistedSave));
+      } catch {
+        throw new Error("中性 Demo 场景结果保存失败，请重试；当前状态尚未发布。");
+      }
+      setSave(persistedSave);
+      return data;
+    },
+    [demoPackage, save],
+  );
+
+  const handleDemoNextPackage = useCallback(() => {
+    if (!save?.sceneRuntime || !demoPackage || save.sceneRuntime.status !== "completed") return;
+    const packages = orderedDemoPackages(save);
+    const currentIndex = packages.findIndex((item) => item.id === demoPackage.id && item.version === demoPackage.version);
+    const nextPackage = currentIndex >= 0 ? packages[currentIndex + 1] : undefined;
+    if (!nextPackage) return;
+    const now = new Date().toISOString();
+    const nextYear = nextPackage.scenes[0]?.year ?? save.worldState.currentYear;
+    const yearDelta = Math.max(0, nextYear - save.worldState.currentYear);
+    const nextWorld = {
+      ...save.worldState,
+      currentYear: nextYear,
+      characters: Object.fromEntries(
+        Object.entries(save.worldState.characters).map(([id, character]) => [
+          id,
+          {
+            ...character,
+            state: {
+              ...character.state,
+              year: character.state.year + yearDelta,
+              age: character.state.age + yearDelta,
+            },
+            updatedAt: now,
+          },
+        ]),
+      ),
+      updatedAt: now,
+    };
+    const runtime = createSceneRuntime(nextPackage, {
+      branchId: save.sceneRuntime.branchId,
+      playbackMode: save.sceneRuntime.playbackMode,
+    });
+    const nextSave: GameSave = {
+      ...save,
+      worldState: nextWorld,
+      sceneRuntime: runtime,
+      saveRevision: (save.saveRevision ?? 0) + 1,
+      savedAt: now,
+    };
+    try {
+      window.localStorage.setItem(DEMO_SAVE_KEY, serializeSceneSave(nextSave));
+    } catch {
+      setError("下一测试章节切换失败，当前 Demo 存档未改变。");
+      return;
+    }
+    setError("");
+    setDemoPackage(nextPackage);
+    setSave(nextSave);
+  }, [demoPackage, save]);
+
+  const handleExitDemo = useCallback(() => {
+    setDemoPackage(null);
+    setSyntheticDemo(false);
+    setSave(null);
+    setScreen("landing");
   }, []);
 
   const handleModeSelect = useCallback(
@@ -506,14 +912,37 @@ export function LifeApp() {
         const result = await readSseComplete<SimulateResult>(response, setSimProgress);
         setSimResult(result);
 
-        // 自动存档节点 4：canonical simulation 完成（反思结果随后覆盖，见下）
+        // 自动存档节点 4：先保存完整 pendingChapter，后续叙事阶段只更新同一执行 ID。
+        const pending = createPendingChapter({
+          executionId: result.chapterId,
+          chapterId: result.chapterId,
+          startYear: worldBefore.currentYear,
+          endYear: worldBefore.currentYear + span,
+          stateBeforeHash: result.stateBeforeHash,
+          stateAfterHash: result.stateAfterHash,
+          worldStateBefore: worldBefore,
+          worldStateAfter: result.worldStateAfter,
+          selection: buildChapterDecision(choice, next),
+          resolution: result.resolution,
+          simulationOutput: result.simulation,
+          eventIds: result.simulation.events.map((event) => event.id),
+          evidenceIds: allEvidence(result.evidenceBundle).map((experience) => experience.id),
+          featuredExperienceIds: [
+            ...result.evidenceBundle.decisionSimilar,
+            ...result.evidenceBundle.outcomeContrasts,
+            ...result.evidenceBundle.backgroundSimilar,
+          ].slice(0, 5).map((experience) => experience.id),
+          createdAt: new Date().toISOString(),
+        });
         let saveBase: GameSave = {
           ...save,
           worldState: result.worldStateAfter,
+          pendingChapter: pending,
+          saveRevision: (save.saveRevision ?? 0) + 1,
           savedAt: new Date().toISOString(),
         };
-        setSave(saveBase);
         persist(saveBase);
+        setSave(saveBase);
 
         // 生成小说（自动存档节点 5）
         setNovelLoading(true);
@@ -587,10 +1016,32 @@ export function LifeApp() {
               narrativeEvidence = planOutcome.evidence;
               setPlanResult({ narrativePlan: planOutcome.narrativePlan, narrativeEvidence: planOutcome.evidence });
             }
-            if (reflectionOutcome?.worldStateAfter) {
-              saveBase = { ...saveBase, worldState: reflectionOutcome.worldStateAfter, savedAt: new Date().toISOString() };
-              setSave(saveBase);
+            const reflectedWorld = reflectionOutcome?.worldStateAfter ?? saveBase.worldState;
+            if (saveBase.pendingChapter) {
+              const stage = reflectionOutcome ? "reflection" : planOutcome ? "plan" : "simulated";
+              const stagedPending = updatePendingChapterStage(saveBase.pendingChapter, result.chapterId, stage, {
+                worldStateAfter: reflectedWorld,
+                ...(planOutcome?.narrativePlan
+                  ? {
+                      narrative: {
+                        plan: planOutcome.narrativePlan,
+                        referenceFragmentIds: planOutcome.narrativePlan.referenceFragmentIds,
+                        directorVersion: 1,
+                      },
+                    }
+                  : {}),
+                planCompleted: Boolean(planOutcome),
+                reflectionCompleted: Boolean(reflectionOutcome),
+                updatedAt: new Date().toISOString(),
+              });
+              saveBase = {
+                ...saveBase,
+                worldState: reflectedWorld,
+                pendingChapter: stagedPending,
+                savedAt: new Date().toISOString(),
+              };
               persist(saveBase);
+              setSave(saveBase);
             }
           } catch (parallelError) {
             console.warn("narrative/reflection parallel stage failed:", parallelError);
@@ -608,6 +1059,28 @@ export function LifeApp() {
             createNovelStreamCallbacks(setNovelPreview, setPlanProgress),
           );
           setNovelPreview({ title: novel.title, scenes: novel.scenes });
+          if (saveBase.pendingChapter) {
+            saveBase = {
+              ...saveBase,
+              pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, result.chapterId, "novel", {
+                novel,
+                novelCompleted: true,
+                ...(narrativePlan
+                  ? {
+                      narrative: {
+                        plan: narrativePlan,
+                        referenceFragmentIds: narrativePlan.referenceFragmentIds,
+                        directorVersion: 1,
+                      },
+                    }
+                  : {}),
+                updatedAt: new Date().toISOString(),
+              }),
+              savedAt: new Date().toISOString(),
+            };
+            persist(saveBase);
+            setSave(saveBase);
+          }
           let dialogue: DialogueScene[] | undefined;
           if (mode === "galgame") {
             try {
@@ -627,6 +1100,21 @@ export function LifeApp() {
               dialogue = fallbackDialogueScenes(novel);
             }
           }
+          if (saveBase.pendingChapter) {
+            saveBase = {
+              ...saveBase,
+              pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, result.chapterId, "dialogue", {
+                novel,
+                dialogue,
+                novelCompleted: true,
+                dialogueCompleted: mode !== "galgame" || Boolean(dialogue),
+                updatedAt: new Date().toISOString(),
+              }),
+              savedAt: new Date().toISOString(),
+            };
+            persist(saveBase);
+            setSave(saveBase);
+          }
           const chapter = assembleChapter({
             choice,
             selection: next,
@@ -639,6 +1127,20 @@ export function LifeApp() {
             worldStateAfter: saveBase.worldState,
           });
           setChapter(chapter);
+          let scenePackage: ScenePackage;
+          try {
+            scenePackage = adaptDialogueScenes(dialogue ?? fallbackDialogueScenes(novel), {
+              chapterId: chapter.id,
+              year: chapter.endYear,
+              version: 1,
+            });
+          } catch {
+            scenePackage = adaptDialogueScenes(fallbackDialogueScenes(novel), {
+              chapterId: chapter.id,
+              year: chapter.endYear,
+              version: 1,
+            });
+          }
           const completedSave: GameSave = {
             ...saveBase,
             chapters: { ...saveBase.chapters, [chapter.id]: chapter },
@@ -650,14 +1152,50 @@ export function LifeApp() {
               ...saveBase.experienceCache,
               ...Object.fromEntries(allEvidence(result.evidenceBundle).map((e) => [e.id, e])),
             },
+            scenePackages: {
+              ...(saveBase.scenePackages ?? {}),
+              [chapter.id]: saveBase.scenePackages?.[chapter.id] ?? scenePackage,
+            },
             savedAt: new Date().toISOString(),
           };
-          const finalSave = appendSnapshot(completedSave, { chapterId: chapter.id, now: completedSave.savedAt });
-          setSave(finalSave);
+          const readySave: GameSave = completedSave.pendingChapter
+            ? {
+                ...completedSave,
+                pendingChapter: updatePendingChapterStage(completedSave.pendingChapter, result.chapterId, "ready", {
+                  novel: chapter.novel,
+                  dialogue,
+                  novelCompleted: true,
+                  dialogueCompleted: Boolean(dialogue),
+                  updatedAt: completedSave.savedAt,
+                }),
+              }
+            : completedSave;
+          const completedWithPending = readySave.pendingChapter
+            ? completePendingChapter(readySave, result.chapterId, chapter, readySave.scenePackages?.[chapter.id] ?? scenePackage)
+            : readySave;
+          const finalSave = appendSnapshot(completedWithPending, { chapterId: chapter.id, now: completedWithPending.savedAt });
           persist(finalSave);
+          setSave(finalSave);
           setScreen("chapter_summary");
         } catch (err) {
-          setError(err instanceof Error ? err.message : "小说生成失败");
+          const message = err instanceof Error ? err.message : "小说生成失败";
+          setError(message);
+          if (saveBase.pendingChapter) {
+            try {
+              const failedSave = {
+                ...saveBase,
+                pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, result.chapterId, "error", {
+                  error: { code: "PRESENTATION_STAGE_FAILED", message },
+                  updatedAt: new Date().toISOString(),
+                }),
+                savedAt: new Date().toISOString(),
+              };
+              persist(failedSave);
+              setSave(failedSave);
+            } catch (persistError) {
+              console.error("pending chapter error save failed", persistError);
+            }
+          }
         } finally {
           setNovelLoading(false);
         }
@@ -823,6 +1361,117 @@ export function LifeApp() {
             loading={loading}
             error={error}
           />
+        </div>
+      </div>
+    );
+  }
+
+  if (screen === "demo_scene" && save && demoPackage && save.sceneRuntime) {
+    const demoWorld = save.worldState;
+    const demoHero = demoWorld.characters[demoWorld.protagonistId];
+    const demoPresentation = buildLifePresentation({ world: demoWorld, chapterEvents: [] });
+    const demoProjection = projectGameSave(save, save.sceneRuntime, save.sceneActions, save.sceneFlags);
+    const demoPackages = orderedDemoPackages(save);
+    const demoPackageIndex = demoPackages.findIndex((item) => item.id === demoPackage.id && item.version === demoPackage.version);
+    const nextDemoPackage = demoPackageIndex >= 0 ? demoPackages[demoPackageIndex + 1] : undefined;
+    return (
+      <LifeShell
+        chapterLabel="B · 中性玩法 Demo"
+        title="Scene Runtime 可玩验证"
+        yearRange={`${demoWorld.currentYear} 年 · synthetic`}
+        brandLabel="中性玩法 Demo · synthetic"
+        onBrandClick={handleExitDemo}
+        left={
+          <div>
+            <div className="life-vn-pill" style={{ marginBottom: 10 }}>合成夹具，不写入正式存档</div>
+            <Timeline
+              chapters={Object.values(save.scenePackages ?? {}).map((item, index) => ({
+                id: item.id,
+                label: `测试章节 ${index + 1}`,
+                title: item.id,
+                summary: `${item.scenes.length} 个场景 · v${item.version}`,
+                canSelect: false,
+              }))}
+            />
+          </div>
+        }
+        right={
+          <StatusHUD
+            presentation={demoPresentation.protagonist}
+            goals={demoHero?.state.currentGoals ?? []}
+            dilemmas={demoHero?.state.currentDilemmas ?? []}
+            relationships={demoPresentation.relationships}
+          />
+        }
+        center={
+          <div style={{ position: "absolute", inset: 0 }}>
+            <SceneRuntimePlayer
+              key={`${demoPackage.id}:v${demoPackage.version}`}
+              scenePackage={demoPackage}
+              initialState={save.sceneRuntime}
+              projection={demoProjection}
+              onSelect={handleDemoSelect}
+              onPersistPosition={handleDemoPersistPosition}
+            />
+            {save.sceneRuntime.status === "completed" && nextDemoPackage && (
+              <button
+                type="button"
+                className="life-vn-btn"
+                style={{ position: "absolute", right: 22, bottom: 22, zIndex: 5 }}
+                onClick={handleDemoNextPackage}
+              >
+                进入下一测试章节
+              </button>
+            )}
+            {save.sceneRuntime.status === "completed" && !nextDemoPackage && (
+              <div className="life-vn-pill" style={{ position: "absolute", right: 22, bottom: 22, zIndex: 5 }}>
+                三章中性玩法已完成
+              </div>
+            )}
+          </div>
+        }
+        sheet={
+          <div>
+            <b>当前运行时</b>
+            <p style={{ margin: "6px 0 0", color: "var(--lv-muted)", fontSize: 12 }}>
+              {save.sceneRuntime.sceneId} / {save.sceneRuntime.blockId} · {save.sceneRuntime.status}
+            </p>
+          </div>
+        }
+      />
+    );
+  }
+
+  if (screen === "pending_recovery" && save?.pendingChapter) {
+    const pending = save.pendingChapter;
+    const hasSimulation = Boolean(pending.simulationOutput && pending.resolution && pending.selection);
+    return (
+      <div className="life-vn" style={{ display: "grid", placeItems: "center", minHeight: "100vh", padding: 24 }}>
+        <div className="life-vn-card" style={{ maxWidth: 620, width: "100%" }}>
+          <span className="life-vn-pill">检测到未完成章节</span>
+          <h1 className="life-vn-title" style={{ fontSize: 24, marginTop: 14 }}>恢复本章表现</h1>
+          <p className="life-vn-sub">
+            世界推演已经保存，不会重复结算；恢复流程只补齐缺失的规划、小说或对白阶段。
+          </p>
+          <div className="life-vn-card" style={{ background: "rgba(255,252,244,.72)" }}>
+            <div className="life-vn-change">章节：{pending.chapterId}</div>
+            <div className="life-vn-change">已保存阶段：{pending.stage}</div>
+            <div className="life-vn-change">宏观事件：{pending.eventIds.length} 条 · 现实经历引用：{pending.evidenceIds.length} 条</div>
+            {pending.novelCompleted && <div className="life-vn-change">小说：已保存</div>}
+            {pending.dialogueCompleted && <div className="life-vn-change">对白：已保存</div>}
+          </div>
+          {error && <div className="life-vn-error" style={{ marginTop: 14 }}>{error}</div>}
+          <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
+            <button
+              type="button"
+              className="life-vn-btn"
+              onClick={handleResumePending}
+              disabled={!hasSimulation || loading || novelLoading}
+            >
+              {novelLoading ? "正在恢复…" : pending.novel || pending.dialogue ? "完成章节恢复" : "继续生成本章"}
+            </button>
+            {!hasSimulation && <small style={{ color: "var(--lv-muted)", alignSelf: "center" }}>存档缺少安全恢复所需的结算材料。</small>}
+          </div>
         </div>
       </div>
     );

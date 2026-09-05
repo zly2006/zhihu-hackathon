@@ -47,6 +47,14 @@ const suites = [
   { file: "test/v24-performance.test.mjs", env: "V24_TEST_DIR" },
   { file: "test/v25-narrative-kb.test.mjs", env: "V25_TEST_DIR" },
   { file: "test/v31-v32-agents.test.mjs", env: "V31_V32_TEST_DIR" },
+  { file: "test/v3-scene-contract.test.mjs", env: "V3_TEST_DIR" },
+  { file: "test/v3-scene-runtime.test.mjs", env: "V3_TEST_DIR" },
+  { file: "test/v3-scene-choice.test.mjs", env: "V3_TEST_DIR" },
+  { file: "test/v3-scene-save.test.mjs", env: "V3_TEST_DIR" },
+  { file: "test/v3-relationship.test.mjs", env: "V3_TEST_DIR" },
+  { file: "test/v3-neutral-fixture.test.mjs", env: "V3_TEST_DIR" },
+  { file: "test/v3-scene-trigger.test.mjs", env: "V3_TEST_DIR" },
+  { file: "test/v3-scene-recovery.test.mjs", env: "V3_TEST_DIR" },
 ];
 
 let failed = 0;

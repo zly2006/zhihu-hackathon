@@ -28,11 +28,21 @@ export function RelationshipHud({
           )}
           <span>
             <b>{relation.name}</b>
-            <small>{relation.type}</small>
+            <small>{relation.type} · {relation.levelLabel}</small>
           </span>
-          <span className="score">♥ {relation.score}</span>
+          <span className="score" title={`信任 ${relation.scores.trust} · 冲突 ${relation.scores.conflict} · 承诺 ${relation.scores.commitment}`}>
+            ♥ {relation.score}
+            {relation.actualDelta && <small style={{ display: "block" }}>本次 {formatDelta(relation.actualDelta)}</small>}
+          </span>
         </div>
       ))}
     </section>
   );
+}
+
+function formatDelta(delta: NonNullable<LifePresentationState["relationships"][number]["actualDelta"]>): string {
+  return Object.entries(delta)
+    .filter(([, value]) => typeof value === "number" && value !== 0)
+    .map(([key, value]) => `${key} ${value > 0 ? "+" : ""}${value}`)
+    .join(" · ");
 }

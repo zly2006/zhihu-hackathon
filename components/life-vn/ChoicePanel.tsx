@@ -12,16 +12,13 @@ export type ChoicePanelOption = {
 
 function activateWithKeyboard(
   event: KeyboardEvent<HTMLButtonElement>,
-  option: ChoicePanelOption,
-  disabled: boolean,
-  onSelect?: (id: DialogueChoiceId) => void,
+  _option: ChoicePanelOption,
+  _disabled: boolean,
 ) {
-  // Enter is handled by the native button activation; Space needs an explicit
-  // handler so keyboard activation follows the same controlled path.
+  // Native button activation handles both pointer/Enter/Space through onClick.
+  // Prevent the browser's Space keydown from producing a second click path.
   if (event.key !== " ") return;
   event.preventDefault();
-  if (disabled || option.disabled) return;
-  onSelect?.(option.id);
 }
 
 // 受控选择面板只发出选项 id，不承担模拟、存档或网络请求。
@@ -53,7 +50,7 @@ export function ChoicePanel({
             onClick={() => {
               if (!optionDisabled) onSelect?.(option.id);
             }}
-            onKeyDown={(event) => activateWithKeyboard(event, option, optionDisabled, onSelect)}
+            onKeyDown={(event) => activateWithKeyboard(event, option, optionDisabled)}
           >
             <span className="life-vn-choice-key">{option.id}</span>
             <span className="life-vn-choice-copy">

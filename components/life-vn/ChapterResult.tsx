@@ -28,6 +28,7 @@ export function ChapterResult({
   directorBrief,
   directorFocusName,
   showRegenerate = true,
+  canNextChapter = true,
   children,
 }: {
   events: SimulationEvent[];
@@ -49,6 +50,7 @@ export function ChapterResult({
   directorBrief?: NarrativeDirectorBrief;
   directorFocusName?: string;
   showRegenerate?: boolean;
+  canNextChapter?: boolean;
   children?: React.ReactNode;
 }) {
   const [showChanges, setShowChanges] = useState(true);
@@ -144,9 +146,10 @@ export function ChapterResult({
               {regenerating ? "正在重写…" : "重写本章小说（不改事实）"}
             </button>
           )}
-          <button type="button" className="life-vn-btn" onClick={onNextChapter}>
+          <button type="button" className="life-vn-btn" onClick={onNextChapter} disabled={!canNextChapter}>
             进入下一章
           </button>
+          {!canNextChapter && <small style={{ color: "var(--lv-muted)" }}>完成当前互动场景后才能进入下一章。</small>}
         </div>
       </div>
     </div>

@@ -50,11 +50,13 @@ npm run build
 npm start
 ```
 
-全量测试（编译 + 6 个冒烟测试套件，104 项）：
+全量测试（编译并执行 scripts/test-all.mjs 中已注册的全部测试套件）：
 
 ```bash
 node scripts/test-all.mjs
 ```
+
+V3 场景玩法的中性验证入口：<http://127.0.0.1:3000/life?demo=neutral>。它使用独立的合成存档验证场景播放、选择结算、关系反馈、恢复和分支；不代表正式赵冷内容已接入，也不会覆盖玩家正式存档。交接结果见 [V3 Scene Runtime 交接报告](./docs/phase-reports/18-v3-scene-runtime-report.md)。
 
 ## 架构与目录
 

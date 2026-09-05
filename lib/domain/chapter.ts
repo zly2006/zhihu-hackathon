@@ -9,6 +9,42 @@ import type { LifeExperience } from "./experience";
 import type { NarrativePlan } from "./narrative";
 import type { DialogueScene } from "./dialogue";
 import type { BranchId, GameBranch, SnapshotId, WorldSnapshot } from "./snapshot";
+import type {
+  SceneActionRecord,
+  ScenePackage,
+  SceneRuntimeState,
+} from "./scene";
+import type { WorldSimulationOutput } from "./simulation";
+
+export type PendingChapterStage = "simulated" | "plan" | "reflection" | "novel" | "dialogue" | "ready" | "error";
+
+export type PendingChapter = {
+  executionId: string;
+  chapterId: ChapterId;
+  startYear: number;
+  endYear: number;
+  stateBeforeHash: string;
+  stateAfterHash: string;
+  worldStateBefore: WorldState;
+  worldStateAfter: WorldState;
+  selection?: ChapterDecision;
+  resolution?: DecisionResolution;
+  simulationOutput?: WorldSimulationOutput;
+  eventIds: SimulationEventId[];
+  evidenceIds: ExperienceId[];
+  featuredExperienceIds: ExperienceId[];
+  stage: PendingChapterStage;
+  novelCompleted?: boolean;
+  dialogueCompleted?: boolean;
+  planCompleted?: boolean;
+  reflectionCompleted?: boolean;
+  novel?: Chapter["novel"];
+  dialogue?: DialogueScene[];
+  narrative?: Chapter["narrative"];
+  error?: { code: string; message: string };
+  createdAt: string;
+  updatedAt: string;
+};
 
 export type ChapterDecision = {
   id: string;
@@ -126,4 +162,12 @@ export type GameSave = {
   snapshots?: Record<SnapshotId, WorldSnapshot>;
   branches?: Record<BranchId, GameBranch>;
   activeBranchId?: BranchId;
+
+  // V3 Scene Runtime：增量字段保持 schemaVersion=1，旧存档仍可读取。
+  sceneRuntime?: SceneRuntimeState;
+  sceneActions?: SceneActionRecord[];
+  sceneFlags?: Record<string, boolean>;
+  scenePackages?: Record<string, ScenePackage>;
+  pendingChapter?: PendingChapter;
+  saveRevision?: number;
 };

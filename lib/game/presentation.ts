@@ -7,6 +7,8 @@ import type { WorldState } from "../domain/world";
 import type { Chapter } from "../domain/chapter";
 import { LIFE_STAT_KEYS, type LifeStatKey } from "../domain/shared";
 import { resolveAvatarUrl } from "./avatar-registry";
+import { deriveRelationshipLevel, levelLabel, nextRelationshipThreshold } from "./relationship-levels";
+import type { RelationshipScores } from "../domain/relationship";
 
 export const STAT_LABELS: Record<LifeStatKey, string> = {
   cash: "现金",
@@ -31,6 +33,11 @@ export type RelationshipPresentation = {
   name: string;
   type: string;
   score: number;
+  scores: RelationshipScores;
+  level: ReturnType<typeof deriveRelationshipLevel>;
+  levelLabel: string;
+  nextThreshold: number | null;
+  actualDelta?: Partial<RelationshipScores>;
   trend?: number;
   avatarUrl: string | null;
 };
@@ -86,7 +93,10 @@ export function statDeltaFromEvents(
 export function buildLifePresentation(args: {
   world: WorldState;
   chapter?: Chapter | null;
-  chapterEvents?: Array<{ characterChanges: Array<{ characterId: string; statDelta?: Partial<Record<LifeStatKey, number>> }> }>;
+  chapterEvents?: Array<{
+    characterChanges: Array<{ characterId: string; statDelta?: Partial<Record<LifeStatKey, number>> }>;
+    relationshipChanges?: Array<{ relationshipId: string; scoreDelta?: Partial<RelationshipScores> }>;
+  }>;
   sceneIndex?: number;
 }): LifePresentationState {
   const { world, chapter, chapterEvents, sceneIndex } = args;
@@ -116,14 +126,32 @@ export function buildLifePresentation(args: {
         stats: [] as StatPresentation[],
       };
 
-  const relationships: RelationshipPresentation[] = Object.values(world.relationships).map((rel) => {
+  const relationships: RelationshipPresentation[] = Object.values(world.relationships)
+    .filter((rel) => rel.characterAId === world.protagonistId || rel.characterBId === world.protagonistId)
+    .map((rel) => {
     const otherId = rel.characterAId === world.protagonistId ? rel.characterBId : rel.characterAId;
     const other = world.characters[otherId];
+    const level = deriveRelationshipLevel(rel.scores);
+    const actualDelta: Partial<RelationshipScores> = {};
+    for (const event of chapterEvents ?? []) {
+      for (const change of event.relationshipChanges ?? []) {
+        if (change.relationshipId !== rel.id) continue;
+        for (const key of ["closeness", "trust", "conflict", "commitment"] as const) {
+          const amount = change.scoreDelta?.[key];
+          if (typeof amount === "number") actualDelta[key] = (actualDelta[key] ?? 0) + amount;
+        }
+      }
+    }
     return {
       characterId: otherId,
       name: other?.identity.name ?? "未知",
       type: rel.type,
       score: rel.scores.closeness,
+      scores: { ...rel.scores },
+      level,
+      levelLabel: levelLabel(level),
+      nextThreshold: nextRelationshipThreshold(level),
+      ...(Object.keys(actualDelta).length > 0 ? { actualDelta } : {}),
       avatarUrl: resolveAvatarUrl({
         avatarId: other?.visual?.avatarId,
         avatarUrl: other?.visual?.avatarUrl,

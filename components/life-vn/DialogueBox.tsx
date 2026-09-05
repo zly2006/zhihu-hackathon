@@ -17,6 +17,8 @@ export function DialogueBox({
   onContinue,
   continueLabel = "继续剧情",
   continueDisabled,
+  choiceDisabled,
+  choicesReadOnly = false,
   children,
 }: {
   speaker?: string;
@@ -28,6 +30,8 @@ export function DialogueBox({
   onContinue?: () => void;
   continueLabel?: string;
   continueDisabled?: boolean;
+  choiceDisabled?: boolean;
+  choicesReadOnly?: boolean;
   children?: ReactNode;
 }) {
   return (
@@ -38,6 +42,7 @@ export function DialogueBox({
         <ChoicePanel
           options={options}
           selectedOptionId={selectedOptionId}
+          disabled={choiceDisabled || choicesReadOnly}
           onSelect={(id: DialogueChoiceId) => onSelect?.(id)}
         />
       )}

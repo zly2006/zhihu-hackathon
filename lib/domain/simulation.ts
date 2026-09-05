@@ -86,6 +86,18 @@ export type SimulationEvent = {
 
   createsThreadIds: string[];
   resolvesThreadIds: string[];
+
+  // V3 Scene Runtime：即时选择产生的 canonical 事件元数据。
+  // 旧章级事件不需要该字段；它只描述已通过服务端规则的场景行动。
+  source?: {
+    kind: "scene_choice";
+    actionId: string;
+    ruleId: string;
+    packageId: string;
+    packageVersion: number;
+    sceneId: string;
+    blockId: string;
+  };
 };
 
 // World Simulator 输入契约（方案 §19）：服务端组装，不允许前端直接自由拼 Prompt。

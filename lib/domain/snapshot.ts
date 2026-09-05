@@ -7,11 +7,12 @@ import type { CharacterMemory } from "./memory";
 import type { SimulationEvent } from "./simulation";
 import type { LifeExperience } from "./experience";
 import type { WorldState } from "./world";
+import type { SceneActionRecord, SceneRuntimeState } from "./scene";
 
 export type SnapshotId = string;
 export type BranchId = string;
 
-export type SnapshotKind = "initial" | "chapter" | "legacy-current";
+export type SnapshotKind = "initial" | "chapter" | "legacy-current" | "scene-choice";
 
 export type WorldSnapshot = {
   id: SnapshotId;
@@ -34,6 +35,16 @@ export type WorldSnapshot = {
   chapterId?: string;
   chapterIndex: number;
   createdAt: string;
+
+  // V3：同一章节内的场景选择检查点，不能只靠 chapterIndex 区分。
+  sequence?: number;
+  packageId?: string;
+  packageVersion?: number;
+  sceneId?: string;
+  blockId?: string;
+  sceneRuntime?: SceneRuntimeState;
+  sceneActions?: SceneActionRecord[];
+  sceneFlags?: Record<string, boolean>;
 };
 export type GameBranch = {
   id: BranchId;

@@ -7,6 +7,7 @@ import type { GameMode } from "@/lib/domain/shared";
 import type { SimulationEvent } from "@/lib/domain/simulation";
 import type { LifeExperience } from "@/lib/domain/experience";
 import type { WorldState } from "@/lib/domain/world";
+import type { SceneChoiceResponse, ScenePackage, SceneRuntimeState, SceneSaveProjection } from "@/lib/domain/scene";
 import { buildLifePresentation } from "@/lib/game/presentation";
 import { findScene, pickSceneForNovelScene } from "@/lib/game/scene-catalog";
 import { LifeShell } from "@/components/life-vn/LifeShell";
@@ -16,6 +17,7 @@ import { Timeline, type TimelineChapter } from "@/components/life-vn/Timeline";
 import { StatusHUD } from "@/components/life-vn/StatusHUD";
 import { ChapterResult } from "@/components/life-vn/ChapterResult";
 import { NovelReader } from "./NovelReader";
+import { SceneRuntimePlayer } from "@/components/life-vn/SceneRuntimePlayer";
 
 function pad(value: number): string {
   return String(value).padStart(2, "0");
@@ -50,6 +52,11 @@ export function ChapterSummary({
   timelineItems,
   onTimelineSelect,
   presentationMode = "galgame",
+  scenePackage,
+  sceneRuntime,
+  sceneProjection,
+  onSceneSelect,
+  onScenePersist,
 }: {
   chapter: Chapter;
   events: SimulationEvent[];
@@ -64,6 +71,16 @@ export function ChapterSummary({
   timelineItems?: TimelineChapter[];
   onTimelineSelect?: (id: string) => void;
   presentationMode?: GameMode;
+  scenePackage?: ScenePackage;
+  sceneRuntime?: SceneRuntimeState;
+  sceneProjection?: SceneSaveProjection;
+  onSceneSelect?: (input: {
+    requestId: string;
+    issuedAt: string;
+    expectedRevision: number;
+    choiceId: "A" | "B" | "C";
+  }) => Promise<SceneChoiceResponse>;
+  onScenePersist?: (state: SceneRuntimeState) => void;
 }) {
   const [viewMode, setViewMode] = useState<"dialogue" | "result">("dialogue");
   const [sceneIndex, setSceneIndex] = useState(0);
@@ -79,6 +96,8 @@ export function ChapterSummary({
   const sceneDef = activeDialogueScene
     ? findScene(activeDialogueScene.background) ?? pickSceneForNovelScene(fallbackNovelScene ?? {})
     : pickSceneForNovelScene(fallbackNovelScene ?? {});
+  const hasLivePackage = Boolean(scenePackage);
+  const liveCompleted = hasLivePackage && sceneRuntime?.status === "completed";
 
   const presentation = useMemo(
     () => buildLifePresentation({ world, chapter, chapterEvents: events, sceneIndex }),
@@ -194,6 +213,24 @@ export function ChapterSummary({
     />
   );
 
+  const liveSceneCenter = hasLivePackage && scenePackage ? (
+    <div style={{ position: "absolute", inset: 0 }}>
+      <SceneRuntimePlayer
+        scenePackage={scenePackage}
+        initialState={sceneRuntime}
+        projection={sceneProjection}
+        readOnly={!onSceneSelect}
+        onSelect={onSceneSelect ?? (async () => { throw new Error("当前场景为只读回放"); })}
+        onPersistPosition={onScenePersist}
+      />
+      {liveCompleted && (
+        <button type="button" className="life-vn-btn" style={{ position: "absolute", right: 22, bottom: 22, zIndex: 5 }} onClick={() => setViewMode("result")}>
+          查看本章结算
+        </button>
+      )}
+    </div>
+  ) : null;
+
   const resultCenter = (
     <div style={{ position: "absolute", inset: 0, overflow: "auto", padding: 18 }}>
       <div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 10 }}>
@@ -210,6 +247,7 @@ export function ChapterSummary({
         evidenceTotal={evidenceTotal}
         onRegenerate={onRegenerate}
         onNextChapter={onNextChapter}
+        canNextChapter={!hasLivePackage || Boolean(liveCompleted)}
         regenerating={regenerating}
         theme={chapter.narrative?.plan.theme}
         mainConflict={chapter.narrative?.plan.mainConflict}
@@ -257,7 +295,9 @@ export function ChapterSummary({
   );
 
   const center =
-    presentationMode === "novel"
+    hasLivePackage
+      ? liveSceneCenter
+      : presentationMode === "novel"
       ? novelCenter
       : viewMode === "dialogue"
         ? galgameCenter
