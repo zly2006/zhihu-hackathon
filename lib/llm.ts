@@ -5,6 +5,7 @@ import type { ModelConversationMessage } from "./types";
 
 const DEFAULT_ENDPOINT = "https://opencode.ai/zen/go/v1/chat/completions";
 const DEFAULT_MODEL = "deepseek-v4-flash";
+const DEFAULT_PROVIDER = "deepseek";
 const DEEPSEEK_ENDPOINT = "https://api.deepseek.com/chat/completions";
 const CCFUCK_BASE_URL = "https://api.ccfuck.me";
 const FREEAPP_BASE_URL = "https://newapi.freeapp.tech";
@@ -55,7 +56,7 @@ function chatCompletionsEndpoint(baseUrl: string) {
 }
 
 function providerConfig() {
-  const provider = (environment("MODEL_PROVIDER") || "opencodego") as ModelProvider;
+  const provider = (environment("MODEL_PROVIDER") || DEFAULT_PROVIDER) as ModelProvider;
   if (provider === "deepseek") {
     return {
       provider,

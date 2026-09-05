@@ -85,8 +85,9 @@ components/life/  LifeApp / ProtagonistSetup / NpcSetup / DecisionPanel /
 
 ## 模型配置
 
-- `MODEL_PROVIDER` 可选 `opencodego`（默认）或 `deepseek`。
-- OpenCodeGo 使用 `CPA_REASONING_EFFORT`（`low`/`medium`/`high`）；DeepSeek 使用
+- `MODEL_PROVIDER` 可选 `deepseek`（默认）或 `opencodego`；默认走 DeepSeek 官方
+  `https://api.deepseek.com/chat/completions` 的 `deepseek-v4-flash`。
+- OpenCodeGo 使用 `CPA_REASONING_EFFORT`（`low`/`medium`/`high`）；DeepSeek 默认使用
   `thinking.type=disabled` 低延迟生成。
 - 长输出场景（世界推演、小说生成）使用 `max_tokens=8000`、超时 180s；其余默认 3200/90s。
 

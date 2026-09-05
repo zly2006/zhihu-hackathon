@@ -31,6 +31,10 @@ http://127.0.0.1:3000/life?demo=neutral
 - 主动场景触发队列按稳定 `triggerId` 在分支内去重，只在安全边界激活，不打断提交中/反馈中/选择中的 live runtime。
 - VisualProfile resolver 提供精确资源 → 中性/默认资源 → avatar → placeholder 的回退顺序；缺资源时仍可完成玩法。
 
+## 大模型 provider 配置
+
+项目默认 provider 已切换为 DeepSeek 官方 Chat Completions 接口，默认模型为 `deepseek-v4-flash`，保留 `MODEL_PROVIDER=opencodego` 作为显式兼容回退。真实密钥只放在本地 `.env` 的 `DEEPSEEK_API_KEY`，不进入版本库、日志摘要或交接文本。
+
 ## 真实运行验证
 
 以下验证均在本地真实 Next 运行实例完成；SSE 以最终 `complete` 为业务成功标准，流中未出现 `error`。

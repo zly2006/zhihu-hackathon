@@ -216,6 +216,19 @@ function narrativeTexts(candidate: ModelEvent) {
   };
 }
 
+function narrativeAlignmentAnchors(
+  candidate: ModelEvent,
+  eraContext: GameEvent["eraContext"],
+) {
+  const situation = narrativeTexts(candidate).situation;
+  return [
+    ...new Set([
+      ...scenarioAnchors.filter((anchor) => situation.includes(anchor)),
+      ...(eraContext?.keywords || []),
+    ]),
+  ];
+}
+
 function validateNarrativeHygiene(
   candidate: ModelEvent,
   state: LifeState,
@@ -234,12 +247,9 @@ function validateNarrativeHygiene(
   if (situationAnchorCount < 1) {
     throw new Error("事件没有明确的现实情境锚点");
   }
-  const contextAnchors = scenarioAnchors.filter((anchor) => texts.situation.includes(anchor));
-  const eraAnchors = eraContext?.keywords || [];
+  const alignmentAnchors = narrativeAlignmentAnchors(candidate, eraContext);
   for (const [index, optionText] of texts.options.entries()) {
-    const aligned = [...contextAnchors, ...eraAnchors].some((anchor) =>
-      optionText.includes(anchor),
-    );
+    const aligned = alignmentAnchors.some((anchor) => optionText.includes(anchor));
     if (!aligned) throw new Error(`options[${index}] 与当前事件情境脱节`);
   }
   if (
@@ -670,7 +680,11 @@ export async function generateEvent(
       return "这是程序检测到的叙事错误：请补充一个具体、可观察的现实情境，并让 background、dilemma、detail 围绕同一件事展开。";
     }
     if (message.includes("与当前事件情境脱节")) {
-      return "这是程序检测到的语境错误：每个选项都必须直接回应当前 dilemma 的人物、问题和资源约束。网课问题就围绕设备网络、家庭分工、学校支持、学习安排或健康节奏；不要输出无关选项。";
+      const alignmentAnchors = narrativeAlignmentAnchors(modeled, eraContext);
+      const anchorHint = alignmentAnchors.length
+        ? `当前情境锚点词：${alignmentAnchors.join("、")}。每个选项的 label、description、result、setback 或 stateReason 至少原样使用其中一个锚点词。`
+        : "请先在 background、dilemma 或 detail 中补充可复用的现实情境锚点词。";
+      return `这是程序检测到的语境错误：每个选项都必须直接回应当前 dilemma 的人物、问题和资源约束。${anchorHint}网课问题就围绕设备网络、家庭分工、学校支持、学习安排或健康节奏；求职、收入或工作问题就围绕岗位、职业、现金流、行业和雇佣关系；不要输出无关选项。`;
     }
     return `这是程序检测到的硬约束：${message}。必须修正后再输出，并逐字段自检；不能解释、忽略或仅口头承诺。`;
   };

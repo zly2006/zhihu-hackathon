@@ -18,3 +18,23 @@ test("DeepSeek requests disable thinking and reserve a complete JSON response bu
   assert.match(source, /isUsageLimit/, "必须识别用量上限（GoUsageLimitError）");
   assert.match(source, /模型用量已达上限/, "用量上限必须提示重置时长，不做无效重试");
 });
+
+test("DeepSeek official V4 Flash is the default provider and model", () => {
+  const source = readFileSync(new URL("../lib/llm.ts", import.meta.url), "utf8");
+  const envExample = readFileSync(new URL("../.env.example", import.meta.url), "utf8");
+
+  assert.match(source, /const DEFAULT_PROVIDER = "deepseek"/);
+  assert.match(source, /environment\("MODEL_PROVIDER"\) \|\| DEFAULT_PROVIDER/);
+  assert.match(source, /const DEEPSEEK_ENDPOINT = "https:\/\/api\.deepseek\.com\/chat\/completions"/);
+  assert.match(source, /const DEFAULT_MODEL = "deepseek-v4-flash"/);
+  assert.match(envExample, /^MODEL_PROVIDER=deepseek$/m);
+  assert.match(envExample, /^DEEPSEEK_ENDPOINT=https:\/\/api\.deepseek\.com\/chat\/completions$/m);
+  assert.match(envExample, /^DEEPSEEK_MODEL=deepseek-v4-flash$/m);
+});
+
+test("narrative constraint corrections reuse the validator's alignment anchors", () => {
+  const source = readFileSync(new URL("../lib/game.ts", import.meta.url), "utf8");
+
+  assert.match(source, /narrativeAlignmentAnchors/, "语境修正必须复用校验器使用的情境锚点集合");
+  assert.match(source, /当前情境锚点词/, "语境修正必须把实际锚点词明确告诉模型");
+});
