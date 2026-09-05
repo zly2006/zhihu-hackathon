@@ -198,7 +198,7 @@ test("V2.5: 两个 Narrative API route 暴露契约并执行 400 输入边界", 
 
   const lifeApp = readFileSync(join(root, "components", "life", "LifeApp.tsx"), "utf8");
   assert.match(lifeApp, /narrativeEvidence = planOutcome\.evidence/);
-  assert.match(lifeApp, /narrativeEvidence,?\s*\n?\s*\)/);
+  assert.match(lifeApp, /fetchLiveScenePackage/);
 });
 
 test("V2.5: OpenAI-compatible provider 支持按 Base URL 切换且不自动双发", () => {

@@ -63,3 +63,19 @@ test("formal chapter summary wires a live session without replacing the retrospe
   assert.match(source, /setScreen\("formal_scene"\)/);
   assert.match(source, /recoveredRuntime/);
 });
+
+test("formal galgame generation requests an LLM live package and opens the runtime", () => {
+  const source = readFileSync(join(process.cwd(), "components", "life", "LifeApp.tsx"), "utf8");
+  assert.match(source, /fetchLiveScenePackage/);
+  assert.match(source, /\/api\/chapter\/live-scene/);
+  assert.match(source, /liveScenePackage/);
+  assert.match(source, /setScreen\(liveRuntime \? "formal_scene" : "chapter_summary"\)/);
+});
+
+test("live scene route stays server-side and has no fixed-package fallback", () => {
+  const source = readFileSync(join(process.cwd(), "app", "api", "chapter", "live-scene", "route.ts"), "utf8");
+  assert.match(source, /runtime = "nodejs"/);
+  assert.match(source, /generateLiveScenePackage/);
+  assert.match(source, /status: 502/);
+  assert.doesNotMatch(source, /createNeutralScenePackage/);
+});

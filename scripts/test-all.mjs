@@ -52,6 +52,7 @@ const suites = [
   { file: "test/v3-scene-choice.test.mjs", env: "V3_TEST_DIR" },
   { file: "test/v3-scene-save.test.mjs", env: "V3_TEST_DIR" },
   { file: "test/formal-scene-runtime.test.mjs", env: "V3_TEST_DIR" },
+  { file: "test/live-scene-generator.test.mjs", env: "V3_TEST_DIR" },
   { file: "test/v3-relationship.test.mjs", env: "V3_TEST_DIR" },
   { file: "test/v3-neutral-fixture.test.mjs", env: "V3_TEST_DIR" },
   { file: "test/v3-scene-trigger.test.mjs", env: "V3_TEST_DIR" },

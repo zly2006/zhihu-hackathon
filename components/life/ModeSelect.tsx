@@ -19,7 +19,7 @@ const MODE_OPTIONS: Array<{
     id: "galgame",
     label: "Galgame 互动模式",
     description: "逐句推进对白与旁白，观察角色关系和情绪变化。",
-    detail: "章节结算后生成结构化对白；模型失败时自动退回旁白，不影响人生结果。",
+    detail: "每章由大模型生成当前 live 场景；你选择的是行动，关系后果由程序规则结算。",
   },
 ];
 

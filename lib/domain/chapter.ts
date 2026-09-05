@@ -16,7 +16,7 @@ import type {
 } from "./scene";
 import type { WorldSimulationOutput } from "./simulation";
 
-export type PendingChapterStage = "simulated" | "plan" | "reflection" | "novel" | "dialogue" | "ready" | "error";
+export type PendingChapterStage = "simulated" | "plan" | "reflection" | "novel" | "dialogue" | "live_scene" | "ready" | "error";
 
 export type PendingChapter = {
   executionId: string;
@@ -38,8 +38,10 @@ export type PendingChapter = {
   dialogueCompleted?: boolean;
   planCompleted?: boolean;
   reflectionCompleted?: boolean;
+  liveSceneCompleted?: boolean;
   novel?: Chapter["novel"];
   dialogue?: DialogueScene[];
+  liveScenePackage?: ScenePackage;
   narrative?: Chapter["narrative"];
   error?: { code: string; message: string };
   createdAt: string;

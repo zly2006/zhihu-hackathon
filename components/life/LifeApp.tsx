@@ -259,6 +259,37 @@ async function fetchDialogue(
   return data.dialogue;
 }
 
+async function fetchLiveScenePackage(
+  world: WorldState,
+  events: WorldSimulationOutput["events"],
+  chapter: Chapter,
+): Promise<ScenePackage> {
+  const response = await fetch("/api/chapter/live-scene", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      worldState: world,
+      events,
+      chapter: {
+        id: chapter.id,
+        index: chapter.index,
+        startYear: chapter.startYear,
+        endYear: chapter.endYear,
+        span: chapter.span,
+        decision: chapter.decision,
+        summary: chapter.summary,
+        narrativePlan: chapter.narrative?.plan,
+      },
+      version: 1,
+    }),
+  });
+  const data = await readJsonResponse<{ scenePackage: ScenePackage; generated?: string }>(response);
+  if (!data.scenePackage || !Array.isArray(data.scenePackage.scenes) || !data.scenePackage.scenes.some((scene) => scene.mode === "live")) {
+    throw new Error("AI 互动场景服务未返回有效 live 场景包");
+  }
+  return data.scenePackage;
+}
+
 export function LifeApp() {
   const [screen, setScreen] = useState<Screen>("landing");
   const [hasSave, setHasSave] = useState(false);
@@ -637,16 +668,7 @@ export function LifeApp() {
       }
       setNovelPreview({ title: novel.title, scenes: novel.scenes });
 
-      let dialogue = pending.dialogue;
-      if (mode === "galgame" && !dialogue) {
-        try {
-          setPlanProgress("正在恢复互动对白…");
-          dialogue = await fetchDialogue(pending.worldStateBefore, result.simulation.events, novel, pending.narrative?.plan);
-        } catch (dialogueError) {
-          console.warn("dialogue recovery fallback:", dialogueError instanceof Error ? dialogueError.message : dialogueError);
-          dialogue = fallbackDialogueScenes(novel);
-        }
-      }
+      const dialogue = pending.dialogue;
 
       const recoveredChapter = assembleChapter({
         choice: recoveredChoice,
@@ -659,13 +681,19 @@ export function LifeApp() {
         dialogue,
         worldStateAfter: workingSave.worldState,
       });
-      const scenePackage =
-        workingSave.scenePackages?.[recoveredChapter.id] ??
-        adaptDialogueScenes(dialogue ?? fallbackDialogueScenes(novel), {
+      let scenePackage = workingSave.scenePackages?.[recoveredChapter.id] ?? pending.liveScenePackage;
+      if (mode === "galgame" && (!scenePackage || !hasLiveScene(scenePackage))) {
+        setPlanProgress("正在恢复 AI 互动场景…");
+        scenePackage = await fetchLiveScenePackage(workingSave.worldState, result.simulation.events, recoveredChapter);
+      }
+      if (!scenePackage) {
+        scenePackage = adaptDialogueScenes(dialogue ?? fallbackDialogueScenes(novel), {
           chapterId: recoveredChapter.id,
           year: recoveredChapter.endYear,
           version: 1,
         });
+      }
+      const liveScenePackage = hasLiveScene(scenePackage) ? scenePackage : undefined;
       const recoveredRuntime =
         workingSave.sceneRuntime?.chapterId === recoveredChapter.id &&
         workingSave.sceneRuntime.packageId === scenePackage.id &&
@@ -693,7 +721,8 @@ export function LifeApp() {
               novel: recoveredChapter.novel,
               dialogue,
               novelCompleted: true,
-              dialogueCompleted: Boolean(dialogue),
+              dialogueCompleted: mode !== "galgame" || Boolean(dialogue),
+              ...(liveScenePackage ? { liveScenePackage, liveSceneCompleted: true } : {}),
               updatedAt: now,
             })
           : undefined,
@@ -712,7 +741,7 @@ export function LifeApp() {
       setPreWorld(pending.worldStateBefore);
       setSimResult(result);
       setChapter(recoveredChapter);
-      setScreen("chapter_summary");
+      setScreen(liveScenePackage ? "formal_scene" : "chapter_summary");
     } catch (err) {
       const message = err instanceof Error ? err.message : "章节表现恢复失败";
       setError(message);
@@ -1193,25 +1222,8 @@ export function LifeApp() {
             persist(saveBase);
             setSave(saveBase);
           }
+          // Galgame 章节不再把小说改写成只读对白；正式玩法直接使用下面的 LLM live 场景包。
           let dialogue: DialogueScene[] | undefined;
-          if (mode === "galgame") {
-            try {
-              setPlanProgress("正在整理互动对白…");
-              dialogue = await fetchDialogue(
-                worldBefore,
-                result.simulation.events,
-                novel,
-                narrativePlan,
-                narrativeEvidence,
-              );
-            } catch (dialogueError) {
-              console.warn(
-                "dialogue fallback:",
-                dialogueError instanceof Error ? dialogueError.message : dialogueError,
-              );
-              dialogue = fallbackDialogueScenes(novel);
-            }
-          }
           if (saveBase.pendingChapter) {
             saveBase = {
               ...saveBase,
@@ -1240,18 +1252,38 @@ export function LifeApp() {
           });
           setChapter(chapter);
           let scenePackage: ScenePackage;
-          try {
-            scenePackage = adaptDialogueScenes(dialogue ?? fallbackDialogueScenes(novel), {
-              chapterId: chapter.id,
-              year: chapter.endYear,
-              version: 1,
-            });
-          } catch {
-            scenePackage = adaptDialogueScenes(fallbackDialogueScenes(novel), {
-              chapterId: chapter.id,
-              year: chapter.endYear,
-              version: 1,
-            });
+          let liveScenePackage: ScenePackage | undefined;
+          if (mode === "galgame") {
+            setPlanProgress("正在生成 AI 互动场景…");
+            liveScenePackage = await fetchLiveScenePackage(saveBase.worldState, result.simulation.events, chapter);
+            scenePackage = liveScenePackage;
+            if (saveBase.pendingChapter) {
+              saveBase = {
+                ...saveBase,
+                pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, result.chapterId, "live_scene", {
+                  liveScenePackage,
+                  liveSceneCompleted: true,
+                  updatedAt: new Date().toISOString(),
+                }),
+                savedAt: new Date().toISOString(),
+              };
+              persist(saveBase);
+              setSave(saveBase);
+            }
+          } else {
+            try {
+              scenePackage = adaptDialogueScenes(dialogue ?? fallbackDialogueScenes(novel), {
+                chapterId: chapter.id,
+                year: chapter.endYear,
+                version: 1,
+              });
+            } catch {
+              scenePackage = adaptDialogueScenes(fallbackDialogueScenes(novel), {
+                chapterId: chapter.id,
+                year: chapter.endYear,
+                version: 1,
+              });
+            }
           }
           const persistedScenePackage = saveBase.scenePackages?.[chapter.id] ?? scenePackage;
           const liveRuntime = hasLiveScene(persistedScenePackage)
@@ -1284,7 +1316,8 @@ export function LifeApp() {
                   novel: chapter.novel,
                   dialogue,
                   novelCompleted: true,
-                  dialogueCompleted: Boolean(dialogue),
+                  dialogueCompleted: mode !== "galgame" || Boolean(dialogue),
+                  ...(liveScenePackage ? { liveScenePackage, liveSceneCompleted: true } : {}),
                   updatedAt: completedSave.savedAt,
                 }),
               }
@@ -1295,7 +1328,7 @@ export function LifeApp() {
           const finalSave = appendSnapshot(completedWithPending, { chapterId: chapter.id, now: completedWithPending.savedAt });
           persist(finalSave);
           setSave(finalSave);
-          setScreen("chapter_summary");
+          setScreen(liveRuntime ? "formal_scene" : "chapter_summary");
         } catch (err) {
           const message = err instanceof Error ? err.message : "小说生成失败";
           setError(message);
@@ -1586,6 +1619,7 @@ export function LifeApp() {
         title={chapter.novel.title}
         yearRange={`${chapter.startYear} → ${chapter.endYear}`}
         brandLabel="知乎 · 正式互动人生"
+        onBrandClick={() => setScreen("landing")}
         left={
           <div>
             <div className="life-vn-pill" style={{ marginBottom: 10 }}>正式 live 场景 · 已从存档恢复</div>
@@ -1654,6 +1688,7 @@ export function LifeApp() {
             <div className="life-vn-change">宏观事件：{pending.eventIds.length} 条 · 现实经历引用：{pending.evidenceIds.length} 条</div>
             {pending.novelCompleted && <div className="life-vn-change">小说：已保存</div>}
             {pending.dialogueCompleted && <div className="life-vn-change">对白：已保存</div>}
+            {pending.liveSceneCompleted && <div className="life-vn-change">AI互动场景：已保存</div>}
           </div>
           {error && <div className="life-vn-error" style={{ marginTop: 14 }}>{error}</div>}
           <div style={{ display: "flex", gap: 10, flexWrap: "wrap", marginTop: 18 }}>
@@ -1892,6 +1927,7 @@ export function LifeApp() {
         sceneProjection={formalSceneProjection}
         onSceneSelect={handleFormalSceneSelect}
         onScenePersist={handleFormalScenePersistPosition}
+        onBrandClick={() => setScreen("landing")}
       />
     );
   }

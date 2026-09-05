@@ -57,6 +57,7 @@ export function ChapterSummary({
   sceneProjection,
   onSceneSelect,
   onScenePersist,
+  onBrandClick,
 }: {
   chapter: Chapter;
   events: SimulationEvent[];
@@ -81,6 +82,7 @@ export function ChapterSummary({
     choiceId: "A" | "B" | "C";
   }) => Promise<SceneChoiceResponse>;
   onScenePersist?: (state: SceneRuntimeState) => void;
+  onBrandClick?: () => void;
 }) {
   const [viewMode, setViewMode] = useState<"dialogue" | "result">("dialogue");
   const [sceneIndex, setSceneIndex] = useState(0);
@@ -313,6 +315,7 @@ export function ChapterSummary({
       right={hudContent}
       center={center}
       sheet={hudContent}
+      onBrandClick={onBrandClick}
     />
   );
 }
