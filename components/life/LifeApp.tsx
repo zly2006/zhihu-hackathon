@@ -38,6 +38,7 @@ import {
 } from "@/lib/game/scene-save";
 import { completePendingChapter, createPendingChapter, updatePendingChapterStage } from "@/lib/game/scene-save";
 import { adaptDialogueScenes } from "@/lib/game/scene-adapter";
+import { getLiveSceneSession, hasLiveScene } from "@/lib/game/formal-scene-runtime";
 import { pendingSpan, recoverChapterChoice, recoverEvidenceBundle, recoverSelection } from "@/lib/game/pending-chapter";
 import { createSceneRuntime } from "@/lib/game/scene-runtime";
 import { findScene, DEFAULT_SCENE_ID, pickSceneForNovelScene } from "@/lib/game/scene-catalog";
@@ -66,6 +67,7 @@ type Screen =
   | "chapter_start"
   | "decision"
   | "chapter_summary"
+  | "formal_scene"
   | "demo_scene"
   | "pending_recovery"
   | "snapshot_view";
@@ -341,7 +343,8 @@ export function LifeApp() {
     const world = save?.worldState;
     const hero = world ? world.characters[world.protagonistId] : null;
     const runtime = save?.sceneRuntime;
-    const runtimeScene = runtime && demoPackage?.scenes.find((scene) => scene.id === runtime.sceneId);
+    const runtimePackage = demoPackage ?? (runtime ? save?.scenePackages?.[runtime.chapterId] : undefined);
+    const runtimeScene = runtime && runtimePackage?.scenes.find((scene) => scene.id === runtime.sceneId);
     const runtimeBlock = runtime ? runtimeScene?.blocks.find((block) => block.id === runtime.blockId) : undefined;
     (window as unknown as Record<string, unknown>).render_game_to_text = () =>
       JSON.stringify({
@@ -571,6 +574,24 @@ export function LifeApp() {
         setScreen("pending_recovery");
         return;
       }
+      const liveSession = loadedSave.sceneRuntime
+        ? getLiveSceneSession(loadedSave, loadedSave.sceneRuntime.chapterId)
+        : null;
+      const liveChapter = liveSession ? loadedSave.chapters[liveSession.runtime.chapterId] : undefined;
+      if (liveSession && liveChapter) {
+        setChapter(liveChapter);
+        setChoice(null);
+        setSelection({
+          optionId: liveChapter.decision.selectedOptionId,
+          ...(liveChapter.decision.customAction ? { customAction: liveChapter.decision.customAction } : {}),
+        });
+        setSpan(liveChapter.span);
+        setPreWorld(null);
+        setSimResult(null);
+        setError("");
+        setScreen("formal_scene");
+        return;
+      }
       setScreen("mode_select");
     } catch (err) {
       setError(err instanceof Error ? err.message : "存档读取失败");
@@ -645,6 +666,14 @@ export function LifeApp() {
           year: recoveredChapter.endYear,
           version: 1,
         });
+      const recoveredRuntime =
+        workingSave.sceneRuntime?.chapterId === recoveredChapter.id &&
+        workingSave.sceneRuntime.packageId === scenePackage.id &&
+        workingSave.sceneRuntime.packageVersion === scenePackage.version
+          ? workingSave.sceneRuntime
+          : hasLiveScene(scenePackage)
+            ? createSceneRuntime(scenePackage, { branchId: workingSave.activeBranchId ?? "main" })
+            : undefined;
       const now = new Date().toISOString();
       workingSave = {
         ...workingSave,
@@ -658,6 +687,7 @@ export function LifeApp() {
           ...Object.fromEntries(allEvidence(result.evidenceBundle).map((experience) => [experience.id, experience])),
         },
         scenePackages: { ...(workingSave.scenePackages ?? {}), [recoveredChapter.id]: scenePackage },
+        ...(recoveredRuntime ? { sceneRuntime: recoveredRuntime } : {}),
         pendingChapter: workingSave.pendingChapter
           ? updatePendingChapterStage(workingSave.pendingChapter, pending.executionId, "ready", {
               novel: recoveredChapter.novel,
@@ -772,6 +802,88 @@ export function LifeApp() {
       return data;
     },
     [demoPackage, save],
+  );
+
+  const handleFormalScenePersistPosition = useCallback((runtime: SceneRuntimeState) => {
+    setSave((previous) => {
+      if (!previous) return previous;
+      const packageItem = previous.scenePackages?.[runtime.chapterId];
+      if (
+        !packageItem ||
+        packageItem.id !== runtime.packageId ||
+        packageItem.version !== runtime.packageVersion ||
+        (previous.sceneRuntime && JSON.stringify(previous.sceneRuntime) === JSON.stringify(runtime))
+      ) {
+        return previous;
+      }
+      const nextSave = { ...previous, sceneRuntime: runtime, savedAt: new Date().toISOString() };
+      try {
+        window.localStorage.setItem(SAVE_KEY, serializeSceneSave(nextSave));
+        return nextSave;
+      } catch {
+        setError("正式场景位置保存失败；当前页面仍可继续，但刷新后会回到上次成功保存的位置。");
+        return previous;
+      }
+    });
+  }, []);
+
+  const handleFormalSceneSelect = useCallback(
+    async (input: {
+      requestId: string;
+      issuedAt: string;
+      expectedRevision: number;
+      choiceId: "A" | "B" | "C";
+    }): Promise<SceneChoiceResponse> => {
+      const session = save?.sceneRuntime ? getLiveSceneSession(save, save.sceneRuntime.chapterId) : null;
+      if (!save || !session) throw new Error("正式场景尚未就绪");
+      const scenePackage = session.package;
+      const checkpointedSave = appendSceneChoiceCheckpoint(save, {
+        chapterId: scenePackage.chapterId,
+        packageId: scenePackage.id,
+        packageVersion: scenePackage.version,
+        sceneId: session.runtime.sceneId,
+        blockId: session.runtime.blockId,
+        runtime: session.runtime,
+        actions: save.sceneActions,
+        flags: save.sceneFlags,
+      });
+      const projection = projectGameSave(
+        checkpointedSave,
+        checkpointedSave.sceneRuntime ?? session.runtime,
+        checkpointedSave.sceneActions,
+        checkpointedSave.sceneFlags,
+      );
+      const response = await fetch("/api/chapter/scene-choice", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ projection, package: scenePackage, ...input }),
+      });
+      const data = await readJsonResponse<SceneChoiceResponse>(response);
+      const nextProjection = commitSceneChoice(projection, data);
+      const nextSave = mergeSceneProjection(checkpointedSave, nextProjection);
+      const activeBranch = nextSave.branches?.[nextSave.activeBranchId ?? "main"];
+      const checkpointHead = activeBranch?.headSnapshotId ? nextSave.snapshots?.[activeBranch.headSnapshotId] : undefined;
+      const persistedSave = appendSceneChoiceCheckpoint(nextSave, {
+        chapterId: scenePackage.chapterId,
+        packageId: scenePackage.id,
+        packageVersion: scenePackage.version,
+        sceneId: data.runtimeAfter.sceneId,
+        blockId: data.runtimeAfter.blockId,
+        sequence: (checkpointHead?.sequence ?? 0) + 1,
+        runtime: data.runtimeAfter,
+        actions: nextSave.sceneActions,
+        flags: nextSave.sceneFlags,
+        now: new Date().toISOString(),
+      });
+      try {
+        window.localStorage.setItem(SAVE_KEY, serializeSceneSave(persistedSave));
+      } catch {
+        throw new Error("正式场景结果保存失败，请重试；当前状态尚未发布。");
+      }
+      setSave(persistedSave);
+      return data;
+    },
+    [save],
   );
 
   const handleDemoNextPackage = useCallback(() => {
@@ -1141,6 +1253,12 @@ export function LifeApp() {
               version: 1,
             });
           }
+          const persistedScenePackage = saveBase.scenePackages?.[chapter.id] ?? scenePackage;
+          const liveRuntime = hasLiveScene(persistedScenePackage)
+            ? createSceneRuntime(persistedScenePackage, {
+                branchId: saveBase.activeBranchId ?? "main",
+              })
+            : undefined;
           const completedSave: GameSave = {
             ...saveBase,
             chapters: { ...saveBase.chapters, [chapter.id]: chapter },
@@ -1154,8 +1272,9 @@ export function LifeApp() {
             },
             scenePackages: {
               ...(saveBase.scenePackages ?? {}),
-              [chapter.id]: saveBase.scenePackages?.[chapter.id] ?? scenePackage,
+              [chapter.id]: persistedScenePackage,
             },
+            ...(liveRuntime ? { sceneRuntime: liveRuntime } : {}),
             savedAt: new Date().toISOString(),
           };
           const readySave: GameSave = completedSave.pendingChapter
@@ -1308,6 +1427,8 @@ export function LifeApp() {
     }
   }, [handleNextChapter, save, selectedSnapshotId]);
 
+  const activeFormalSceneSession = chapter && save ? getLiveSceneSession(save, chapter.id) : null;
+
   // ---------- 各屏幕 ----------
   if (screen === "landing") {
     return (
@@ -1442,6 +1563,80 @@ export function LifeApp() {
     );
   }
 
+  if (screen === "formal_scene" && save && chapter && activeFormalSceneSession) {
+    const formalWorld = save.worldState;
+    const formalHero = formalWorld.characters[formalWorld.protagonistId];
+    const formalEvents = chapter.simulationEventIds
+      .map((id) => save.events[id])
+      .filter((event): event is NonNullable<typeof event> => Boolean(event));
+    const formalPresentation = buildLifePresentation({
+      world: formalWorld,
+      chapter,
+      chapterEvents: formalEvents,
+    });
+    const formalProjection = projectGameSave(
+      save,
+      activeFormalSceneSession.runtime,
+      save.sceneActions,
+      save.sceneFlags,
+    );
+    return (
+      <LifeShell
+        chapterLabel={`Chapter ${String(chapter.index + 1).padStart(2, "0")}`}
+        title={chapter.novel.title}
+        yearRange={`${chapter.startYear} → ${chapter.endYear}`}
+        brandLabel="知乎 · 正式互动人生"
+        left={
+          <div>
+            <div className="life-vn-pill" style={{ marginBottom: 10 }}>正式 live 场景 · 已从存档恢复</div>
+            <Timeline
+              chapters={getTimelineNodes(save).map(timelineItemFromSnapshot)}
+              onSelect={handleTimelineSelect}
+            />
+          </div>
+        }
+        right={
+          <StatusHUD
+            presentation={formalPresentation.protagonist}
+            goals={formalHero?.state.currentGoals ?? []}
+            dilemmas={formalHero?.state.currentDilemmas ?? []}
+            relationships={formalPresentation.relationships}
+          />
+        }
+        center={
+          <div style={{ position: "absolute", inset: 0 }}>
+            <SceneRuntimePlayer
+              key={`${activeFormalSceneSession.package.id}:v${activeFormalSceneSession.package.version}`}
+              scenePackage={activeFormalSceneSession.package}
+              initialState={activeFormalSceneSession.runtime}
+              projection={formalProjection}
+              onSelect={handleFormalSceneSelect}
+              onPersistPosition={handleFormalScenePersistPosition}
+            />
+            {activeFormalSceneSession.runtime.status === "completed" && (
+              <button
+                type="button"
+                className="life-vn-btn"
+                style={{ position: "absolute", right: 22, bottom: 22, zIndex: 5 }}
+                onClick={handleNextChapter}
+              >
+                进入下一章
+              </button>
+            )}
+          </div>
+        }
+        sheet={
+          <div>
+            <b>当前运行时</b>
+            <p style={{ margin: "6px 0 0", color: "var(--lv-muted)", fontSize: 12 }}>
+              {activeFormalSceneSession.runtime.sceneId} / {activeFormalSceneSession.runtime.blockId} · {activeFormalSceneSession.runtime.status}
+            </p>
+          </div>
+        }
+      />
+    );
+  }
+
   if (screen === "pending_recovery" && save?.pendingChapter) {
     const pending = save.pendingChapter;
     const hasSimulation = Boolean(pending.simulationOutput && pending.resolution && pending.selection);
@@ -1484,6 +1679,10 @@ export function LifeApp() {
   const hero = world ? world.characters[world.protagonistId] : null;
   const pastChapters = save ? Object.values(save.chapters).sort((a, b) => a.index - b.index) : [];
   const timelineItems = save ? getTimelineNodes(save).map(timelineItemFromSnapshot) : [];
+  const formalSceneSession = chapter && save ? getLiveSceneSession(save, chapter.id) : null;
+  const formalSceneProjection = save && formalSceneSession
+    ? projectGameSave(save, formalSceneSession.runtime, save.sceneActions, save.sceneFlags)
+    : undefined;
   const selectedSnapshot = save && selectedSnapshotId ? getSnapshot(save, selectedSnapshotId) : null;
 
   if (screen === "snapshot_view") {
@@ -1688,6 +1887,11 @@ export function LifeApp() {
         timelineItems={timelineItems}
         onTimelineSelect={handleTimelineSelect}
         presentationMode={mode}
+        scenePackage={formalSceneSession?.package}
+        sceneRuntime={formalSceneSession?.runtime}
+        sceneProjection={formalSceneProjection}
+        onSceneSelect={handleFormalSceneSelect}
+        onScenePersist={handleFormalScenePersistPosition}
       />
     );
   }

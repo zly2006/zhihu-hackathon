@@ -39,6 +39,8 @@ http://127.0.0.1:3000/life?demo=neutral
 
 以下验证均在本地真实 Next 运行实例完成；SSE 以最终 `complete` 为业务成功标准，流中未出现 `error`。
 
+正式 `/life` 入口已完成 live 场景接线：仅当正式存档包含与当前章节、版本和游标匹配的 `live ScenePackage` 时，才切换到 Scene Runtime；旧对白生成的 `retrospective` 包继续走原有只读展示。中性夹具仍通过 `/life?demo=neutral` 隔离验证，不会写入正式存档。
+
 | 检查 | 结果 |
 |---|---|
 | `GET /api/life/demo` | HTTP 200；`synthetic=true`；返回 3 个 package，首包为 `test-package-1`，初始运行时可读。 |
