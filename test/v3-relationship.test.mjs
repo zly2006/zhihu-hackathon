@@ -140,6 +140,34 @@ test("scene action context normalizer strips non-public fields and enforces the 
   assert.throws(() => normalizeSceneActionContext([...Array(4)].map(() => source[0])), /最多 3/);
 });
 
+test("scene action context ignores stale records that no longer meet the public request contract", async () => {
+  const { compileSceneActionContext } = await load("scene-action-context");
+  const context = compileSceneActionContext({
+    actions: [{
+      id: "legacy-action",
+      branchId: "main",
+      chapterId: "chapter-last",
+      packageId: "package",
+      packageVersion: 1,
+      sceneId: "scene-1",
+      blockId: "block-1",
+      choiceId: "A",
+      label: "",
+      ruleId: "listen_without_promise",
+      eventIds: ["event-1"],
+      actualRelationshipDelta: { trust: 4 },
+      flagsAfter: {},
+      next: { kind: "chapter_end" },
+      beforeHash: "private-before-hash",
+      afterHash: "private-after-hash",
+      committedAt: "2026-01-01T00:00:00.000Z",
+    }],
+    activeBranchId: "main",
+    lastCompletedChapterId: "chapter-last",
+  });
+  assert.deepEqual(context, []);
+});
+
 test("choice and simulation boundaries carry only compiled scene action context", () => {
   const root = process.cwd();
   const lifeApp = readFileSync(join(root, "components", "life", "LifeApp.tsx"), "utf8");

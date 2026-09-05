@@ -2204,27 +2204,30 @@ export function LifeApp() {
               <DialogueBox
                 copy={`${hero?.identity.name ?? "你"}，${hero?.state.age ?? 18} 岁，在${hero?.state.city || "一座城市"}开始了新的人生。选择本章跨度，然后开始这一章。`}
                 children={
-                  <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
-                    {([1, 3] as const).map((value) => (
+                  <div style={{ display: "grid", gap: 10 }}>
+                    {error ? <div className="life-vn-error" role="alert">{error}</div> : null}
+                    <div style={{ display: "flex", gap: 10, alignItems: "center", flexWrap: "wrap" }}>
+                      {([1, 3] as const).map((value) => (
+                        <button
+                          key={value}
+                          type="button"
+                          className="life-vn-btn ghost"
+                          style={span === value ? { borderColor: "var(--lv-gold-strong)", color: "var(--lv-gold-strong)" } : undefined}
+                          onClick={() => setSpan(value)}
+                        >
+                          {value} 年 / 章
+                        </button>
+                      ))}
                       <button
-                        key={value}
                         type="button"
-                        className="life-vn-btn ghost"
-                        style={span === value ? { borderColor: "var(--lv-gold-strong)", color: "var(--lv-gold-strong)" } : undefined}
-                        onClick={() => setSpan(value)}
+                        className="life-vn-btn"
+                        onClick={handleStartChapter}
+                        disabled={loading}
+                        style={{ marginLeft: "auto" }}
                       >
-                        {value} 年 / 章
+                        {loading ? choiceProgress || "生成中…" : "开始本章"}
                       </button>
-                    ))}
-                    <button
-                      type="button"
-                      className="life-vn-btn"
-                      onClick={handleStartChapter}
-                      disabled={loading}
-                      style={{ marginLeft: "auto" }}
-                    >
-                      {loading ? choiceProgress || "生成中…" : "开始本章"}
-                    </button>
+                    </div>
                   </div>
                 }
               />

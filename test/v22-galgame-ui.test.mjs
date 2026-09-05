@@ -122,3 +122,11 @@ test("V3: branch controls are blocked while a scene choice is submitting", () =>
   assert.match(formalBranchActions, /sceneRuntime\?\.status === "submitting"/);
   assert.match(source, /disabled=\{loading \|\| save\.sceneRuntime\.status === "submitting"\}/);
 });
+
+test("V3: chapter start keeps a generation failure visible beside the retry button", () => {
+  const source = read("components/life/LifeApp.tsx");
+  const chapterStart = source.slice(source.indexOf("// chapter_start"), source.indexOf("// 兜底：存档未就绪"));
+  assert.match(chapterStart, /role="alert"/);
+  assert.match(chapterStart, /life-vn-error/);
+  assert.match(chapterStart, /\{error\}/);
+});

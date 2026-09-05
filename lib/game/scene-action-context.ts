@@ -122,21 +122,33 @@ export function compileSceneActionContext(
   const lastChapterId = source.lastCompletedChapterId;
   const actions = source.actions
     .filter((action) => !source.activeBranchId || action.branchId === source.activeBranchId)
-    .filter((action) => !lastChapterId || action.chapterId === lastChapterId)
-    .slice(-3);
-  return actions.map((action) => ({
-    actionId: action.id,
-    chapterId: action.chapterId,
-    sceneId: action.sceneId,
-    blockId: action.blockId,
-    choiceId: action.choiceId,
-    label: action.label,
-    ruleId: action.ruleId,
-    ...(action.targetCharacterId ? { targetCharacterId: action.targetCharacterId } : {}),
-    appliedEffects: {
-      relationshipDelta: clone(action.actualRelationshipDelta),
-      hasFlagEffect: Object.keys(action.flagsAfter).length > 0,
-    },
-    next: clone(action.next),
-  }));
+    .filter((action) => !lastChapterId || action.chapterId === lastChapterId);
+  return actions
+    .flatMap((action, index) => {
+      try {
+        return [
+          normalizePublicAction(
+            {
+              actionId: action.id,
+              chapterId: action.chapterId,
+              sceneId: action.sceneId,
+              blockId: action.blockId,
+              choiceId: action.choiceId,
+              label: action.label,
+              ruleId: action.ruleId,
+              ...(action.targetCharacterId ? { targetCharacterId: action.targetCharacterId } : {}),
+              appliedEffects: {
+                relationshipDelta: clone(action.actualRelationshipDelta),
+                hasFlagEffect: Object.keys(action.flagsAfter).length > 0,
+              },
+              next: clone(action.next),
+            },
+            index,
+          ),
+        ];
+      } catch {
+        return [];
+      }
+    })
+    .slice(-PUBLIC_ACTION_CONTEXT_LIMIT);
 }
