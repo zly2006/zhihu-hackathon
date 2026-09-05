@@ -14,6 +14,7 @@ import type {
   ScenePackage,
   SceneRuntimeState,
 } from "./scene";
+import type { PublicSceneActionContext } from "../game/scene-action-context";
 import type { WorldSimulationOutput } from "./simulation";
 
 export type PendingChapterStage = "simulated" | "plan" | "reflection" | "novel" | "dialogue" | "live_scene" | "ready" | "error";
@@ -65,6 +66,8 @@ export type ChapterDecision = {
   selectedOptionId: "A" | "B" | "C" | "CUSTOM";
   customAction?: string;
   normalizedAction: string;
+  // B → C：上一已完成章的公开 live 行动摘要，不进入小说全文或私密状态。
+  sceneActionContext?: PublicSceneActionContext[];
 };
 
 // 待选决策：Choice Generator 的产物（玩家尚未选择），选择后组装成完整 ChapterDecision。
@@ -73,6 +76,7 @@ export type ChapterChoice = {
   promptTitle: string;
   context: string;
   options: ChapterDecision["options"];
+  sceneActionContext?: PublicSceneActionContext[];
 };
 
 // DecisionResolution（方案 §17）：结果倾向由程序计算并持久化。

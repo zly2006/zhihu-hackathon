@@ -40,6 +40,7 @@ import { completePendingChapter, createPendingChapter, updatePendingChapterStage
 import { adaptDialogueScenes } from "@/lib/game/scene-adapter";
 import { getLiveSceneSession, hasLiveScene } from "@/lib/game/formal-scene-runtime";
 import { pendingSpan, recoverChapterChoice, recoverEvidenceBundle, recoverSelection } from "@/lib/game/pending-chapter";
+import { compileSceneActionContext } from "@/lib/game/scene-action-context";
 import { createSceneRuntime } from "@/lib/game/scene-runtime";
 import { findScene, DEFAULT_SCENE_ID, pickSceneForNovelScene } from "@/lib/game/scene-catalog";
 import { ProtagonistSetup } from "./ProtagonistSetup";
@@ -1001,7 +1002,11 @@ export function LifeApp() {
       const response = await fetch("/api/chapter/choices", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ worldState: save.worldState, span }),
+         body: JSON.stringify({
+           worldState: save.worldState,
+           span,
+           sceneActionContext: compileSceneActionContext(save),
+         }),
       });
       if (!response.ok) {
         const payload = await response.json().catch(() => null);
@@ -1044,6 +1049,7 @@ export function LifeApp() {
             selection: next,
             span,
             usedExperienceIds: [],
+            sceneActionContext: compileSceneActionContext(save),
           }),
         });
         if (!response.ok) {

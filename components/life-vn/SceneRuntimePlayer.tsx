@@ -1,9 +1,8 @@
 "use client";
 
 import type { DialogueChoiceId, DialogueCharacter } from "@/lib/domain/dialogue";
-import type { SceneChoiceResponse, ScenePackage, SceneRuntimeState, SceneSaveProjection } from "@/lib/domain/scene";
-import { resolveAvatarUrl } from "@/lib/game/avatar-registry";
-import { resolveCharacterVisual, type CharacterVisualProfile } from "@/lib/game/visual-resolver";
+import type { SceneChoiceResponse, SceneCue, ScenePackage, SceneRuntimeState, SceneSaveProjection } from "@/lib/domain/scene";
+import { resolveSceneCharacterVisuals, type CharacterVisualProfile } from "@/lib/game/visual-resolver";
 import { createSceneRuntime, getActiveBlock } from "@/lib/game/scene-runtime";
 import { findScene, DEFAULT_SCENE_ID } from "@/lib/game/scene-catalog";
 import { useSceneRuntime } from "@/components/life/use-scene-runtime";
@@ -29,17 +28,9 @@ export type SceneRuntimePlayerProps = {
 function charactersWithVisuals(
   characters: DialogueCharacter[],
   profiles: SceneRuntimePlayerProps["visualProfiles"],
+  cues?: SceneCue[],
 ): DialogueCharacter[] {
-  return characters.map((character) => {
-    const resolved = resolveCharacterVisual({
-      characterId: character.id,
-      emotion: character.emotion,
-      profileMap: profiles,
-      avatarFallback: resolveAvatarUrl({ avatarId: character.avatarId, avatarUrl: character.avatarUrl }),
-      name: character.name,
-    });
-    return resolved.src ? { ...character, avatarUrl: resolved.src } : character;
-  });
+  return resolveSceneCharacterVisuals({ characters, profiles, cues }).map((item) => item.character);
 }
 
 export function SceneRuntimePlayer({
@@ -67,7 +58,8 @@ export function SceneRuntimePlayer({
   }
   const sceneDef = findScene(scene.background) ?? findScene(DEFAULT_SCENE_ID);
   if (!sceneDef) return <div className="life-vn-error" role="alert">场景背景暂时不可用。</div>;
-  const displayCharacters = charactersWithVisuals(scene.characters, visualProfiles);
+  const cues = "cues" in block ? block.cues : undefined;
+  const displayCharacters = charactersWithVisuals(scene.characters, visualProfiles, cues);
   const dialogue = block.content.type === "dialogue" ? block.content : undefined;
   const copy = block.content.type === "choice" ? block.content.text : block.content.text;
   const options = block.content.type === "choice" ? runtime.choices : undefined;
@@ -81,6 +73,8 @@ export function SceneRuntimePlayer({
       meta={scene.timeLabel}
       characters={displayCharacters}
       activeCharacterId={activeCharacterId}
+      cues={cues}
+      cueKey={block.id}
     >
       <DialogueBox
         speaker={dialogue?.speaker}

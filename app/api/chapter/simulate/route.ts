@@ -11,6 +11,7 @@ import { validateSimulationOutput, type ValidationContext } from "@/lib/game/sim
 import { reduceWorldState } from "@/lib/game/world-reducer";
 import { hashState } from "@/lib/game/hash";
 import { planNpcAgentDirectives } from "@/lib/game/npc-agent";
+import { normalizeSceneActionContext } from "@/lib/game/scene-action-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -21,6 +22,7 @@ type SimulateRequest = {
   selection: { optionId: "A" | "B" | "C" | "CUSTOM"; customAction?: string };
   span: ChapterSpan;
   usedExperienceIds?: string[];
+  sceneActionContext?: unknown;
 };
 
 export async function POST(request: Request) {
@@ -38,6 +40,12 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "无效的 ChapterChoice" }, { status: 400 });
   }
   if (span !== 1 && span !== 3) return NextResponse.json({ error: "span 必须是 1 或 3" }, { status: 400 });
+  let sceneActionContext;
+  try {
+    sceneActionContext = normalizeSceneActionContext(body.sceneActionContext ?? choice.sceneActionContext);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "sceneActionContext 无效" }, { status: 400 });
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -61,6 +69,7 @@ export async function POST(request: Request) {
             selection.optionId === "CUSTOM"
               ? (selection.customAction ?? "").trim()
               : (selectedOption?.label ?? "").trim(),
+          ...(sceneActionContext.length ? { sceneActionContext } : {}),
         };
 
         const chapterIndex = worldState.chapterIds.length;

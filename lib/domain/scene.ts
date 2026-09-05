@@ -62,6 +62,7 @@ export type RuntimeBlock =
         choices: Array<RuntimeChoice | ReadOnlyChoice>;
         readOnly?: boolean;
       };
+      cues?: SceneCue[];
     };
 
 export type RuntimeScene = {

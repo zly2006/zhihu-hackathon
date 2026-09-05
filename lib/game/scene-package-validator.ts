@@ -6,6 +6,7 @@ import type {
   RuntimeBlock,
   RuntimeChoice,
   RuntimeScene,
+  SceneCue,
   ScenePackage,
   SceneRequirement,
   SceneTarget,
@@ -222,6 +223,31 @@ function validateCharacters(
   });
 }
 
+function validateCues(value: unknown, path: string, characterIds: Set<string>): SceneCue[] | undefined {
+  if (value === undefined) return undefined;
+  if (!Array.isArray(value)) fail(path, "invalid_cue", "必须是 cue 数组");
+  return value.map((rawCue, index) => {
+    const cuePath = `${path}[${index}]`;
+    if (!isRecord(rawCue)) fail(cuePath, "invalid_cue", "必须是 cue 对象");
+    const characterId = stableId(rawCue.characterId, `${cuePath}.characterId`);
+    if (!characterIds.has(characterId)) fail(`${cuePath}.characterId`, "unknown_character", `场景中不存在角色 ${characterId}`);
+    if (rawCue.emotion !== undefined && typeof rawCue.emotion !== "string") fail(`${cuePath}.emotion`, "invalid_cue", "必须是字符串");
+    if (rawCue.pose !== undefined && typeof rawCue.pose !== "string") fail(`${cuePath}.pose`, "invalid_cue", "必须是字符串");
+    const animation = rawCue.animation;
+    const isSupportedAnimation = animation === undefined || animation === "idle" || animation === "speaking" || animation === "focus" || animation === "shake" || animation === "enter" || animation === "exit";
+    if (!isSupportedAnimation) {
+      fail(`${cuePath}.animation`, "invalid_cue", "不是受支持的动画 cue");
+    }
+    const normalizedAnimation = animation as SceneCue["animation"];
+    return {
+      characterId,
+      ...(typeof rawCue.emotion === "string" ? { emotion: rawCue.emotion } : {}),
+      ...(typeof rawCue.pose === "string" ? { pose: rawCue.pose } : {}),
+      ...(normalizedAnimation ? { animation: normalizedAnimation } : {}),
+    };
+  });
+}
+
 function validateBlock(
   raw: unknown,
   path: string,
@@ -236,7 +262,8 @@ function validateBlock(
   if (!isRecord(raw.content) || typeof raw.content.type !== "string") fail(`${path}.content`, "invalid_block", "缺少 content.type");
   const characterIds = new Set(scene.characters.map((character) => character.id));
   if (raw.content.type === "narration") {
-    return { id, content: { type: "narration", text: requiredString(raw.content.text, `${path}.content.text`) } };
+    const cues = validateCues(raw.cues, `${path}.cues`, characterIds);
+    return { id, content: { type: "narration", text: requiredString(raw.content.text, `${path}.content.text`) }, ...(cues ? { cues } : {}) };
   }
   if (raw.content.type === "dialogue") {
     const speakerId = stableId(raw.content.speakerId, `${path}.content.speakerId`);
@@ -251,22 +278,8 @@ function validateBlock(
       ...(typeof raw.content.avatar === "string" ? { avatar: raw.content.avatar } : {}),
     };
     const result: RuntimeBlock = { id, content };
-    if (Array.isArray(raw.cues)) {
-      result.cues = raw.cues.map((cue, index) => {
-        const cuePath = `${path}.cues[${index}]`;
-        if (!isRecord(cue)) fail(cuePath, "invalid_cue", "必须是 cue 对象");
-        const characterId = stableId(cue.characterId, `${cuePath}.characterId`);
-        if (!characterIds.has(characterId)) fail(`${cuePath}.characterId`, "unknown_character", `场景中不存在角色 ${characterId}`);
-        return {
-          characterId,
-          ...(typeof cue.emotion === "string" ? { emotion: cue.emotion } : {}),
-          ...(typeof cue.pose === "string" ? { pose: cue.pose } : {}),
-          ...(cue.animation === "idle" || cue.animation === "speaking" || cue.animation === "focus" || cue.animation === "shake" || cue.animation === "enter" || cue.animation === "exit"
-            ? { animation: cue.animation }
-            : {}),
-        };
-      });
-    }
+    const cues = validateCues(raw.cues, `${path}.cues`, characterIds);
+    if (cues) result.cues = cues;
     return result;
   }
   if (raw.content.type !== "choice") fail(`${path}.content.type`, "invalid_block", "未知块类型");
@@ -301,7 +314,8 @@ function validateBlock(
     fail(`${path}.content.choices`, "all_choices_locked", "当前状态下没有可执行选择");
   }
   if (typeof raw.content.text !== "string" || !raw.content.text.trim()) fail(`${path}.content.text`, "invalid_choice", "选择提示不能为空");
-  return { id, content: { type: "choice", text: raw.content.text, choices, ...(readOnly ? { readOnly: true } : {}) } };
+  const cues = validateCues(raw.cues, `${path}.cues`, characterIds);
+  return { id, content: { type: "choice", text: raw.content.text, choices, ...(readOnly ? { readOnly: true } : {}) }, ...(cues ? { cues } : {}) };
 }
 
 function requirementSatisfiedForChoice(choice: RuntimeChoice, context: SceneValidationContext): boolean {

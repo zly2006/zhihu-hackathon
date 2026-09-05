@@ -2,12 +2,13 @@ import { NextResponse } from "next/server";
 import { generateChapterChoice } from "@/lib/game/choice-generator";
 import type { ChapterSpan } from "@/lib/domain/shared";
 import type { WorldState } from "@/lib/domain/world";
+import { normalizeSceneActionContext } from "@/lib/game/scene-action-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function POST(request: Request) {
-  let body: { worldState: WorldState; span: ChapterSpan };
+  let body: { worldState: WorldState; span: ChapterSpan; sceneActionContext?: unknown };
   try {
     body = (await request.json()) as typeof body;
   } catch {
@@ -20,6 +21,12 @@ export async function POST(request: Request) {
   if (span !== 1 && span !== 3) {
     return NextResponse.json({ error: "span 必须是 1 或 3" }, { status: 400 });
   }
+  let sceneActionContext;
+  try {
+    sceneActionContext = normalizeSceneActionContext(body.sceneActionContext);
+  } catch (error) {
+    return NextResponse.json({ error: error instanceof Error ? error.message : "sceneActionContext 无效" }, { status: 400 });
+  }
 
   const encoder = new TextEncoder();
   const stream = new ReadableStream({
@@ -29,7 +36,10 @@ export async function POST(request: Request) {
       };
       try {
         send("progress", { stage: "generating", message: "正在生成本章困境与行动方向" });
-        const choice = await generateChapterChoice(worldState, span);
+        const generatedChoice = await generateChapterChoice(worldState, span);
+        const choice = sceneActionContext.length
+          ? { ...generatedChoice, sceneActionContext }
+          : generatedChoice;
         send("complete", { choice });
       } catch (error) {
         console.error("choice generation failed", error);

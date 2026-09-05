@@ -1,4 +1,6 @@
 import assert from "node:assert/strict";
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import test from "node:test";
 
 const buildDir = process.env.V3_TEST_DIR || ".tmp/test-all";
@@ -103,4 +105,52 @@ test("scene action context is public, ordered, and capped to the last chapter", 
   assert.deepEqual(context.map((item) => item.actionId), ["action-2", "action-3", "action-4"]);
   assert.ok(context.every((item) => !("beforeHash" in item) && !("afterHash" in item) && !("flagsAfter" in item)));
   assert.deepEqual(context[0].appliedEffects.relationshipDelta, { trust: 3 });
+});
+
+test("scene action context normalizer strips non-public fields and enforces the cap", async () => {
+  const { compileSceneActionContext, normalizeSceneActionContext } = await load("scene-action-context");
+  const source = compileSceneActionContext({
+    actions: [{
+      id: "action-public",
+      branchId: "main",
+      chapterId: "chapter-last",
+      packageId: "package",
+      packageVersion: 1,
+      sceneId: "scene-1",
+      blockId: "block-1",
+      choiceId: "A",
+      label: "先把话听完",
+      ruleId: "listen_without_promise",
+      targetCharacterId: "test-character-a",
+      eventIds: ["event-1"],
+      actualRelationshipDelta: { trust: 4 },
+      flagsAfter: { listened: true },
+      next: { kind: "chapter_end" },
+      beforeHash: "private-before-hash",
+      afterHash: "private-after-hash",
+      committedAt: "2026-01-01T00:00:00.000Z",
+    }],
+    activeBranchId: "main",
+    lastCompletedChapterId: "chapter-last",
+  });
+  const normalized = normalizeSceneActionContext([
+    { ...source[0], privateState: "不得进入 C 的公开上下文", beforeHash: "不得传播" },
+  ]);
+  assert.deepEqual(normalized, source);
+  assert.throws(() => normalizeSceneActionContext([...Array(4)].map(() => source[0])), /最多 3/);
+});
+
+test("choice and simulation boundaries carry only compiled scene action context", () => {
+  const root = process.cwd();
+  const lifeApp = readFileSync(join(root, "components", "life", "LifeApp.tsx"), "utf8");
+  const choicesRoute = readFileSync(join(root, "app", "api", "chapter", "choices", "route.ts"), "utf8");
+  const simulateRoute = readFileSync(join(root, "app", "api", "chapter", "simulate", "route.ts"), "utf8");
+  assert.match(lifeApp, /compileSceneActionContext/);
+  assert.match(lifeApp, /sceneActionContext/);
+  assert.match(choicesRoute, /normalizeSceneActionContext/);
+  assert.match(choicesRoute, /sceneActionContext/);
+  assert.match(simulateRoute, /normalizeSceneActionContext/);
+  assert.match(simulateRoute, /sceneActionContext/);
+  assert.doesNotMatch(choicesRoute, /privateState/);
+  assert.doesNotMatch(simulateRoute, /privateState/);
 });

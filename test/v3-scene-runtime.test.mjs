@@ -127,9 +127,51 @@ test("visual resolver follows exact, neutral, avatar, and placeholder fallback o
     name: "测试角色甲",
   };
   assert.equal(resolveCharacterVisual(args).kind, "exact");
+  assert.equal(
+    resolveCharacterVisual({
+      ...args,
+      profileMap: { "test-character-a|serious|stand|speaking": { spriteUrl: "/exact-sprite.png" } },
+    }).src,
+    "/exact-sprite.png",
+  );
   assert.equal(resolveCharacterVisual({ ...args, profileMap: { "test-character-a|neutral": { src: "/neutral.png" } } }).kind, "neutral");
   assert.equal(resolveCharacterVisual({ ...args, profileMap: {}, avatarFallback: "/avatar.png" }).kind, "avatar");
+  assert.equal(
+    resolveCharacterVisual({ ...args, profileMap: {}, avatarFallback: { avatarUrl: "/avatar-object.png" } }).src,
+    "/avatar-object.png",
+  );
   assert.equal(resolveCharacterVisual({ ...args, profileMap: {}, avatarFallback: null }).kind, "placeholder");
+});
+
+test("scene cues project into character visuals without changing runtime data", async () => {
+  const { resolveSceneCharacterVisuals } = await load("visual-resolver");
+  const projected = resolveSceneCharacterVisuals({
+    characters: [
+      { id: "test-character-a", name: "测试角色甲", position: "left", emotion: "平静" },
+      { id: "test-character-b", name: "测试角色乙", position: "right", emotion: "平静" },
+    ],
+    cues: [
+      { characterId: "test-character-a", emotion: "严肃", pose: "thinking", animation: "focus" },
+      { characterId: "test-character-b", animation: "shake" },
+    ],
+    profileMap: {
+      "test-character-a|严肃|thinking|focus": { src: "/zhaoleng-serious-thinking.png" },
+      "test-character-b|neutral": { src: "/npc-neutral.png" },
+    },
+  });
+  assert.equal(projected[0].visual.kind, "exact");
+  assert.equal(projected[0].character.avatarUrl, "/zhaoleng-serious-thinking.png");
+  assert.equal(projected[0].character.emotion, "严肃");
+  assert.equal(projected[0].cue?.animation, "focus");
+  assert.equal(projected[1].visual.kind, "neutral");
+  assert.equal(projected[1].cue?.animation, "shake");
+  assert.deepEqual(projected[0].character, {
+    id: "test-character-a",
+    name: "测试角色甲",
+    position: "left",
+    emotion: "严肃",
+    avatarUrl: "/zhaoleng-serious-thinking.png",
+  });
 });
 
 test("scene player and hook expose lifecycle-safe controlled playback", () => {
@@ -146,6 +188,9 @@ test("scene player and hook expose lifecycle-safe controlled playback", () => {
   assert.match(player, /SceneStage/);
   assert.match(player, /DialogueBox/);
   assert.match(player, /readOnly/);
+  assert.match(player, /resolveSceneCharacterVisuals/);
+  assert.match(player, /cueKey/);
+  assert.match(player, /cues/);
   assert.match(player, /aria-live/);
   assert.match(controls, /SKIP|跳至下个选择/);
 });

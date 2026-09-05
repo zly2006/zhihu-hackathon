@@ -51,6 +51,19 @@ test("scene package validator accepts a neutral package bound to the current wor
   assert.equal(normalized.entrySceneId, "test-c1-01");
 });
 
+test("scene validator preserves cues on narration, dialogue, and choice blocks", async () => {
+  const [{ validateScenePackage }, fixture] = await Promise.all([
+    load("scene-package-validator"),
+    loadFixture(),
+  ]);
+  const pkg = fixture.makeScenePackage();
+  pkg.scenes[0].blocks[0].cues = [{ characterId: "test-character-a", animation: "enter" }];
+  pkg.scenes[0].blocks[1].cues = [{ characterId: "test-character-a", emotion: "严肃", pose: "thinking", animation: "focus" }];
+  const normalized = validateScenePackage(pkg, { world: fixture.makeWorld(), currentYear: 2026 });
+  assert.deepEqual(normalized.scenes[0].blocks[0].cues, [{ characterId: "test-character-a", animation: "enter" }]);
+  assert.deepEqual(normalized.scenes[0].blocks[1].cues, [{ characterId: "test-character-a", emotion: "严肃", pose: "thinking", animation: "focus" }]);
+});
+
 test("scene package validator reports path and rejects graph errors", async () => {
   const [{ validateScenePackage, ScenePackageValidationError }, fixture] = await Promise.all([
     load("scene-package-validator"),

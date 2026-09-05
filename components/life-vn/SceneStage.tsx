@@ -2,6 +2,7 @@
 
 import type { CSSProperties, ReactNode } from "react";
 import type { DialogueCharacter } from "@/lib/domain/dialogue";
+import type { SceneCue } from "@/lib/domain/scene";
 import type { SceneDef } from "@/lib/game/scene-catalog";
 import { CharacterAvatar } from "./CharacterAvatar";
 
@@ -14,6 +15,8 @@ export function SceneStage({
   characters,
   activeCharacterId,
   fallbackCharacter,
+  cues,
+  cueKey,
   children,
 }: {
   scene: SceneDef;
@@ -22,6 +25,8 @@ export function SceneStage({
   characters?: DialogueCharacter[];
   activeCharacterId?: string | null;
   fallbackCharacter?: DialogueCharacter;
+  cues?: SceneCue[];
+  cueKey?: string;
   children?: ReactNode;
 }) {
   const style: CSSProperties & Record<string, string> = {
@@ -42,6 +47,8 @@ export function SceneStage({
           characters={characters}
           activeCharacterId={activeCharacterId}
           fallbackCharacter={fallbackCharacter}
+          cues={cues}
+          cueKey={cueKey}
         />
       )}
       {!characters?.length && !fallbackCharacter && portraitUrl && (
