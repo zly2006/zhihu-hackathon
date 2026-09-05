@@ -12,6 +12,7 @@ import type {
 import type { DialogueCharacter, DialogueScene } from "@/lib/domain/dialogue";
 import type { ChapterSpan, GameMode } from "@/lib/domain/shared";
 import type { WorldState } from "@/lib/domain/world";
+import type { WorldSnapshot } from "@/lib/domain/snapshot";
 import type { WorldSimulationOutput } from "@/lib/domain/simulation";
 import type { EvidenceBundle, LifeExperience } from "@/lib/domain/experience";
 import type { SceneChoiceResponse, ScenePackage, SceneRuntimeState } from "@/lib/domain/scene";
@@ -21,11 +22,13 @@ import { parseGameSave } from "@/lib/game/save";
 import {
   appendSnapshot,
   appendSceneChoiceCheckpoint,
+  createBranchFromSceneCheckpoint,
   createBranchFromSnapshot,
   getSnapshot,
   getTimelineNodes,
   initializeSnapshotState,
   refreshActiveSnapshot,
+  switchBranch,
   type SnapshotTimelineNode,
 } from "@/lib/game/snapshot-manager";
 import { buildLifePresentation } from "@/lib/game/presentation";
@@ -56,6 +59,7 @@ import { Timeline, type TimelineChapter } from "@/components/life-vn/Timeline";
 import { SnapshotViewer } from "@/components/life-vn/SnapshotViewer";
 import { StreamingNovelPreview } from "@/components/life-vn/StreamingNovelPreview";
 import { SceneRuntimePlayer } from "@/components/life-vn/SceneRuntimePlayer";
+import { BranchPanel } from "@/components/life-vn/BranchPanel";
 
 const SAVE_KEY = "restart-life-save-v1";
 const DEMO_SAVE_KEY = "restart-life-neutral-scene-demo-v1";
@@ -233,6 +237,98 @@ function protagonistDialogueCharacter(character: Character, avatarUrl: string | 
 
 function orderedDemoPackages(save: GameSave): ScenePackage[] {
   return Object.values(save.scenePackages ?? {}).sort((left, right) => left.chapterId.localeCompare(right.chapterId));
+}
+
+function branchPanelData(save: GameSave): {
+  branches: Array<{ id: string; name: string; active: boolean; snapshotCount: number }>;
+  checkpoints: Array<{ id: string; label: string; sceneId: string; blockId: string }>;
+} {
+  const activeBranchId = save.activeBranchId ?? "main";
+  const branches = Object.values(save.branches ?? {}).map((branch) => ({
+    id: branch.id,
+    name: branch.name,
+    active: branch.id === activeBranchId,
+    snapshotCount: branch.snapshotIds.length,
+  }));
+  const activeBranch = save.branches?.[activeBranchId];
+  const checkpoints = (activeBranch?.snapshotIds ?? [])
+    .map((snapshotId) => save.snapshots?.[snapshotId])
+    .filter((snapshot): snapshot is WorldSnapshot => Boolean(snapshot))
+    .filter(
+      (snapshot) =>
+        snapshot.kind === "scene-choice" &&
+        snapshot.replayable &&
+        snapshot.sceneRuntime?.status === "awaiting_choice" &&
+        !snapshot.sceneRuntime?.pendingAction,
+    )
+    .map((snapshot) => ({
+      id: snapshot.id,
+      label: `${snapshot.chapterId ?? "当前章节"} · ${snapshot.sceneId ?? "未知场景"}`,
+      sceneId: snapshot.sceneId ?? "未知场景",
+      blockId: snapshot.blockId ?? "未知选择",
+    }))
+    .reverse();
+  return { branches, checkpoints };
+}
+
+function isChoiceCheckpointForRuntime(snapshot: WorldSnapshot | undefined, runtime: SceneRuntimeState): boolean {
+  return Boolean(
+    snapshot &&
+      snapshot.kind === "scene-choice" &&
+      snapshot.replayable &&
+      snapshot.chapterId === runtime.chapterId &&
+      snapshot.packageId === runtime.packageId &&
+      snapshot.packageVersion === runtime.packageVersion &&
+      snapshot.sceneId === runtime.sceneId &&
+      snapshot.blockId === runtime.blockId &&
+      snapshot.sceneRuntime?.status === "awaiting_choice" &&
+      !snapshot.sceneRuntime.pendingAction,
+  );
+}
+
+function hasChoiceCheckpointForRuntime(save: GameSave, runtime: SceneRuntimeState): boolean {
+  const branchId = save.activeBranchId ?? "main";
+  return (save.branches?.[branchId]?.snapshotIds ?? []).some((snapshotId) =>
+    isChoiceCheckpointForRuntime(save.snapshots?.[snapshotId], runtime),
+  );
+}
+
+function saveLiveScenePosition(
+  save: GameSave,
+  runtime: SceneRuntimeState,
+  packageItem: ScenePackage,
+  now: string,
+): GameSave {
+  const base = { ...save, sceneRuntime: runtime, savedAt: now };
+  if (
+    runtime.readOnly ||
+    runtime.status !== "awaiting_choice" ||
+    runtime.branchId !== (save.activeBranchId ?? "main") ||
+    packageItem.chapterId !== runtime.chapterId ||
+    packageItem.id !== runtime.packageId ||
+    packageItem.version !== runtime.packageVersion ||
+    hasChoiceCheckpointForRuntime(save, runtime)
+  ) {
+    return base;
+  }
+  return appendSceneChoiceCheckpoint(base, {
+    chapterId: runtime.chapterId,
+    packageId: packageItem.id,
+    packageVersion: packageItem.version,
+    sceneId: runtime.sceneId,
+    blockId: runtime.blockId,
+    runtime,
+    actions: save.sceneActions,
+    flags: save.sceneFlags,
+    now,
+  });
+}
+
+function prepareBranchSwitchSave(save: GameSave, now: string): GameSave {
+  const runtime = save.sceneRuntime;
+  const packageItem = runtime ? save.scenePackages?.[runtime.chapterId] : undefined;
+  if (!runtime || !packageItem) return save;
+  return saveLiveScenePosition(save, runtime, packageItem, now);
 }
 
 async function fetchDialogue(
@@ -770,8 +866,20 @@ export function LifeApp() {
 
   const handleDemoPersistPosition = useCallback((runtime: SceneRuntimeState) => {
     setSave((previous) => {
-      if (!previous || JSON.stringify(previous.sceneRuntime) === JSON.stringify(runtime)) return previous;
-      const nextSave = { ...previous, sceneRuntime: runtime, savedAt: new Date().toISOString() };
+      if (!previous) return previous;
+      const packageItem = previous.scenePackages?.[runtime.chapterId];
+      const sameRuntime = JSON.stringify(previous.sceneRuntime) === JSON.stringify(runtime);
+      const needsCheckpoint = runtime.status === "awaiting_choice" && !hasChoiceCheckpointForRuntime(previous, runtime);
+      if (
+        !packageItem ||
+        packageItem.id !== runtime.packageId ||
+        packageItem.version !== runtime.packageVersion ||
+        runtime.branchId !== (previous.activeBranchId ?? "main") ||
+        (sameRuntime && !needsCheckpoint)
+      ) {
+        return previous;
+      }
+      const nextSave = saveLiveScenePosition(previous, runtime, packageItem, new Date().toISOString());
       try {
         window.localStorage.setItem(DEMO_SAVE_KEY, serializeSceneSave(nextSave));
         return nextSave;
@@ -838,15 +946,18 @@ export function LifeApp() {
     setSave((previous) => {
       if (!previous) return previous;
       const packageItem = previous.scenePackages?.[runtime.chapterId];
+      const sameRuntime = JSON.stringify(previous.sceneRuntime) === JSON.stringify(runtime);
+      const needsCheckpoint = runtime.status === "awaiting_choice" && !hasChoiceCheckpointForRuntime(previous, runtime);
       if (
         !packageItem ||
         packageItem.id !== runtime.packageId ||
         packageItem.version !== runtime.packageVersion ||
-        (previous.sceneRuntime && JSON.stringify(previous.sceneRuntime) === JSON.stringify(runtime))
+        runtime.branchId !== (previous.activeBranchId ?? "main") ||
+        (sameRuntime && !needsCheckpoint)
       ) {
         return previous;
       }
-      const nextSave = { ...previous, sceneRuntime: runtime, savedAt: new Date().toISOString() };
+      const nextSave = saveLiveScenePosition(previous, runtime, packageItem, new Date().toISOString());
       try {
         window.localStorage.setItem(SAVE_KEY, serializeSceneSave(nextSave));
         return nextSave;
@@ -916,55 +1027,144 @@ export function LifeApp() {
     [save],
   );
 
-  const handleDemoNextPackage = useCallback(() => {
+  const handleDemoNextPackage = useCallback(async () => {
     if (!save?.sceneRuntime || !demoPackage || save.sceneRuntime.status !== "completed") return;
     const packages = orderedDemoPackages(save);
     const currentIndex = packages.findIndex((item) => item.id === demoPackage.id && item.version === demoPackage.version);
     const nextPackage = currentIndex >= 0 ? packages[currentIndex + 1] : undefined;
     if (!nextPackage) return;
-    const now = new Date().toISOString();
-    const nextYear = nextPackage.scenes[0]?.year ?? save.worldState.currentYear;
-    const yearDelta = Math.max(0, nextYear - save.worldState.currentYear);
-    const nextWorld = {
-      ...save.worldState,
-      currentYear: nextYear,
-      characters: Object.fromEntries(
-        Object.entries(save.worldState.characters).map(([id, character]) => [
-          id,
-          {
-            ...character,
-            state: {
-              ...character.state,
-              year: character.state.year + yearDelta,
-              age: character.state.age + yearDelta,
-            },
-            updatedAt: now,
-          },
-        ]),
-      ),
-      updatedAt: now,
-    };
-    const runtime = createSceneRuntime(nextPackage, {
-      branchId: save.sceneRuntime.branchId,
-      playbackMode: save.sceneRuntime.playbackMode,
-    });
-    const nextSave: GameSave = {
-      ...save,
-      worldState: nextWorld,
-      sceneRuntime: runtime,
-      saveRevision: (save.saveRevision ?? 0) + 1,
-      savedAt: now,
-    };
+    setLoading(true);
+    setError("");
     try {
+      const response = await fetch("/api/life/demo/advance", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ gameSave: save, packageId: nextPackage.id }),
+      });
+      const data = await readJsonResponse<{ synthetic: true; gameSave: GameSave; scenePackage: ScenePackage }>(response);
+      const nextSave = normalizeSceneSave(data.gameSave);
       window.localStorage.setItem(DEMO_SAVE_KEY, serializeSceneSave(nextSave));
+      setDemoPackage(data.scenePackage);
+      setSave(nextSave);
     } catch {
       setError("下一测试章节切换失败，当前 Demo 存档未改变。");
-      return;
+    } finally {
+      setLoading(false);
     }
-    setError("");
-    setDemoPackage(nextPackage);
-    setSave(nextSave);
   }, [demoPackage, save]);
+
+  const handleDemoCreateBranch = useCallback(
+    (snapshotId: string) => {
+      if (!save || save.sceneRuntime?.status === "submitting") return;
+      try {
+        const nextSave = createBranchFromSceneCheckpoint(save, snapshotId, {
+          name: `中性测试分支 ${Object.keys(save.branches ?? {}).length}`,
+          now: new Date().toISOString(),
+        });
+        window.localStorage.setItem(DEMO_SAVE_KEY, serializeSceneSave(nextSave));
+        setSave(nextSave);
+        const packageItem = nextSave.sceneRuntime
+          ? nextSave.scenePackages?.[nextSave.sceneRuntime.chapterId]
+          : undefined;
+        if (!packageItem) throw new Error("分支缺少可恢复的中性场景包");
+        setDemoPackage(packageItem);
+        setError("");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "中性测试分支创建失败");
+      }
+    },
+    [save],
+  );
+
+  const handleDemoSwitchBranch = useCallback(
+    (branchId: string) => {
+      if (!save || save.sceneRuntime?.status === "submitting" || branchId === (save.activeBranchId ?? "main")) return;
+      try {
+        const now = new Date().toISOString();
+        const persistedCurrent = prepareBranchSwitchSave(save, now);
+        window.localStorage.setItem(DEMO_SAVE_KEY, serializeSceneSave(persistedCurrent));
+        const nextSave = switchBranch(persistedCurrent, branchId, now);
+        const packageItem = nextSave.sceneRuntime
+          ? nextSave.scenePackages?.[nextSave.sceneRuntime.chapterId]
+          : undefined;
+        if (!nextSave.sceneRuntime || !packageItem) throw new Error("该中性分支缺少可恢复场景位置");
+        window.localStorage.setItem(DEMO_SAVE_KEY, serializeSceneSave(nextSave));
+        setSave(nextSave);
+        setDemoPackage(packageItem);
+        setError("");
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "中性测试分支切换失败");
+      }
+    },
+    [save],
+  );
+
+  const handleFormalCreateBranch = useCallback(
+    (snapshotId: string) => {
+      if (!save || save.sceneRuntime?.status === "submitting") return;
+      try {
+        const nextSave = createBranchFromSceneCheckpoint(save, snapshotId, {
+          now: new Date().toISOString(),
+        });
+        persist(nextSave);
+        setSave(nextSave);
+        setError("");
+        const runtime = nextSave.sceneRuntime;
+        const liveSession = runtime ? getLiveSceneSession(nextSave, runtime.chapterId) : null;
+        const liveChapter = liveSession ? nextSave.chapters[liveSession.runtime.chapterId] : undefined;
+        if (liveSession && liveChapter) {
+          setChapter(liveChapter);
+          setChoice(null);
+          setSelection({
+            optionId: liveChapter.decision.selectedOptionId,
+            ...(liveChapter.decision.customAction ? { customAction: liveChapter.decision.customAction } : {}),
+          });
+          setSpan(liveChapter.span);
+          setPreWorld(null);
+          setSimResult(null);
+          setScreen("formal_scene");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "正式人生分支创建失败");
+      }
+    },
+    [save],
+  );
+
+  const handleFormalSwitchBranch = useCallback(
+    (branchId: string) => {
+      if (!save || save.sceneRuntime?.status === "submitting" || branchId === (save.activeBranchId ?? "main")) return;
+      try {
+        const now = new Date().toISOString();
+        const persistedCurrent = prepareBranchSwitchSave(save, now);
+        persist(persistedCurrent);
+        const nextSave = switchBranch(persistedCurrent, branchId, now);
+        persist(nextSave);
+        setSave(nextSave);
+        setError("");
+        const runtime = nextSave.sceneRuntime;
+        const liveSession = runtime ? getLiveSceneSession(nextSave, runtime.chapterId) : null;
+        const liveChapter = liveSession ? nextSave.chapters[liveSession.runtime.chapterId] : undefined;
+        if (liveSession && liveChapter) {
+          setChapter(liveChapter);
+          setChoice(null);
+          setSelection({
+            optionId: liveChapter.decision.selectedOptionId,
+            ...(liveChapter.decision.customAction ? { customAction: liveChapter.decision.customAction } : {}),
+          });
+          setSpan(liveChapter.span);
+          setPreWorld(null);
+          setSimResult(null);
+          setScreen("formal_scene");
+        } else {
+          setScreen("chapter_start");
+        }
+      } catch (err) {
+        setError(err instanceof Error ? err.message : "正式人生分支切换失败");
+      }
+    },
+    [save],
+  );
 
   const handleExitDemo = useCallback(() => {
     setDemoPackage(null);
@@ -1534,6 +1734,7 @@ export function LifeApp() {
     const demoPackages = orderedDemoPackages(save);
     const demoPackageIndex = demoPackages.findIndex((item) => item.id === demoPackage.id && item.version === demoPackage.version);
     const nextDemoPackage = demoPackageIndex >= 0 ? demoPackages[demoPackageIndex + 1] : undefined;
+    const demoBranchState = branchPanelData(save);
     return (
       <LifeShell
         chapterLabel="B · 中性玩法 Demo"
@@ -1579,8 +1780,9 @@ export function LifeApp() {
                 className="life-vn-btn"
                 style={{ position: "absolute", right: 22, bottom: 22, zIndex: 5 }}
                 onClick={handleDemoNextPackage}
+                disabled={loading}
               >
-                进入下一测试章节
+                {loading ? "正在进入下一测试章节…" : "进入下一测试章节"}
               </button>
             )}
             {save.sceneRuntime.status === "completed" && !nextDemoPackage && (
@@ -1591,11 +1793,20 @@ export function LifeApp() {
           </div>
         }
         sheet={
-          <div>
-            <b>当前运行时</b>
-            <p style={{ margin: "6px 0 0", color: "var(--lv-muted)", fontSize: 12 }}>
-              {save.sceneRuntime.sceneId} / {save.sceneRuntime.blockId} · {save.sceneRuntime.status}
-            </p>
+          <div style={{ display: "grid", gap: 16 }}>
+            <div>
+              <b>当前运行时</b>
+              <p style={{ margin: "6px 0 0", color: "var(--lv-muted)", fontSize: 12 }}>
+                {save.sceneRuntime.sceneId} / {save.sceneRuntime.blockId} · {save.sceneRuntime.status}
+              </p>
+            </div>
+            <BranchPanel
+              branches={demoBranchState.branches}
+              checkpoints={demoBranchState.checkpoints}
+              onSwitchBranch={handleDemoSwitchBranch}
+              onCreateBranch={handleDemoCreateBranch}
+              disabled={loading || save.sceneRuntime.status === "submitting"}
+            />
           </div>
         }
       />
@@ -1619,6 +1830,7 @@ export function LifeApp() {
       save.sceneActions,
       save.sceneFlags,
     );
+    const formalBranchState = branchPanelData(save);
     return (
       <LifeShell
         chapterLabel={`Chapter ${String(chapter.index + 1).padStart(2, "0")}`}
@@ -1666,11 +1878,20 @@ export function LifeApp() {
           </div>
         }
         sheet={
-          <div>
-            <b>当前运行时</b>
-            <p style={{ margin: "6px 0 0", color: "var(--lv-muted)", fontSize: 12 }}>
-              {activeFormalSceneSession.runtime.sceneId} / {activeFormalSceneSession.runtime.blockId} · {activeFormalSceneSession.runtime.status}
-            </p>
+          <div style={{ display: "grid", gap: 16 }}>
+            <div>
+              <b>当前运行时</b>
+              <p style={{ margin: "6px 0 0", color: "var(--lv-muted)", fontSize: 12 }}>
+                {activeFormalSceneSession.runtime.sceneId} / {activeFormalSceneSession.runtime.blockId} · {activeFormalSceneSession.runtime.status}
+              </p>
+            </div>
+            <BranchPanel
+              branches={formalBranchState.branches}
+              checkpoints={formalBranchState.checkpoints}
+              onSwitchBranch={handleFormalSwitchBranch}
+              onCreateBranch={handleFormalCreateBranch}
+              disabled={loading || activeFormalSceneSession.runtime.status === "submitting"}
+            />
           </div>
         }
       />

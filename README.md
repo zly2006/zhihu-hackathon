@@ -4,7 +4,7 @@
 
 玩家只控制一名主角；系统维护主角与 3 名核心 NPC 的长期状态、目标、记忆和关系。每一章玩家为
 主角选择一次重要人生方向（A/B/C/自定义），系统检索知乎真实经历作为现实参照，推演未来
-1 年或 3 年，再将已确定的结构化人生事件文学化为一章互动小说。
+1 年或 3 年，再把宏观事实整理为回顾内容，并为当前年份生成可直接游玩的 live 场景。
 
 > 旧版"从 0 岁开始的重启人生"玩法保留在首页 `/`；新版互动人生在 `/life`，使用独立存档。
 
@@ -22,10 +22,14 @@
 World Simulator → SimulationEvent[]（canonical 事实）
     ↓
 更新 WorldState（人物、关系、记忆、线索）
-    ↓
-Novel Writer 文学化 → 章节小说（可重写，不改事实）
-    ↓
-进入下一章
+    ├─ Novel Writer → 历史回顾（可重写，不改事实）
+    └─ Live Scene Generator → 当前年份 ScenePackage
+                                  ↓
+                         Scene Runtime → 玩家选择
+                                  ↓
+                    canonical 场景事件 / 关系 / flags
+                                  ↓
+                             进入下一章
 ```
 
 三种数据永久分离：**知乎 LifeExperience**（现实经验，个案非因果）≠ **SimulationEvent**
@@ -56,7 +60,7 @@ npm start
 node scripts/test-all.mjs
 ```
 
-V3 场景玩法的中性验证入口：<http://127.0.0.1:3000/life?demo=neutral>。它使用独立的合成存档验证场景播放、选择结算、关系反馈、恢复和分支；不代表正式赵冷内容已接入，也不会覆盖玩家正式存档。交接结果见 [V3 Scene Runtime 交接报告](./docs/phase-reports/18-v3-scene-runtime-report.md)。
+正式 `/life` 在新生成的章节中使用模型生成的当前年份 live 场景；已有旧章节若没有匹配的 live 包，仍显示只读历史回顾，这是兼容行为，不会把历史小说伪装成可执行场景。V3 场景玩法的中性验证入口：<http://127.0.0.1:3000/life?demo=neutral>。它使用独立的合成存档验证场景播放、选择结算、关系反馈、恢复和分支，不代表正式赵冷内容已接入，也不会覆盖玩家正式存档。交接结果见 [V3 Scene Runtime 交接报告](./docs/phase-reports/18-v3-scene-runtime-report.md)。
 
 ## 架构与目录
 
@@ -66,12 +70,14 @@ lib/domain/    shared / character / relationship / memory / world /
 lib/game/      character-factory / npc-generator / choice-generator /
                evidence-retriever / experience-adapter / memory-selector /
                decision-resolver / world-simulator / simulation-validator /
-               novel-writer / world-reducer / save / hash
+               novel-writer / live-scene-generator / scene-runtime /
+               scene-choice-service / snapshot-manager / world-reducer / save
 app/api/       life/npc/generate · life/create（人生创建）
-               chapter/choices · chapter/simulate · chapter/novel（章节三阶段）
+               chapter/choices · chapter/simulate · chapter/novel /
+               chapter/live-scene · chapter/scene-choice
 components/life/  LifeApp / ProtagonistSetup / NpcSetup / DecisionPanel /
                CharacterPanel / RelationshipPanel / NovelReader /
-               ChapterSummary / TimelinePanel / EvidencePanel
+               ChapterSummary / SceneRuntimePlayer / BranchPanel
 ```
 
 关键机制：
@@ -82,6 +88,8 @@ components/life/  LifeApp / ProtagonistSetup / NpcSetup / DecisionPanel /
 - **短别名引用**：LLM 只引用 `C1/R1/E1/T1/G1/H1/I1` 等短别名，服务端映射回真实 id，
   避免模型截断 UUID 导致引用失效。
 - **失败恢复**：模拟失败不写 canonical；小说失败单独重试，绝不重新模拟人生。
+- **Live 场景事务**：选择在服务端按 ruleId 结算为 canonical 场景事件，选择前自动保存检查点；失败可重试，重复提交不会重复加关系数值。
+- **分支回溯**：从可执行选择前的场景检查点创建独立分支，切换分支恢复对应 WorldState、动作、flags 和场景位置；旧历史回顾保持只读。
 
 ## 模型配置
 

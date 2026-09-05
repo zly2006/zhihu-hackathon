@@ -23,6 +23,16 @@ test("neutral demo route is isolated, synthetic, and validates packages before r
   assert.doesNotMatch(source, /DK_DATABASE_URL|raw_envelope|\.env/);
 });
 
+test("neutral demo chapter advance is a server-side reducer boundary", () => {
+  const route = readFileSync(join(process.cwd(), "app/api/life/demo/advance/route.ts"), "utf8");
+  const app = readFileSync(join(process.cwd(), "components/life/LifeApp.tsx"), "utf8");
+  assert.match(route, /normalizeSceneSave/);
+  assert.match(route, /advanceNeutralDemoSave/);
+  assert.match(route, /status: 409/);
+  assert.doesNotMatch(route, /callGameModel|runWorldSimulator|DK_DATABASE_URL/);
+  assert.match(app, /\/api\/life\/demo\/advance/);
+});
+
 test("neutral demo UI keeps a separate save and exposes package continuation", () => {
   const source = readFileSync(join(process.cwd(), "components/life/LifeApp.tsx"), "utf8");
   assert.match(source, /restart-life-neutral-scene-demo-v1/);
@@ -106,4 +116,87 @@ test("neutral fixture walks two complete paths with one event per committed choi
   assert.equal(Object.keys(together.projection.events).length, together.actions);
   assert.ok(together.projection.actions.some((action) => action.next.kind === "ending"));
   assert.ok(apart.projection.actions.some((action) => action.next.kind === "ending"));
+});
+
+test("neutral demo registers synthetic macro chapters through the reducer before live play", async () => {
+  const { createNeutralDemoSave, advanceNeutralDemoSave } = await load("neutral-demo");
+  const packages = (await load("neutral-scene-package")).createNeutralScenePackages(2026);
+  const initial = createNeutralDemoSave(2026, "2026-01-01T00:00:00.000Z");
+
+  assert.deepEqual(initial.worldState.chapterIds, ["test-chapter-1"]);
+  assert.ok(initial.chapters["test-chapter-1"]);
+  assert.equal(initial.chapters["test-chapter-1"].simulationEventIds.length, 0);
+  assert.equal(initial.sceneRuntime.chapterId, "test-chapter-1");
+  assert.equal(initial.sceneRuntime.status, "reading");
+
+  const ready = { ...initial, sceneRuntime: { ...initial.sceneRuntime, status: "completed" } };
+  const advanced = advanceNeutralDemoSave(ready, packages[1], "2026-01-01T00:00:01.000Z");
+  assert.deepEqual(advanced.worldState.chapterIds, ["test-chapter-1", "test-chapter-2"]);
+  assert.equal(advanced.worldState.currentYear, 2027);
+  assert.ok(advanced.chapters["test-chapter-2"]);
+  assert.equal(advanced.chapters["test-chapter-2"].simulationEventIds.length, 0);
+  assert.equal(advanced.sceneRuntime.chapterId, "test-chapter-2");
+  assert.equal(advanced.sceneRuntime.status, "reading");
+  assert.equal(advanced.sceneRuntime.branchId, initial.sceneRuntime.branchId);
+});
+
+test("neutral fixture can fork at the first live choice without leaking branch state", async () => {
+  const [{ createNeutralDemoSave }, { transitionSceneRuntime }, { appendSceneChoiceCheckpoint, createBranchFromSceneCheckpoint, switchBranch }, { projectGameSave, mergeSceneProjection }, { applySceneChoice }] = await Promise.all([
+    load("neutral-demo"),
+    load("scene-runtime"),
+    load("snapshot-manager"),
+    load("scene-save"),
+    load("scene-choice-service"),
+  ]);
+  const save = createNeutralDemoSave(2026, "2026-01-01T00:00:00.000Z");
+  const packageItem = save.scenePackages["test-chapter-1"];
+  let runtime = save.sceneRuntime;
+  while (runtime.status === "reading") runtime = transitionSceneRuntime(packageItem, runtime, { type: "NEXT" });
+  assert.equal(runtime.status, "awaiting_choice");
+
+  const checkpointed = appendSceneChoiceCheckpoint(save, {
+    chapterId: packageItem.chapterId,
+    packageId: packageItem.id,
+    packageVersion: packageItem.version,
+    sceneId: runtime.sceneId,
+    blockId: runtime.blockId,
+    runtime,
+    actions: [],
+    flags: {},
+    now: "2026-01-01T00:00:01.000Z",
+  });
+  const checkpointId = checkpointed.branches.main.headSnapshotId;
+  const forked = createBranchFromSceneCheckpoint(checkpointed, checkpointId, {
+    name: "中性测试分支",
+    now: "2026-01-01T00:00:02.000Z",
+  });
+  assert.notEqual(forked.activeBranchId, "main");
+  assert.equal(forked.sceneRuntime.status, "awaiting_choice");
+  assert.equal(forked.sceneActions.length, 0);
+  assert.equal(checkpointed.activeBranchId, "main");
+  assert.equal(checkpointed.sceneActions.length, 0);
+
+  const mainResponse = applySceneChoice({
+    projection: projectGameSave(checkpointed, checkpointed.sceneRuntime),
+    package: packageItem,
+    requestId: "neutral-main",
+    issuedAt: "2026-01-01T00:00:03.000Z",
+    expectedRevision: checkpointed.saveRevision,
+    choiceId: "A",
+  });
+  const branchResponse = applySceneChoice({
+    projection: projectGameSave(forked, forked.sceneRuntime),
+    package: packageItem,
+    requestId: "neutral-branch",
+    issuedAt: "2026-01-01T00:00:04.000Z",
+    expectedRevision: forked.saveRevision,
+    choiceId: "B",
+  });
+  assert.notDeepEqual(mainResponse.worldStateAfter.relationships, branchResponse.worldStateAfter.relationships);
+  const branchAfterChoice = mergeSceneProjection(forked, branchResponse.projectionAfter);
+  const backToMain = switchBranch(branchAfterChoice, "main", "2026-01-01T00:00:05.000Z");
+  assert.equal(backToMain.activeBranchId, "main");
+  assert.equal(backToMain.sceneRuntime.status, "awaiting_choice");
+  assert.equal(backToMain.sceneActions.length, 0);
+  assert.deepEqual(backToMain.worldState.relationships, checkpointed.worldState.relationships);
 });

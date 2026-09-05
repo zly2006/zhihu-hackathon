@@ -78,3 +78,47 @@ test("V2.2: 页面不新增第二条世界结算路径", () => {
   assert.ok(!/fetch\(["']\/api\/chapter\/(simulate|choices)/.test(summary), "章节对白页不得重复请求结算接口");
   assert.match(summary, /onContinue/);
 });
+
+test("V3: BranchPanel exposes branch switching and scene checkpoint fork actions", () => {
+  const source = read("components/life-vn/BranchPanel.tsx");
+  assert.match(source, /export function BranchPanel/);
+  assert.match(source, /onSwitchBranch/);
+  assert.match(source, /onCreateBranch/);
+  assert.match(source, /场景检查点/);
+});
+
+test("V3: live position persistence creates a checkpoint on reaching a choice", () => {
+  const source = read("components/life/LifeApp.tsx");
+  const demoPersistence = source.slice(
+    source.indexOf("const handleDemoPersistPosition"),
+    source.indexOf("const handleDemoSelect"),
+  );
+  const formalPersistence = source.slice(
+    source.indexOf("const handleFormalScenePersistPosition"),
+    source.indexOf("const handleFormalSceneSelect"),
+  );
+  const positionHelper = source.slice(
+    source.indexOf("function saveLiveScenePosition"),
+    source.indexOf("async function fetchDialogue"),
+  );
+  assert.match(demoPersistence, /status === "awaiting_choice"/);
+  assert.match(demoPersistence, /saveLiveScenePosition/);
+  assert.match(formalPersistence, /status === "awaiting_choice"/);
+  assert.match(formalPersistence, /saveLiveScenePosition/);
+  assert.match(positionHelper, /appendSceneChoiceCheckpoint/);
+});
+
+test("V3: branch controls are blocked while a scene choice is submitting", () => {
+  const source = read("components/life/LifeApp.tsx");
+  const demoBranchActions = source.slice(
+    source.indexOf("const handleDemoCreateBranch"),
+    source.indexOf("const handleFormalCreateBranch"),
+  );
+  const formalBranchActions = source.slice(
+    source.indexOf("const handleFormalCreateBranch"),
+    source.indexOf("const handleExitDemo"),
+  );
+  assert.match(demoBranchActions, /sceneRuntime\?\.status === "submitting"/);
+  assert.match(formalBranchActions, /sceneRuntime\?\.status === "submitting"/);
+  assert.match(source, /disabled=\{loading \|\| save\.sceneRuntime\.status === "submitting"\}/);
+});

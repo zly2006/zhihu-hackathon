@@ -99,6 +99,69 @@ test("scene checkpoints are sequence-aware and branch-isolated", async () => {
   assert.equal(switched.worldState.gameId, save.worldState.gameId);
 });
 
+test("switching back to a branch keeps its committed scene position replay-safe", async () => {
+  const [{ appendSceneChoiceCheckpoint, createBranchFromSceneCheckpoint, switchBranch }, { initializeSnapshotState }, { projectGameSave, mergeSceneProjection }, { applySceneChoice }, fixture] = await Promise.all([
+    load("snapshot-manager"),
+    load("snapshot-manager"),
+    load("scene-save"),
+    load("scene-choice-service"),
+    import(new URL("./fixtures/scene-runtime-fixture.mjs", import.meta.url).href),
+  ]);
+  const base = initializeSnapshotState({
+    schemaVersion: 1,
+    savedAt: "2026-01-01T00:00:00.000Z",
+    worldState: fixture.makeWorld(),
+    chapters: {},
+    events: {},
+    experienceCache: {},
+    activeBranchId: "main",
+    sceneActions: [],
+    sceneFlags: {},
+    saveRevision: 0,
+  });
+  const packageItem = fixture.makeScenePackage();
+  const beforeChoice = { ...fixture.makeProjection().runtime, status: "awaiting_choice" };
+  const checkpointed = appendSceneChoiceCheckpoint(base, {
+    chapterId: packageItem.chapterId,
+    packageId: packageItem.id,
+    packageVersion: packageItem.version,
+    sceneId: beforeChoice.sceneId,
+    blockId: beforeChoice.blockId,
+    runtime: beforeChoice,
+    actions: [],
+    flags: {},
+    sequence: 1,
+    now: "2026-01-01T00:00:01.000Z",
+  });
+  const branch = createBranchFromSceneCheckpoint(checkpointed, checkpointed.branches.main.headSnapshotId, { now: "2026-01-01T00:00:02.000Z" });
+  const response = applySceneChoice({
+    projection: projectGameSave(branch, branch.sceneRuntime),
+    package: packageItem,
+    requestId: "branch-choice",
+    issuedAt: "2026-01-01T00:00:03.000Z",
+    expectedRevision: branch.saveRevision,
+    choiceId: "A",
+  });
+  const afterChoice = mergeSceneProjection(branch, response.projectionAfter);
+  const checkpointedAfterChoice = appendSceneChoiceCheckpoint(afterChoice, {
+    chapterId: packageItem.chapterId,
+    packageId: packageItem.id,
+    packageVersion: packageItem.version,
+    sceneId: response.runtimeAfter.sceneId,
+    blockId: response.runtimeAfter.blockId,
+    runtime: response.runtimeAfter,
+    actions: afterChoice.sceneActions,
+    flags: afterChoice.sceneFlags,
+    sequence: 2,
+    now: "2026-01-01T00:00:04.000Z",
+  });
+  const main = switchBranch(checkpointedAfterChoice, "main", "2026-01-01T00:00:05.000Z");
+  const restoredBranch = switchBranch(main, branch.activeBranchId, "2026-01-01T00:00:06.000Z");
+  assert.equal(restoredBranch.sceneActions.length, 1);
+  assert.notEqual(restoredBranch.sceneRuntime.status, "awaiting_choice");
+  assert.equal(restoredBranch.sceneRuntime.selectedActionId, response.record.id);
+});
+
 test("rewriting a chapter preserves the active scene checkpoint metadata", async () => {
   const [{ appendSceneChoiceCheckpoint, refreshActiveSnapshot, getSnapshot }, { initializeSnapshotState }, fixture] = await Promise.all([
     load("snapshot-manager"),

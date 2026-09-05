@@ -37,6 +37,9 @@ export type AppendSnapshotOptions = {
   chapterId?: string;
   id?: SnapshotId;
   now?: string;
+  sceneRuntime?: SceneRuntimeState;
+  sceneActions?: SceneActionRecord[];
+  sceneFlags?: Record<string, boolean>;
 };
 
 export type AppendSceneChoiceCheckpointOptions = {
@@ -218,6 +221,9 @@ export function appendSnapshot(save: GameSave, options: AppendSnapshotOptions = 
     replayable: true,
     chapterId,
     now,
+    sceneRuntime: options.sceneRuntime,
+    sceneActions: options.sceneActions,
+    sceneFlags: options.sceneFlags,
   });
   const nextSnapshotIds = Array.from(new Set([...branch.snapshotIds, snapshot.id]));
   const nextBranch: GameBranch = {
@@ -443,6 +449,18 @@ function replaceSceneFieldsFromSnapshot(
   branchId: BranchId,
   now: string,
 ): GameSave {
+  const snapshotRuntime = snapshot.sceneRuntime ? clone(snapshot.sceneRuntime) : undefined;
+  const restoredRuntime = snapshotRuntime
+    ? snapshotRuntime.status === "submitting"
+      ? {
+          ...snapshotRuntime,
+          status: "error" as const,
+          branchId,
+          pendingAction: undefined,
+          errorCode: "SCENE_CHOICE_INTERRUPTED",
+        }
+      : { ...snapshotRuntime, branchId }
+    : undefined;
   const next: GameSave = {
     ...save,
     savedAt: now,
@@ -451,19 +469,7 @@ function replaceSceneFieldsFromSnapshot(
     chapters: clone(snapshot.chapterContent),
     events: clone(snapshot.events),
     experienceCache: clone(snapshot.experienceCache),
-    ...(snapshot.sceneRuntime
-      ? {
-          sceneRuntime: {
-            ...clone(snapshot.sceneRuntime),
-            branchId,
-            status: "awaiting_choice",
-            selectedActionId: undefined,
-            pendingAction: undefined,
-            feedbackNext: undefined,
-            errorCode: undefined,
-          },
-        }
-      : {}),
+    ...(restoredRuntime ? { sceneRuntime: restoredRuntime } : {}),
     ...(snapshot.sceneActions ? { sceneActions: clone(snapshot.sceneActions) } : {}),
     ...(snapshot.sceneFlags ? { sceneFlags: clone(snapshot.sceneFlags) } : {}),
   };
