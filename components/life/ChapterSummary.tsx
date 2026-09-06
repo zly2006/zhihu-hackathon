@@ -188,6 +188,7 @@ export function ChapterSummary({
       fallbackCharacter={protagonistCharacter}
       children={
         <DialogueBox
+          variant="subtitle"
           speaker={blockSpeaker()}
           copy={activeBlockText(activeBlock)}
           options={

@@ -59,6 +59,32 @@ test("V2.2: SceneStage 和 DialogueBox 接入可复用组件", () => {
   assert.match(box, /ChoicePanel/);
 });
 
+test("B repair: dialogue separates subtitle playback from macro decisions without truncating copy", () => {
+  const box = read("components/life-vn/DialogueBox.tsx");
+  const player = read("components/life-vn/SceneRuntimePlayer.tsx");
+  const app = read("components/life/LifeApp.tsx");
+  assert.match(box, /variant\?:\s*["']subtitle["']\s*\|\s*["']macro["']/);
+  assert.match(box, /展开全文|收起全文/);
+  assert.match(box, /life-vn-dialogue--\$\{variant\}/);
+  assert.match(player, /variant="subtitle"/);
+  const decision = app.slice(app.indexOf('if (screen === "decision"'), app.indexOf('if (screen === "chapter_summary"'));
+  assert.match(decision, /variant="macro"/);
+  assert.match(decision, /choice\.options\.map/);
+});
+
+test("B repair: macro decisions use the same stage-first dark gradient language as subtitles", () => {
+  const css = read("app/globals.css");
+  const macro = css.slice(css.indexOf(".life-vn-dialogue--macro"), css.indexOf("@media (max-width: 900px)", css.indexOf(".life-vn-dialogue--macro")));
+  assert.match(macro, /background:\s*linear-gradient\(to bottom, rgba\(18, 16, 15/);
+  assert.doesNotMatch(macro, /background:\s*rgba\(255, 250, 241/);
+});
+
+test("B repair: formal decision submission has a synchronous double-click guard", () => {
+  const app = read("components/life/LifeApp.tsx");
+  assert.match(app, /useRef/);
+  assert.match(app, /submissionInFlight\.current/);
+});
+
 test("V2.2: LifeApp 与 ChapterSummary 使用同一组 VN 面板", () => {
   const lifeApp = read("components/life/LifeApp.tsx");
   const summary = read("components/life/ChapterSummary.tsx");

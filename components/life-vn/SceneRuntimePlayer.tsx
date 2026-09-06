@@ -77,6 +77,7 @@ export function SceneRuntimePlayer({
       cueKey={block.id}
     >
       <DialogueBox
+        variant="subtitle"
         speaker={dialogue?.speaker}
         copy={copy}
         options={options}

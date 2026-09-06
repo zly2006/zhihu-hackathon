@@ -3108,6 +3108,238 @@ body {
   border: 0;
 }
 
+/* B: 四区壳层只保存展示偏好；边缘触发器不遮挡舞台或改写游戏状态。 */
+.life-vn-center {
+  position: relative;
+  min-width: 0;
+  min-height: 0;
+}
+.life-vn-top-collapsed {
+  grid-template-rows: 44px minmax(0, 1fr) 60px;
+}
+.life-vn-bottom-collapsed {
+  grid-template-rows: 64px minmax(0, 1fr) 48px;
+}
+.life-vn-top-collapsed.life-vn-bottom-collapsed {
+  grid-template-rows: 44px minmax(0, 1fr) 48px;
+}
+.life-vn-shell-global-toggle {
+  position: absolute;
+  z-index: 40;
+  top: 10px;
+  right: 58px;
+  min-width: 88px;
+  min-height: 40px;
+  padding: 6px 12px;
+  border: 1px solid rgba(216, 155, 88, 0.7);
+  border-radius: 8px;
+  color: var(--lv-gold-strong);
+  background: rgba(255, 250, 240, 0.82);
+}
+.life-vn-top-collapsed .life-vn-shell-global-toggle { top: 2px; }
+.life-vn-shell-edge {
+  z-index: 32;
+  min-width: 44px;
+  min-height: 44px;
+  border: 0;
+  color: #fff6e9;
+  background: rgba(55, 42, 32, 0.72);
+  font: 600 12px var(--lv-serif);
+  letter-spacing: 0.08em;
+}
+.life-vn-shell-edge-top,
+.life-vn-shell-edge-bottom {
+  display: grid;
+  place-items: center;
+  width: 100%;
+}
+.life-vn-panel.collapsed { background: transparent; }
+.life-vn-shell-edge-left,
+.life-vn-shell-edge-right {
+  display: flex;
+  width: 100%;
+  height: 100%;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  writing-mode: vertical-rl;
+}
+.life-vn-shell-edge-left span:first-child,
+.life-vn-shell-edge-right span:first-child { font-size: 20px; }
+.life-vn-top > .life-vn-panel-toggle,
+.life-vn-panel-head > .life-vn-panel-toggle {
+  width: 40px;
+  min-width: 40px;
+  height: 40px;
+  min-height: 40px;
+}
+.life-vn-dock {
+  grid-template-columns: repeat(6, minmax(0, 1fr)) 44px;
+}
+.life-vn-dock-collapse {
+  width: 44px;
+  min-width: 44px;
+  min-height: 44px;
+  border-left: 1px solid var(--lv-line) !important;
+  border-right: 0 !important;
+}
+.life-vn-dock-sheet {
+  position: absolute;
+  z-index: 30;
+  right: 8px;
+  bottom: 68px;
+  left: 8px;
+  max-height: 48%;
+  overflow: auto;
+  border: 1px solid var(--lv-gold-line);
+  border-radius: 12px;
+  padding: 12px;
+  background: var(--lv-surface);
+  box-shadow: var(--lv-shadow);
+}
+.life-vn-bottom-collapsed .life-vn-dock-sheet { bottom: 52px; }
+@media (max-width: 900px) {
+  .life-vn-app .life-vn-shell.life-vn-top-collapsed { grid-template-rows: 44px minmax(0, 1fr) 56px; }
+  .life-vn-app .life-vn-shell.life-vn-bottom-collapsed { grid-template-rows: 60px minmax(0, 1fr) 48px; }
+  .life-vn-app .life-vn-shell.life-vn-top-collapsed.life-vn-bottom-collapsed { grid-template-rows: 44px minmax(0, 1fr) 48px; }
+  .life-vn-app .life-vn-panel {
+    display: block;
+    position: absolute;
+    z-index: 24;
+    top: 0;
+    bottom: 0;
+    width: min(86vw, 360px);
+    box-shadow: 0 18px 42px rgba(44, 31, 18, 0.32);
+  }
+  .life-vn-app .life-vn-panel-left { left: 0; }
+  .life-vn-app .life-vn-panel-right { right: 0; }
+  .life-vn-app .life-vn-panel.collapsed {
+    width: 44px;
+    box-shadow: none;
+    background: transparent;
+  }
+  .life-vn-app .life-vn-panel-left.collapsed { left: 0; }
+  .life-vn-app .life-vn-panel-right.collapsed { right: 0; }
+  .life-vn-app .life-vn-dock {
+    grid-template-columns: repeat(6, minmax(64px, 1fr)) 44px;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .life-vn-app .life-vn-dock button { min-height: 52px; }
+  .life-vn-shell-global-toggle { top: 8px; right: 52px; min-width: 72px; min-height: 36px; padding: 4px 8px; font-size: 11px; }
+  .life-vn-dock-sheet { bottom: 64px; }
+}
+
+/* 标准对话是字幕层，不再以乳白大卡片遮住背景与角色；章节抉择另用 macro。 */
+.life-vn-dialogue--subtitle {
+  right: 0;
+  bottom: 0;
+  left: 0;
+  min-height: 0;
+  padding: clamp(30px, 8vh, 82px) clamp(18px, 5vw, 84px) clamp(12px, 2vh, 20px);
+  border: 0;
+  border-radius: 0;
+  color: #fffdf6;
+  background: linear-gradient(to bottom, transparent, rgba(18, 16, 15, 0.18) 18%, rgba(18, 16, 15, 0.86) 100%);
+  box-shadow: none;
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.life-vn-dialogue--subtitle .life-vn-speaker {
+  position: static;
+  display: inline-block;
+  min-width: 0;
+  margin-bottom: 7px;
+  padding: 3px 10px;
+  border: 0;
+  border-radius: 3px;
+  background: rgba(30, 23, 18, 0.68);
+  font-size: 13px;
+  text-shadow: 0 1px 2px #000;
+}
+.life-vn-dialogue--subtitle .life-vn-copy {
+  max-width: min(960px, 100%);
+  max-height: 5.7em;
+  margin: 0;
+  overflow: hidden;
+  color: #fffdf6;
+  font-size: clamp(16px, 1.45vw, 21px);
+  line-height: 1.42;
+  letter-spacing: 0.05em;
+  text-shadow: -1px -1px 0 rgba(0, 0, 0, 0.78), 1px -1px 0 rgba(0, 0, 0, 0.78), -1px 1px 0 rgba(0, 0, 0, 0.78), 1px 1px 0 rgba(0, 0, 0, 0.78), 0 3px 7px rgba(0, 0, 0, 0.86);
+}
+.life-vn-dialogue--subtitle .life-vn-copy.expanded { max-height: min(42vh, 22em); overflow: auto; }
+.life-vn-copy-toggle {
+  min-height: 32px;
+  margin-top: 3px;
+  padding: 3px 8px;
+  border: 0;
+  color: #fff4da;
+  background: transparent;
+  text-decoration: underline;
+  text-shadow: 0 1px 2px #000;
+}
+.life-vn-dialogue--subtitle .life-vn-choices {
+  max-width: 960px;
+  margin-top: 9px;
+  padding-top: 8px;
+  border-top-color: rgba(255,255,255,.3);
+}
+.life-vn-dialogue--subtitle .life-vn-choice {
+  border-color: rgba(255, 235, 203, 0.68);
+  color: #fffdf6;
+  background: rgba(34, 27, 21, 0.7);
+  text-shadow: 0 1px 2px #000;
+}
+.life-vn-dialogue--subtitle .life-vn-choice-copy small,
+.life-vn-dialogue--subtitle .life-vn-feedback { color: #ffe6c4; }
+.life-vn-dialogue--subtitle .life-vn-choice-key { color: #fff4df; border-color: #f1c17f; }
+.life-vn-dialogue--subtitle .life-vn-dialogue-foot { margin-top: 8px; }
+.life-vn-dialogue--subtitle .life-vn-continue { min-width: 112px; min-height: 38px; }
+.life-vn-dialogue--macro {
+  right: clamp(12px, 4%, 52px);
+  bottom: 0;
+  left: clamp(12px, 4%, 52px);
+  max-width: 1160px;
+  max-height: min(64vh, 620px);
+  margin: 0 auto 12px;
+  overflow: auto;
+  border: 1px solid rgba(255, 226, 185, 0.42);
+  border-bottom: 0;
+  border-radius: 14px 14px 0 0;
+  color: #fffdf6;
+  background: linear-gradient(to bottom, rgba(18, 16, 15, 0.32), rgba(18, 16, 15, 0.95) 34%, rgba(18, 16, 15, 0.98));
+  box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.16);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+}
+.life-vn-dialogue--macro .life-vn-copy {
+  margin-top: 5px;
+  color: #fffdf6;
+  font-size: clamp(15px, 1.32vw, 19px);
+  line-height: 1.65;
+  text-shadow: 0 2px 5px rgba(0, 0, 0, 0.86);
+}
+.life-vn-dialogue--macro .life-vn-choice {
+  border-color: rgba(255, 223, 178, 0.55);
+  color: #fffdf6;
+  background: rgba(57, 42, 29, 0.76);
+}
+.life-vn-dialogue--macro .life-vn-choice:hover,
+.life-vn-dialogue--macro .life-vn-choice[aria-pressed="true"] {
+  border-color: #f2ba70;
+  background: rgba(107, 70, 37, 0.9);
+}
+.life-vn-dialogue--macro .life-vn-choice-copy small,
+.life-vn-dialogue--macro .life-vn-feedback { color: #ffe5bf; }
+.life-vn-dialogue--macro .life-vn-choice-key { color: #fff0d7; border-color: #edba79; }
+@media (max-width: 900px) {
+  .life-vn-dialogue--subtitle { padding: 30px 14px 10px; }
+  .life-vn-dialogue--subtitle .life-vn-copy { font-size: 15px; line-height: 1.45; }
+  .life-vn-dialogue--subtitle .life-vn-choices { grid-template-columns: 1fr; }
+  .life-vn-dialogue--macro { right: 8px; bottom: 8px; left: 8px; max-height: 70%; padding: 20px 12px 12px; }
+}
+
 .life-vn-playback-controls {
   display: flex;
   gap: 8px;

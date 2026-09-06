@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useState, type Dispatch, type SetStateAction } from "react";
+import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import type { Character } from "@/lib/domain/character";
 import type {
   Chapter,
@@ -43,6 +43,17 @@ import { completePendingChapter, createPendingChapter, updatePendingChapterStage
 import { adaptDialogueScenes } from "@/lib/game/scene-adapter";
 import { getLiveSceneSession, hasLiveScene } from "@/lib/game/formal-scene-runtime";
 import { pendingSpan, recoverChapterChoice, recoverEvidenceBundle, recoverSelection } from "@/lib/game/pending-chapter";
+import {
+  beginChapterSubmission,
+  canRechooseChapterSubmission,
+  failChapterSubmission,
+  idleChapterSubmission,
+  commitChapterSubmission,
+  retryChapterSubmission,
+  toChapterSubmissionDiagnostic,
+  type ChapterSelectionInput,
+  type ChapterSubmissionState,
+} from "@/lib/game/chapter-submission";
 import { compileSceneActionContext } from "@/lib/game/scene-action-context";
 import { createSceneRuntime } from "@/lib/game/scene-runtime";
 import { findScene, DEFAULT_SCENE_ID, pickSceneForNovelScene } from "@/lib/game/scene-catalog";
@@ -401,7 +412,9 @@ export function LifeApp() {
   const [span, setSpan] = useState<ChapterSpan>(1);
   const [choice, setChoice] = useState<ChapterChoice | null>(null);
   const [choiceProgress, setChoiceProgress] = useState("");
-  const [selection, setSelection] = useState<{ optionId: "A" | "B" | "C" | "CUSTOM"; customAction?: string } | null>(null);
+  const [selection, setSelection] = useState<ChapterSelectionInput | null>(null);
+  const [submission, setSubmission] = useState<ChapterSubmissionState>(idleChapterSubmission);
+  const submissionInFlight = useRef(false);
   const [simulating, setSimulating] = useState(false);
   const [simProgress, setSimProgress] = useState("");
   const [simResult, setSimResult] = useState<SimulateResult | null>(null);
@@ -507,6 +520,7 @@ export function LifeApp() {
               selectedOptionId: selection?.optionId ?? null,
             }
           : null,
+        chapterSubmission: toChapterSubmissionDiagnostic(submission),
         activePlan: chapter?.narrative
           ? {
               theme: chapter.narrative.plan.theme,
@@ -562,7 +576,13 @@ export function LifeApp() {
         loading,
         error,
       });
-  }, [screen, save, choice, selection, loading, error, chapter, selectedSnapshotId, demoPackage, syntheticDemo]);
+  }, [screen, save, choice, selection, loading, error, chapter, selectedSnapshotId, demoPackage, syntheticDemo, submission]);
+
+  useEffect(() => {
+    if (submission.phase !== "idle") {
+      console.info("[chapter-submission]", toChapterSubmissionDiagnostic(submission));
+    }
+  }, [submission]);
 
   // 测试可观测接口（迭代方案 §10.2）：window.__lifeTest 跳过 VN 动效直达终态。
   // 供自动化截图/长流程回归使用；等价于全局 prefers-reduced-motion，幂等可恢复。
@@ -1215,6 +1235,7 @@ export function LifeApp() {
       const generated = await readSseComplete<{ choice: ChapterChoice }>(response, setChoiceProgress);
       setChoice(generated.choice);
       setSelection(null);
+      setSubmission(idleChapterSubmission);
       setSimResult(null);
       setChapter(null);
       setNovelPreview({ title: "", scenes: [] });
@@ -1231,8 +1252,29 @@ export function LifeApp() {
   }, [save, span]);
 
   const handleSelect = useCallback(
-    async (next: { optionId: "A" | "B" | "C" | "CUSTOM"; customAction?: string }) => {
+    async (next: ChapterSelectionInput) => {
       if (!save || !choice) return;
+      if (
+        submissionInFlight.current ||
+        submission.phase === "submitting" ||
+        submission.phase === "committed" ||
+        submission.phase === "presentation_failed"
+      ) return;
+      const retryingSameDecision =
+        submission.decisionId === choice.id &&
+        submission.selection?.optionId === next.optionId &&
+        submission.selection?.customAction === next.customAction;
+      const attempt = retryingSameDecision
+        ? retryChapterSubmission(submission, new Date().toISOString())
+        : beginChapterSubmission({
+            requestId: crypto.randomUUID(),
+            decisionId: choice.id,
+            selection: next,
+            startedAt: new Date().toISOString(),
+          });
+      if (attempt.phase !== "submitting") return;
+      submissionInFlight.current = true;
+      setSubmission(attempt);
       setSelection(next);
       setSimulating(true);
       setSimProgress("正在推演你的未来…");
@@ -1258,6 +1300,11 @@ export function LifeApp() {
         }
         const result = await readSseComplete<SimulateResult>(response, setSimProgress);
         setSimResult(result);
+        setSubmission((current) =>
+          current.requestId === attempt.requestId
+            ? commitChapterSubmission(current, { chapterId: result.chapterId, finishedAt: new Date().toISOString() })
+            : current,
+        );
 
         // 自动存档节点 4：先保存完整 pendingChapter，后续叙事阶段只更新同一执行 ID。
         const pending = createPendingChapter({
@@ -1534,6 +1581,7 @@ export function LifeApp() {
           const finalSave = appendSnapshot(completedWithPending, { chapterId: chapter.id, now: completedWithPending.savedAt });
           persist(finalSave);
           setSave(finalSave);
+          setSubmission(idleChapterSubmission);
           setScreen(liveRuntime ? "formal_scene" : "chapter_summary");
         } catch (err) {
           const message = err instanceof Error ? err.message : "小说生成失败";
@@ -1554,17 +1602,43 @@ export function LifeApp() {
               console.error("pending chapter error save failed", persistError);
             }
           }
+          setSubmission((current) =>
+            current.requestId === attempt.requestId
+              ? failChapterSubmission(current, { message, finishedAt: new Date().toISOString() })
+              : current,
+          );
+          setScreen("pending_recovery");
         } finally {
           setNovelLoading(false);
         }
       } catch (err) {
-        setError(err instanceof Error ? err.message : "世界推演失败");
+        const message = err instanceof Error ? err.message : "世界推演失败";
+        setError(message);
+        setSubmission((current) =>
+          current.requestId === attempt.requestId
+            ? failChapterSubmission(current, { message, finishedAt: new Date().toISOString() })
+            : current,
+        );
       } finally {
         setSimulating(false);
+        submissionInFlight.current = false;
       }
     },
-    [mode, save, choice, span],
+    [mode, save, choice, span, submission],
   );
+
+  const handleRetrySubmission = useCallback(() => {
+    if (!selection || !canRechooseChapterSubmission(submission)) return;
+    void handleSelect(selection);
+  }, [handleSelect, selection, submission]);
+
+  const handleRechooseSubmission = useCallback(() => {
+    if (!canRechooseChapterSubmission(submission)) return;
+    setSelection(null);
+    setSubmission(idleChapterSubmission);
+    setError("");
+    setSimProgress("");
+  }, [submission]);
 
   const handleRegenerateNovel = useCallback(async () => {
     if (!chapter || !simResult || !preWorld) return;
@@ -1618,6 +1692,7 @@ export function LifeApp() {
   const handleNextChapter = useCallback(() => {
     setChoice(null);
     setSelection(null);
+    setSubmission(idleChapterSubmission);
     setSimResult(null);
     setChapter(null);
     setPreWorld(null);
@@ -2019,7 +2094,11 @@ export function LifeApp() {
       );
     }
     const sceneDef = findScene(DEFAULT_SCENE_ID) as NonNullable<ReturnType<typeof findScene>>;
-    const options = choice.options.map((option) => ({ id: option.id, label: option.label }));
+    const options = choice.options.map((option) => ({
+      id: option.id,
+      label: option.label,
+      description: `${option.description} · ${option.strategyTag}`,
+    }));
     const feedback = selection
       ? ""
       : "选择将影响这一年的走向——你决定行动，系统决定后果。";
@@ -2062,6 +2141,7 @@ export function LifeApp() {
             activeCharacterId={decisionCharacter.id}
             children={
               <DialogueBox
+                variant="macro"
                 copy={choice.context}
                 options={selection ? undefined : options}
                 selectedOptionId={selection?.optionId ?? null}
@@ -2075,7 +2155,19 @@ export function LifeApp() {
                       ) : novelLoading ? (
                         <div className="life-vn-feedback">{planProgress || "正在把本章写成小说…"}</div>
                       ) : error ? (
-                        <div className="life-vn-error">{error}</div>
+                        <div className="life-vn-error" role="alert">
+                          <div>{error}</div>
+                          {canRechooseChapterSubmission(submission) && (
+                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                              <button type="button" className="life-vn-btn" onClick={handleRetrySubmission}>
+                                重试本次推演
+                              </button>
+                              <button type="button" className="life-vn-btn ghost" onClick={handleRechooseSubmission}>
+                                重新选择
+                              </button>
+                            </div>
+                          )}
+                        </div>
                       ) : null}
                       <StreamingNovelPreview
                         title={novelPreview.title}
@@ -2202,6 +2294,7 @@ export function LifeApp() {
             activeCharacterId={startCharacter.id}
             children={
               <DialogueBox
+                variant="subtitle"
                 copy={`${hero?.identity.name ?? "你"}，${hero?.state.age ?? 18} 岁，在${hero?.state.city || "一座城市"}开始了新的人生。选择本章跨度，然后开始这一章。`}
                 children={
                   <div style={{ display: "grid", gap: 10 }}>
