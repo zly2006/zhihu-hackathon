@@ -13,7 +13,16 @@ import type { SceneActionRecord, SceneRuntimeState } from "../domain/scene";
 
 export const MAIN_BRANCH_ID: BranchId = "main";
 
-type SnapshotSource = Pick<GameSave, "worldState" | "chapters" | "events" | "experienceCache">;
+type SnapshotSource = Pick<
+  GameSave,
+  | "worldState"
+  | "chapters"
+  | "events"
+  | "experienceCache"
+  | "scenePackages"
+  | "zhaoLeng"
+  | "narrativeRuntime"
+>;
 
 export type CreateSnapshotOptions = {
   branchId: BranchId;
@@ -31,6 +40,9 @@ export type CreateSnapshotOptions = {
   sceneRuntime?: SceneRuntimeState;
   sceneActions?: SceneActionRecord[];
   sceneFlags?: Record<string, boolean>;
+  scenePackages?: GameSave["scenePackages"];
+  zhaoLeng?: GameSave["zhaoLeng"];
+  narrativeRuntime?: GameSave["narrativeRuntime"];
 };
 
 export type AppendSnapshotOptions = {
@@ -146,6 +158,9 @@ export function createWorldSnapshot(source: SnapshotSource, options: CreateSnaps
     ...(options.sceneRuntime ? { sceneRuntime: clone(options.sceneRuntime) } : {}),
     ...(options.sceneActions ? { sceneActions: clone(options.sceneActions) } : {}),
     ...(options.sceneFlags ? { sceneFlags: clone(options.sceneFlags) } : {}),
+    ...(source.scenePackages ? { scenePackages: clone(source.scenePackages) } : {}),
+    ...(source.zhaoLeng ? { zhaoLeng: clone(source.zhaoLeng) } : {}),
+    ...(source.narrativeRuntime ? { narrativeRuntime: clone(source.narrativeRuntime) } : {}),
   };
 }
 
@@ -472,8 +487,14 @@ function replaceSceneFieldsFromSnapshot(
     ...(restoredRuntime ? { sceneRuntime: restoredRuntime } : {}),
     ...(snapshot.sceneActions ? { sceneActions: clone(snapshot.sceneActions) } : {}),
     ...(snapshot.sceneFlags ? { sceneFlags: clone(snapshot.sceneFlags) } : {}),
+    ...(snapshot.scenePackages ? { scenePackages: clone(snapshot.scenePackages) } : {}),
+    ...(snapshot.zhaoLeng ? { zhaoLeng: clone(snapshot.zhaoLeng) } : {}),
+    ...(snapshot.narrativeRuntime ? { narrativeRuntime: clone(snapshot.narrativeRuntime) } : {}),
   };
   if (!snapshot.sceneRuntime) delete next.sceneRuntime;
+  if (!snapshot.scenePackages) delete next.scenePackages;
+  if (!snapshot.zhaoLeng) delete next.zhaoLeng;
+  if (!snapshot.narrativeRuntime) delete next.narrativeRuntime;
   return next;
 }
 

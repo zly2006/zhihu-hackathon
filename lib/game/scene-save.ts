@@ -228,11 +228,13 @@ export function projectGameSave(
     actions: clone(actions),
     flags: clone(flags),
     revision: save.saveRevision ?? 0,
+    ...(save.zhaoLeng ? { zhaoLeng: clone(save.zhaoLeng) } : {}),
+    ...(save.narrativeRuntime ? { narrativeRuntime: clone(save.narrativeRuntime) } : {}),
   };
 }
 
 export function mergeSceneProjection(save: GameSave, projection: SceneSaveProjection): GameSave {
-  return {
+  const next: GameSave = {
     ...clone(save),
     worldState: clone(projection.worldState),
     chapters: clone(projection.chapters),
@@ -244,4 +246,9 @@ export function mergeSceneProjection(save: GameSave, projection: SceneSaveProjec
     sceneFlags: clone(projection.flags),
     saveRevision: projection.revision,
   };
+  if (projection.zhaoLeng) next.zhaoLeng = clone(projection.zhaoLeng);
+  else delete next.zhaoLeng;
+  if (projection.narrativeRuntime) next.narrativeRuntime = clone(projection.narrativeRuntime);
+  else delete next.narrativeRuntime;
+  return next;
 }

@@ -2,9 +2,9 @@ import { NextResponse } from "next/server";
 import type { ChapterDecision } from "@/lib/domain/chapter";
 import type { SimulationEvent } from "@/lib/domain/simulation";
 import type { WorldState } from "@/lib/domain/world";
-import { buildNarrativeDirectorBrief } from "@/lib/game/narrative-director";
-import { planNpcAgentDirectives, toPublicNpcAgentTrace } from "@/lib/game/npc-agent";
-import { planNpcProactiveEvents } from "@/lib/game/npc-proactive-event-policy";
+import { buildNarrativeExperience } from "@/lib/game/narrative-experience-service";
+
+// buildNarrativeExperience 统一调用 planNpcProactiveEvents，并通过 toPublicNpcAgentTrace 输出公开投影。
 
 // V3.3 的只读叙事预览接口。
 // 前端显示主动消息后，应把玩家回应作为下一次既有 /api/chapter/simulate 的 action 提交；
@@ -68,33 +68,7 @@ function parseRequest(value: unknown): NarrativeExperienceRequest {
 export async function POST(request: Request) {
   try {
     const input = parseRequest(await request.json());
-    const span = input.span ?? 1;
-    const directives = planNpcAgentDirectives({
-      chapterId: input.chapterId,
-      world: input.state,
-      decision: input.decision,
-      startYear: input.state.currentYear,
-      endYear: input.state.currentYear + span,
-    });
-    const directorBrief = buildNarrativeDirectorBrief({
-      chapterId: input.chapterId,
-      world: input.state,
-      events: input.recentEvents ?? [],
-      decision: input.decision,
-      span,
-      startYear: input.state.currentYear,
-      endYear: input.state.currentYear + span,
-    });
-    return NextResponse.json({
-      proactiveEvents: planNpcProactiveEvents({
-        world: input.state,
-        directives,
-        deliveredDirectiveIds: input.deliveredDirectiveIds,
-      }),
-      publicDirectives: directives.map(toPublicNpcAgentTrace),
-      directorBrief,
-      pacing: directorBrief.pacing,
-    });
+    return NextResponse.json(buildNarrativeExperience(input));
   } catch (error) {
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "叙事预览请求无效" },

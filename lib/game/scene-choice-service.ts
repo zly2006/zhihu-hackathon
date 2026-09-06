@@ -143,6 +143,7 @@ export function applySceneChoice(
       currentYear: projection.worldState.currentYear,
       chapterId: projection.runtime.chapterId,
       checkAvailability: false,
+      scope: pkg.chapterId === "zhao-leng-demo-session" ? "zhao-leng-demo" : "general",
     });
     const resolved = resolveSceneChoice({
       world: projection.worldState,
@@ -151,12 +152,14 @@ export function applySceneChoice(
       flags: projection.flags,
       choiceId: request.choiceId,
       actionId,
+      scope: normalizedPackage.chapterId === "zhao-leng-demo-session" ? "zhao-leng-demo" : "general",
     });
     validateSceneEvent(resolved.event, {
       world: projection.worldState,
       package: normalizedPackage,
       runtime: projection.runtime,
       actionId,
+      scope: normalizedPackage.chapterId === "zhao-leng-demo-session" ? "zhao-leng-demo" : "general",
     });
     const now = dependencies.now ?? request.issuedAt;
     const output: WorldSimulationOutput = {
@@ -203,6 +206,7 @@ export function applySceneChoice(
       runtime: projection.runtime,
       actionId,
       record,
+      scope: normalizedPackage.chapterId === "zhao-leng-demo-session" ? "zhao-leng-demo" : "general",
     });
     const runtimeAfter = buildRuntimeAfter(normalizedPackage, projection, record);
     const projectionAfter: SceneSaveProjection = {
@@ -215,6 +219,8 @@ export function applySceneChoice(
       actions: [...clone(projection.actions ?? []), clone(record)],
       flags: clone(resolved.flagsAfter),
       revision: projection.revision + 1,
+      ...(projection.zhaoLeng ? { zhaoLeng: clone(projection.zhaoLeng) } : {}),
+      ...(projection.narrativeRuntime ? { narrativeRuntime: clone(projection.narrativeRuntime) } : {}),
     };
     return {
       requestId: request.requestId,

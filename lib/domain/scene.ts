@@ -6,6 +6,7 @@ import type { DialogueBlock, DialogueCharacter, DialogueChoiceId } from "./dialo
 import type { RelationshipScores } from "./relationship";
 import type { SimulationEvent } from "./simulation";
 import type { WorldState } from "./world";
+import type { NarrativeRuntimeState, ZhaoLengRuntimeState } from "./zhao-leng-runtime";
 
 export type SceneMode = "retrospective" | "live";
 
@@ -174,6 +175,8 @@ export type SceneSaveProjection = Pick<
   actions: SceneActionRecord[];
   flags: Record<string, boolean>;
   revision: number;
+  zhaoLeng?: ZhaoLengRuntimeState;
+  narrativeRuntime?: NarrativeRuntimeState;
 };
 
 export type SceneChoiceRequest = {

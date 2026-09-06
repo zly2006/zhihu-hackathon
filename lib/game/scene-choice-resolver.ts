@@ -26,6 +26,7 @@ export type ResolveSceneChoiceInput = {
   flags: Record<string, boolean>;
   choiceId: "A" | "B" | "C";
   actionId: string;
+  scope?: "general" | "zhao-leng-demo";
 };
 
 export type ResolvedSceneChoice = {
@@ -76,6 +77,9 @@ export function resolveSceneChoice(input: ResolveSceneChoiceInput): ResolvedScen
   const choice = findChoice(input);
   const rule = getSceneChoiceRule(choice.ruleId);
   if (!rule) throw new SceneChoiceResolutionError("UNKNOWN_RULE", `未注册场景规则：${choice.ruleId}`);
+  if (rule.scope && input.scope !== rule.scope) {
+    throw new SceneChoiceResolutionError("RULE_SCOPE_FORBIDDEN", `规则 ${choice.ruleId} 不允许用于当前场景范围`);
+  }
   const requirements = evaluateSceneRequirements(choice.requirements, input.world, input.flags);
   if (!requirements.ok) throw new SceneChoiceResolutionError("CHOICE_LOCKED", "当前状态尚未满足该选择的公开前置条件", requirements.reasons);
   const relationship = applyRelationshipDelta(input.world, choice.targetCharacterId, rule);

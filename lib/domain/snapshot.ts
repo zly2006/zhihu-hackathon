@@ -8,6 +8,8 @@ import type { SimulationEvent } from "./simulation";
 import type { LifeExperience } from "./experience";
 import type { WorldState } from "./world";
 import type { SceneActionRecord, SceneRuntimeState } from "./scene";
+import type { ScenePackage } from "./scene";
+import type { NarrativeRuntimeState, ZhaoLengRuntimeState } from "./zhao-leng-runtime";
 
 export type SnapshotId = string;
 export type BranchId = string;
@@ -45,6 +47,9 @@ export type WorldSnapshot = {
   sceneRuntime?: SceneRuntimeState;
   sceneActions?: SceneActionRecord[];
   sceneFlags?: Record<string, boolean>;
+  scenePackages?: Record<string, ScenePackage>;
+  zhaoLeng?: ZhaoLengRuntimeState;
+  narrativeRuntime?: NarrativeRuntimeState;
 };
 export type GameBranch = {
   id: BranchId;

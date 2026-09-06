@@ -12,6 +12,7 @@ import type {
   SceneTarget,
 } from "../domain/scene";
 import type { WorldState } from "../domain/world";
+import { getSceneChoiceRule } from "./scene-choice-rules";
 
 export const DEFAULT_SCENE_RULE_IDS = new Set([
   "listen_without_promise",
@@ -22,6 +23,7 @@ export const DEFAULT_SCENE_RULE_IDS = new Set([
   "honest_talk",
   "move_forward",
   "separate_paths",
+  "zhao_leng_press_help",
 ]);
 
 export type SceneValidationContext = {
@@ -32,6 +34,7 @@ export type SceneValidationContext = {
   knownRuleIds?: Iterable<string>;
   knownEventIds?: Iterable<string>;
   checkAvailability?: boolean;
+  scope?: "general" | "zhao-leng-demo";
 };
 
 export class ScenePackageValidationError extends Error {
@@ -301,6 +304,10 @@ function validateBlock(
     if (scene.mode !== "live") fail(`${path}.content`, "retrospective_choice", "回顾场景不能包含可执行选择");
     const ruleId = stableId(rawChoice.ruleId, `${choicePath}.ruleId`);
     if (!ruleIds.has(ruleId)) fail(`${choicePath}.ruleId`, "unknown_rule", `未注册场景规则 ${ruleId}`);
+    const rule = getSceneChoiceRule(ruleId);
+    if (rule?.scope && context.scope !== rule.scope) {
+      fail(`${choicePath}.ruleId`, "rule_scope_forbidden", `规则 ${ruleId} 不允许用于当前场景范围`);
+    }
     const targetCharacterId = rawChoice.targetCharacterId === undefined ? undefined : stableId(rawChoice.targetCharacterId, `${choicePath}.targetCharacterId`);
     if (targetCharacterId && !characterIds.has(targetCharacterId)) fail(`${choicePath}.targetCharacterId`, "unknown_character", `场景中不存在目标角色 ${targetCharacterId}`);
     if (!Array.isArray(rawChoice.requirements)) fail(`${choicePath}.requirements`, "invalid_requirement", "必须是数组");

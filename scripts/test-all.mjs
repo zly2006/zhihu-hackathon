@@ -60,6 +60,12 @@ const suites = [
   { file: "test/v3-neutral-fixture.test.mjs", env: "V3_TEST_DIR" },
   { file: "test/v3-scene-trigger.test.mjs", env: "V3_TEST_DIR" },
   { file: "test/v3-scene-recovery.test.mjs", env: "V3_TEST_DIR" },
+  { file: "test/zhao-leng-runtime.test.mjs", env: "ZHAO_LENG_RUNTIME_TEST_DIR" },
+  { file: "test/zhao-leng-save.test.mjs", env: "ZHAO_LENG_SAVE_TEST_DIR" },
+  { file: "test/zhao-leng-progress.test.mjs", env: "ZHAO_LENG_PROGRESS_TEST_DIR" },
+  { file: "test/narrative-experience-integration.test.mjs", env: "NARRATIVE_EXPERIENCE_TEST_DIR" },
+  { file: "test/zhao-leng-writer.test.mjs", env: "ZHAO_LENG_WRITER_TEST_DIR" },
+  { file: "test/zhao-leng-session.test.mjs", env: "ZHAO_LENG_SESSION_TEST_DIR" },
   { file: "test/v33-narrative-quality.test.mjs", env: "V33_TEST_DIR" },
 ];
 

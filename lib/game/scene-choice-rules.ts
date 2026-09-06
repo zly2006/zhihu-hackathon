@@ -3,6 +3,7 @@ import type { RelationshipScores } from "../domain/relationship";
 
 export type SceneChoiceRule = {
   ruleId: string;
+  scope?: "general" | "zhao-leng-demo";
   domain: LifeDomain;
   title: string;
   summary: string;
@@ -91,6 +92,17 @@ const rules: SceneChoiceRule[] = [
     feedback: "你们承认方向不同，各自前进也成为一条诚实的结果。",
     scoreDelta: { conflict: -1, commitment: -5 },
     flags: { separatePaths: true },
+    requiresTargetRelationship: true,
+  },
+  {
+    ruleId: "zhao_leng_press_help",
+    scope: "zhao-leng-demo",
+    domain: "friendship",
+    title: "坚持替对方完成已被拒绝的帮助",
+    summary: "赵冷已说明希望自己完成结论，主角仍坚持替她补完。",
+    feedback: "赵冷收回笔记，这次帮助没有得到她的接受。",
+    scoreDelta: { closeness: -2, trust: -4, conflict: 4 },
+    flags: {},
     requiresTargetRelationship: true,
   },
 ];

@@ -23,7 +23,7 @@ export type ModelProgress = {
 };
 
 export type ModelMessage = ModelConversationMessage;
-type CallOptions = {
+export type CallOptions = {
   onProgress?: (progress: ModelProgress) => void;
   onToken?: (token: string) => void;
   signal?: AbortSignal;
@@ -34,6 +34,11 @@ type CallOptions = {
   maxTokens?: number;
   timeoutMs?: number;
   responseFormat?: "json" | "text";
+  /** Set to 0 for a single transport attempt. Undefined keeps legacy retry policy. */
+  maxTransportRetries?: number;
+  /** Demo writers use metadata-only audit logs so prompts and model output never persist. */
+  logMode?: "metadata" | "full";
+  auditMetadata?: Record<string, string | number | boolean | null | undefined>;
 };
 function environment(name: string) {
   return process.env[name];
@@ -342,9 +347,14 @@ export async function callGameModel<T>(
     const isUsageLimit = isRateLimit && /UsageLimit|usage limit|balance/i.test(rawHttpResponse);
     const usageResetHint = rawHttpResponse.match(/Resets? in ([^."\]]+)/i)?.[1];
     const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const retryAllowed = (defaultLimit: number) =>
+      !options.signal?.aborted &&
+      (options.maxTransportRetries === undefined
+        ? retryAttempt < defaultLimit
+        : retryAttempt < options.maxTransportRetries);
     if (error instanceof Error && error.name === "AbortError" && slowStreamDetected) {
       terminalError = "DeepSeek API 持续超过 10 秒且速度低于 10 token/s";
-      if (retryAttempt < 1 && !options.signal?.aborted) {
+      if (retryAllowed(1)) {
         options.onProgress?.({
           stage: "retrying",
           elapsedMs: Math.round(performance.now() - startedClock),
@@ -364,7 +374,7 @@ export async function callGameModel<T>(
       }
     } else if (error instanceof Error && error.name === "AbortError") {
       terminalError = options.signal?.aborted ? "大模型请求已取消" : "大模型请求超时";
-    } else if (transientStreamError && retryAttempt < 1 && !options.signal?.aborted) {
+    } else if (transientStreamError && retryAllowed(1)) {
       // 网关中断：整次调用重试一次（不携带"修正"语义，避免与校验重试混淆）
       terminalError = "模型服务连接中断，正在自动重试";
       options.onProgress?.({
@@ -388,7 +398,7 @@ export async function callGameModel<T>(
       terminalError = usageResetHint
         ? `模型用量已达上限，约 ${usageResetHint} 后重置；如需立即继续请到 opencode.ai 工作区启用余额`
         : "模型用量已达上限，请稍后再试或到 opencode.ai 工作区启用余额";
-    } else if (isRateLimit && retryAttempt < 2 && !options.signal?.aborted) {
+    } else if (isRateLimit && retryAllowed(2)) {
       // 限流退避：首次等 8s、二次等 25s，然后再整次调用
       const waitMs = retryAttempt === 0 ? 8000 : 25_000;
       terminalError = `模型服务繁忙（HTTP 429），等待 ${Math.round(waitMs / 1000)} 秒后自动重试`;
@@ -424,7 +434,7 @@ export async function callGameModel<T>(
     clearInterval(slowStreamMonitor);
     options.signal?.removeEventListener("abort", abortFromCaller);
     const endedAt = new Date();
-    const log = [
+    const audit = [
       "LLM CALL AUDIT",
       `purpose: ${purpose}`,
       `provider: ${provider.provider}`,
@@ -443,23 +453,29 @@ export async function callGameModel<T>(
       `token_count_estimated: ${tokenCountEstimated}`,
       `tokens_per_second: ${tokensPerSecond}`,
       `error: ${terminalError || "none"}`,
-      "",
-      "===== SYSTEM PROMPT =====",
-      system,
-      "",
-      "===== FULL APPEND-ONLY CONVERSATION =====",
-      messages.map((message) => `${message.role.toUpperCase()}:\n${message.content}`).join("\n\n"),
-      "",
-      "===== RAW HTTP RESPONSE =====",
-      rawHttpResponse || "<empty>",
-      "",
-      "===== MODEL CONTENT =====",
-      modelContent || "<empty>",
-      "",
-      "===== PARSED RESPONSE =====",
-      parsedResponse === null ? "<unavailable>" : JSON.stringify(parsedResponse, null, 2),
-      "",
-    ].join("\n");
+      ...Object.entries(options.auditMetadata ?? {}).map(([key, value]) => `meta_${key}: ${value ?? "n/a"}`),
+    ];
+    const log = options.logMode === "metadata"
+      ? [...audit, "", "metadata_only: true", ""].join("\n")
+      : [
+          ...audit,
+          "",
+          "===== SYSTEM PROMPT =====",
+          system,
+          "",
+          "===== FULL APPEND-ONLY CONVERSATION =====",
+          messages.map((message) => `${message.role.toUpperCase()}:\n${message.content}`).join("\n\n"),
+          "",
+          "===== RAW HTTP RESPONSE =====",
+          rawHttpResponse || "<empty>",
+          "",
+          "===== MODEL CONTENT =====",
+          modelContent || "<empty>",
+          "",
+          "===== PARSED RESPONSE =====",
+          parsedResponse === null ? "<unavailable>" : JSON.stringify(parsedResponse, null, 2),
+          "",
+        ].join("\n");
     fs.writeFileSync(logPath, log, { encoding: "utf8", mode: 0o600 });
   }
 }

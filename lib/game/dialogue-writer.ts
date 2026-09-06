@@ -15,6 +15,7 @@ import type { SimulationEvent } from "../domain/simulation";
 import type { WorldState } from "../domain/world";
 import { resolveAvatarUrl } from "./avatar-registry";
 import { buildDialogueVoiceCards } from "./dialogue-voice-card";
+import { assertNoPrivateNarrativeLeak } from "./public-narrative-guard";
 import { SCENES, findScene, pickSceneForNovelScene } from "./scene-catalog";
 
 export type DialogueWriterInput = {
@@ -200,23 +201,6 @@ function describeVoiceCards(input: DialogueWriterInput): string {
       ].join("\n"),
     )
     .join("\n");
-}
-
-function assertNoPrivateDialogueLeak(dialogue: DialogueScene[], input: DialogueWriterInput): void {
-  const privateTexts = Object.values(input.world.characters)
-    .flatMap((character) => [
-      ...(character.privateState?.hiddenGoals ?? []),
-      ...(character.privateState?.hiddenConcerns ?? []),
-      ...(character.privateState?.privateBeliefs ?? []),
-    ])
-    .map((text) => text.trim())
-    .filter((text) => text.length >= 4);
-  const rendered = JSON.stringify(dialogue);
-  for (const secret of privateTexts) {
-    if (rendered.includes(secret)) {
-      throw new Error(`Dialogue 泄漏 NPC 私密状态：${secret.slice(0, 30)}…`);
-    }
-  }
 }
 
 export function buildDialoguePrompt(input: DialogueWriterInput): string {
@@ -418,7 +402,7 @@ export function parseDialogue(modeled: unknown, input: DialogueWriterInput): Dia
     }
     return parsedScene;
   });
-  assertNoPrivateDialogueLeak(dialogue, input);
+  assertNoPrivateNarrativeLeak(dialogue, input.world, "Dialogue");
   return dialogue;
 }
 

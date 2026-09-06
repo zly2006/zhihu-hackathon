@@ -2,6 +2,7 @@
 // 只生成当前章节的公开互动表现，不拥有 WorldState，也不直接结算选择后果。
 
 import { callGameModel } from "../llm";
+import { assertNoPrivateNarrativeLeak } from "./public-narrative-guard";
 import type { Character } from "../domain/character";
 import type { Chapter } from "../domain/chapter";
 import type { NarrativePlan } from "../domain/narrative";
@@ -449,6 +450,7 @@ function normalizeRequirements(value: unknown[], path: string): SceneRequirement
 }
 
 export function parseLiveScenePackage(value: unknown, input: LiveSceneGenerationInput): ScenePackage {
+  assertNoPrivateNarrativeLeak(value, input.world, "live 场景");
   if (input.world.currentYear !== input.chapter.endYear) {
     throw new Error(`live 场景生成要求 WorldState 当前年份 ${input.world.currentYear} 等于章节结束年 ${input.chapter.endYear}`);
   }
@@ -524,6 +526,7 @@ export function parseLiveScenePackage(value: unknown, input: LiveSceneGeneration
     knownRuleIds: listSceneChoiceRuleIds(),
     knownEventIds: input.events.map((event) => event.id),
     checkAvailability: true,
+    scope: "general",
   });
 }
 

@@ -64,6 +64,7 @@ function validateCandidate(input: EnqueueSceneTriggerInput): void {
     chapterId: input.candidate.package.chapterId,
     knownEventIds: input.world.canonicalEventIds,
     checkAvailability: false,
+    scope: input.candidate.package.chapterId === "zhao-leng-demo-session" ? "zhao-leng-demo" : "general",
   });
   if (input.candidate.package.scenes.some((scene) => scene.mode !== "live")) {
     throw new Error("主动场景包必须全部是 live 内容");

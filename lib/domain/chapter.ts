@@ -16,6 +16,7 @@ import type {
 } from "./scene";
 import type { PublicSceneActionContext } from "../game/scene-action-context";
 import type { WorldSimulationOutput } from "./simulation";
+import type { NarrativeRuntimeState, ZhaoLengRuntimeState } from "./zhao-leng-runtime";
 
 export type PendingChapterStage = "simulated" | "plan" | "reflection" | "novel" | "dialogue" | "live_scene" | "ready" | "error";
 
@@ -176,4 +177,8 @@ export type GameSave = {
   scenePackages?: Record<string, ScenePackage>;
   pendingChapter?: PendingChapter;
   saveRevision?: number;
+
+  // 赵冷 Demo / Narrative Agent 增量字段，旧存档缺失时保持原有玩法语义。
+  zhaoLeng?: ZhaoLengRuntimeState;
+  narrativeRuntime?: NarrativeRuntimeState;
 };

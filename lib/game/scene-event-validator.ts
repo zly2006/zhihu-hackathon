@@ -20,6 +20,7 @@ export type SceneEventValidationContext = {
   runtime?: SceneRuntimeState;
   record?: Pick<SceneActionRecord, "id" | "eventIds" | "chapterId" | "packageId" | "packageVersion" | "sceneId" | "blockId" | "ruleId">;
   actionId?: string;
+  scope?: "general" | "zhao-leng-demo";
 };
 
 function reject(code: string, message: string): never {
@@ -30,7 +31,11 @@ export function validateSceneEvent(event: SimulationEvent, context: SceneEventVa
   if (!event || typeof event !== "object") reject("INVALID_EVENT", "场景事件不是对象");
   const source = event.source;
   if (!source || source.kind !== "scene_choice") reject("MISSING_SOURCE", "场景事件缺少 scene_choice source");
-  if (!getSceneChoiceRule(source.ruleId)) reject("UNKNOWN_RULE", `未注册规则 ${source.ruleId}`);
+  const rule = getSceneChoiceRule(source.ruleId);
+  if (!rule) reject("UNKNOWN_RULE", `未注册规则 ${source.ruleId}`);
+  if (rule.scope === "zhao-leng-demo" && context.scope !== "zhao-leng-demo") {
+    reject("RULE_SCOPE_FORBIDDEN", `规则 ${source.ruleId} 只允许用于赵冷 Demo`);
+  }
   if (source.packageId !== context.package.id || source.packageVersion !== context.package.version) reject("PACKAGE_MISMATCH", "事件包版本与当前场景不一致");
   if (context.runtime && (source.sceneId !== context.runtime.sceneId || source.blockId !== context.runtime.blockId)) reject("POSITION_MISMATCH", "事件位置与当前运行时不一致");
   if (context.actionId && source.actionId !== context.actionId) reject("ACTION_MISMATCH", "事件 actionId 不匹配");

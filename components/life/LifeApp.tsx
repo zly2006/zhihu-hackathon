@@ -1763,6 +1763,9 @@ export function LifeApp() {
                 继续上一次人生
               </button>
             )}
+            <a href="/life/zhao-leng" className="life-vn-btn ghost" style={{ textAlign: "center", textDecoration: "none" }}>
+              进入赵冷剧情 Demo
+            </a>
           </div>
           {error && <div className="life-vn-error" style={{ marginTop: 16 }}>{error}</div>}
         </div>
