@@ -7,6 +7,7 @@ import type { NarrativeDirectorBrief, NarrativeDirectorTrigger } from "../domain
 import type { ChapterSpan } from "../domain/shared";
 import type { SimulationEvent } from "../domain/simulation";
 import type { WorldState } from "../domain/world";
+import { deriveNarrativePacing } from "./narrative-pacing";
 
 export type NarrativeDirectorBriefInput = {
   chapterId: string;
@@ -46,10 +47,16 @@ function eventScore(event: SimulationEvent, protagonistId: string): number {
   );
 }
 
-function chooseTrigger(event: SimulationEvent | undefined, decision: ChapterDecision): NarrativeDirectorTrigger {
+function chooseTrigger(
+  event: SimulationEvent | undefined,
+  decision: ChapterDecision,
+): NarrativeDirectorTrigger {
   if (event?.causes.some((cause) => cause.type === "npc_goal")) return "npc_goal";
   if (event?.relationshipChanges.length) return "relationship";
-  if (event?.causes.some((cause) => cause.type === "player_choice") || decision.normalizedAction.trim()) {
+  if (
+    event?.causes.some((cause) => cause.type === "player_choice") ||
+    decision.normalizedAction.trim()
+  ) {
     return "player_choice";
   }
   return "canonical_event";
@@ -57,7 +64,9 @@ function chooseTrigger(event: SimulationEvent | undefined, decision: ChapterDeci
 
 function chooseFocusCharacter(event: SimulationEvent | undefined, world: WorldState): string {
   const protagonistId = world.protagonistId;
-  const eventCharacter = event?.participantIds.find((id) => id !== protagonistId && world.characters[id]);
+  const eventCharacter = event?.participantIds.find(
+    (id) => id !== protagonistId && world.characters[id],
+  );
   return eventCharacter ?? protagonistId;
 }
 
@@ -65,12 +74,18 @@ function chooseFocusThreads(focusCharacterId: string, world: WorldState): string
   const openThreads = world.openThreads
     .filter((thread) => thread.status === "open")
     .sort((left, right) => right.urgency - left.urgency || left.id.localeCompare(right.id));
-  const related = openThreads.filter((thread) => thread.relatedCharacterIds.includes(focusCharacterId));
+  const related = openThreads.filter((thread) =>
+    thread.relatedCharacterIds.includes(focusCharacterId),
+  );
   const candidates = related.length ? related : openThreads;
   return candidates.slice(0, 2).map((thread) => thread.id);
 }
 
-function chooseTension(event: SimulationEvent | undefined, focusThreads: string[], world: WorldState): NarrativeDirectorBrief["tensionLevel"] {
+function chooseTension(
+  event: SimulationEvent | undefined,
+  focusThreads: string[],
+  world: WorldState,
+): NarrativeDirectorBrief["tensionLevel"] {
   if (!event && !focusThreads.length) return "quiet";
   const threadPressure = focusThreads.some((threadId) => {
     const thread = world.openThreads.find((item) => item.id === threadId);
@@ -106,7 +121,9 @@ function dramaticQuestion(
   }
 }
 
-export function buildNarrativeDirectorBrief(input: NarrativeDirectorBriefInput): NarrativeDirectorBrief {
+export function buildNarrativeDirectorBrief(
+  input: NarrativeDirectorBriefInput,
+): NarrativeDirectorBrief {
   const scoredEvents: ScoredEvent[] = input.events
     .map((event) => ({ event, score: eventScore(event, input.world.protagonistId) }))
     .sort(
@@ -120,6 +137,7 @@ export function buildNarrativeDirectorBrief(input: NarrativeDirectorBriefInput):
   const focusThreadIds = chooseFocusThreads(focusCharacterId, input.world);
   const trigger = chooseTrigger(focusEvent, input.decision);
   const focusName = input.world.characters[focusCharacterId]?.identity.name ?? "主角身边的人";
+  const tensionLevel = chooseTension(focusEvent, focusThreadIds, input.world);
 
   // chapterId/year/span 是输入契约的一部分；Brief 不把它们拼入叙事文本，避免同一状态因调用上下文产生漂移。
   void input.chapterId;
@@ -133,6 +151,7 @@ export function buildNarrativeDirectorBrief(input: NarrativeDirectorBriefInput):
     focusEventIds: focusEvent ? [focusEvent.id] : [],
     focusThreadIds,
     dramaticQuestion: dramaticQuestion(trigger, focusName, focusEvent, input.decision),
-    tensionLevel: chooseTension(focusEvent, focusThreadIds, input.world),
+    tensionLevel,
+    pacing: deriveNarrativePacing({ world: input.world, events: input.events, tensionLevel }),
   };
 }

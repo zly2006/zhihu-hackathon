@@ -60,6 +60,7 @@ const suites = [
   { file: "test/v3-neutral-fixture.test.mjs", env: "V3_TEST_DIR" },
   { file: "test/v3-scene-trigger.test.mjs", env: "V3_TEST_DIR" },
   { file: "test/v3-scene-recovery.test.mjs", env: "V3_TEST_DIR" },
+  { file: "test/v33-narrative-quality.test.mjs", env: "V33_TEST_DIR" },
 ];
 
 let failed = 0;

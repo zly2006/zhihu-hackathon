@@ -59,7 +59,9 @@ function describeCharacters(info: DirectorWorldInfo): string {
         `- id=${character.id}｜${character.identity.name}（${state.age} 岁，${character.role === "protagonist" ? "主角" : "NPC"}）`,
         `  性格：${character.core.personalityTraits.join("、") || "未设定"}`,
         `  现状：${state.occupation || "无业"}｜${state.city || "未知城市"}`,
-        state.currentGoals.length ? `  当前目标：${state.currentGoals.map((goal) => goal.label).join("；")}` : "",
+        state.currentGoals.length
+          ? `  当前目标：${state.currentGoals.map((goal) => goal.label).join("；")}`
+          : "",
         state.currentDilemmas.length ? `  当前困境：${state.currentDilemmas.join("；")}` : "",
       ]
         .filter(Boolean)
@@ -71,7 +73,10 @@ function describeCharacters(info: DirectorWorldInfo): string {
 function describeRelationships(info: DirectorWorldInfo): string {
   return Object.values(info.world.relationships)
     .map((relationship) => {
-      const otherId = relationship.characterAId === info.world.protagonistId ? relationship.characterBId : relationship.characterAId;
+      const otherId =
+        relationship.characterAId === info.world.protagonistId
+          ? relationship.characterBId
+          : relationship.characterAId;
       const other = info.world.characters[otherId];
       return `- ${relationship.id}｜${other?.identity.name ?? "某人"}｜类型 ${relationship.type}｜亲密度 ${relationship.scores.closeness} 信任 ${relationship.scores.trust} 冲突 ${relationship.scores.conflict}｜${relationship.publicSummary || ""}`;
     })
@@ -119,22 +124,30 @@ function describeEvidence(bundle: NarrativeEvidenceBundle): string {
 
 function describeDirectorBrief(brief: NarrativeDirectorBrief, info: DirectorWorldInfo): string {
   const focusCharacter = info.world.characters[brief.focusCharacterId];
-  const eventLabels = brief.focusEventIds
-    .map((eventId) => info.events.find((event) => event.id === eventId))
-    .filter(Boolean)
-    .map((event) => `${event?.id}｜${event?.title}`)
-    .join("、") || "无";
-  const threadLabels = brief.focusThreadIds
-    .map((threadId) => info.world.openThreads.find((thread) => thread.id === threadId))
-    .filter(Boolean)
-    .map((thread) => `${thread?.id}｜${thread?.label}`)
-    .join("、") || "无";
+  const eventLabels =
+    brief.focusEventIds
+      .map((eventId) => info.events.find((event) => event.id === eventId))
+      .filter(Boolean)
+      .map((event) => `${event?.id}｜${event?.title}`)
+      .join("、") || "无";
+  const threadLabels =
+    brief.focusThreadIds
+      .map((threadId) => info.world.openThreads.find((thread) => thread.id === threadId))
+      .filter(Boolean)
+      .map((thread) => `${thread?.id}｜${thread?.label}`)
+      .join("、") || "无";
   return [
     "# V3.2 Narrative Director Brief（下一幕聚焦建议）",
     `触发类型：${brief.trigger}；张力等级：${brief.tensionLevel}`,
     `聚焦角色：${focusCharacter?.identity.name ?? brief.focusCharacterId}；聚焦事件：${eventLabels}`,
     `继续推进的开放线索：${threadLabels}`,
     `戏剧问题：${brief.dramaticQuestion}`,
+    ...(brief.pacing
+      ? [
+          `V3.3 节奏阶段：${brief.pacing.phase}（第 ${brief.pacing.chapterOrdinal} 章）；目标张力：${brief.pacing.targetTension}`,
+          `本章至少需要的场景功能：${brief.pacing.requiredScenePurposes.join(" / ")}；避免：${brief.pacing.avoid.join("；")}`,
+        ]
+      : []),
     "这是程序从公开状态推导的呈现建议，不是新事实；只能改变叙事切入方式，不能修改 canonical 事件或补写 NPC 私密信息。",
   ].join("\n");
 }
@@ -164,11 +177,18 @@ export function buildDirectorPrompt(args: {
     `3. 角色代号：${characterLabelFor(info.world)}。participantIds、povCharacterId 与 characterArcs.characterId 只能引用这些角色代号，且 povCharacterId 必须在 participantIds 内。`,
     `4. 场景时间标签（timeLabel）中的年份必须在 ${info.startYear}-${info.endYear} 内；回忆场景须在 timeLabel 或 location 中显式标注“回忆”。`,
     `5. referenceFragmentIds 只能引用下方参考知识中出现的 id：${allowedFragmentIds.join(", ") || "（本 bundle 为空，referenceFragmentIds 必须为 []）"}。`,
-    `6. 至少一个场景 purpose 为 conflict / turning_point / climax；必须给出 endingHook。`,
+    directorBrief?.pacing
+      ? `6. 必须遵循下方 V3.3 当前节奏阶段；必须给出 endingHook。`
+      : `6. 至少一个场景 purpose 为 conflict / turning_point / climax；必须给出 endingHook。`,
     `7. 每个场景必须给出 visibleGoal、conflict、endingBeat、location。`,
     `8. 不得新增重大人生事实（婚姻/死亡/怀孕/裁员/重大疾病等），不得改变事件年份、结果、人物变化、关系变化；不得把参考知识中的角色或情节复制进游戏；不得把 NPC 隐藏状态当作主角已知事实；不得为戏剧化让 NPC 突然反常。`,
     `9. 本章主题与主冲突必须能在 JSON 的 theme / mainConflict 字段中被明确指出（不可含糊）。`,
     `10. choice pattern 与 character arc 只提供抽象结构和风险/关系机制参考；不得复制参考中的角色、情节、原文或把参考选择当作本章 canonical 结算。`,
+    ...(directorBrief?.pacing
+      ? [
+          `11. 当前节奏阶段为 ${directorBrief.pacing.phase}；至少一个场景 purpose 必须为 ${directorBrief.pacing.requiredScenePurposes.join(" 或 ")}，并避免：${directorBrief.pacing.avoid.join("；")}。`,
+        ]
+      : []),
   ].join("\n");
 
   const outputSpec = [
@@ -260,7 +280,8 @@ export function parsePlan(modeled: ModelPlan): NarrativePlan {
   const plan = (modeled ?? {}) as Partial<NarrativePlan>;
   if (typeof plan.version !== "number") throw new Error("NarrativePlan 缺少 version");
   if (!Array.isArray(plan.scenes)) throw new Error("NarrativePlan 缺少 scenes 数组");
-  if (!plan.endingHook || typeof plan.endingHook !== "object") throw new Error("NarrativePlan 缺少 endingHook");
+  if (!plan.endingHook || typeof plan.endingHook !== "object")
+    throw new Error("NarrativePlan 缺少 endingHook");
   const normalize = (value: unknown, maximum: number): string =>
     typeof value === "string" ? value.trim().slice(0, maximum) : "";
   return {
@@ -288,31 +309,48 @@ export function parsePlan(modeled: ModelPlan): NarrativePlan {
         order: typeof item.order === "number" ? item.order : index + 1,
         timeLabel: normalize(item.timeLabel, 20),
         location: normalize(item.location, 60),
-        participantIds: Array.isArray(item.participantIds) ? item.participantIds.map((value) => normalize(value, 40)) : [],
+        participantIds: Array.isArray(item.participantIds)
+          ? item.participantIds.map((value) => normalize(value, 40))
+          : [],
         povCharacterId: normalize(item.povCharacterId, 40),
-        sourceEventIds: Array.isArray(item.sourceEventIds) ? item.sourceEventIds.map((value) => normalize(value, 40)) : [],
+        sourceEventIds: Array.isArray(item.sourceEventIds)
+          ? item.sourceEventIds.map((value) => normalize(value, 40))
+          : [],
         purpose: (item.purpose as ScenePlanPurpose) ?? "development",
         visibleGoal: normalize(item.visibleGoal, 160),
         conflict: normalize(item.conflict, 160),
         startEmotion: normalize(item.startEmotion, 40),
         endEmotion: normalize(item.endEmotion, 40),
-        mustShow: Array.isArray(item.mustShow) ? item.mustShow.map((value) => normalize(value, 120)).filter(Boolean) : [],
-        mustNotInvent: Array.isArray(item.mustNotInvent) ? item.mustNotInvent.map((value) => normalize(value, 120)).filter(Boolean) : [],
+        mustShow: Array.isArray(item.mustShow)
+          ? item.mustShow.map((value) => normalize(value, 120)).filter(Boolean)
+          : [],
+        mustNotInvent: Array.isArray(item.mustNotInvent)
+          ? item.mustNotInvent.map((value) => normalize(value, 120)).filter(Boolean)
+          : [],
         dialogueIntent: item.dialogueIntent ? normalize(item.dialogueIntent, 160) : undefined,
-        narrativeTechniques: Array.isArray(item.narrativeTechniques) ? item.narrativeTechniques.map((value) => normalize(value, 120)).filter(Boolean) : [],
+        narrativeTechniques: Array.isArray(item.narrativeTechniques)
+          ? item.narrativeTechniques.map((value) => normalize(value, 120)).filter(Boolean)
+          : [],
         endingBeat: normalize(item.endingBeat, 160),
       };
     }),
     endingHook: {
       textGoal: normalize((plan.endingHook as Record<string, unknown>)?.textGoal, 160),
-      type: ((plan.endingHook as Record<string, unknown>)?.type as NarrativePlan["endingHook"]["type"]) ?? "quiet_aftershock",
+      type:
+        ((plan.endingHook as Record<string, unknown>)
+          ?.type as NarrativePlan["endingHook"]["type"]) ?? "quiet_aftershock",
     },
-    referenceFragmentIds: Array.isArray(plan.referenceFragmentIds) ? plan.referenceFragmentIds.map((value) => normalize(value, 60)).filter(Boolean) : [],
-    canonicalEventIds: Array.isArray(plan.canonicalEventIds) ? plan.canonicalEventIds.map((value) => normalize(value, 60)).filter(Boolean) : [],
+    referenceFragmentIds: Array.isArray(plan.referenceFragmentIds)
+      ? plan.referenceFragmentIds.map((value) => normalize(value, 60)).filter(Boolean)
+      : [],
+    canonicalEventIds: Array.isArray(plan.canonicalEventIds)
+      ? plan.canonicalEventIds.map((value) => normalize(value, 60)).filter(Boolean)
+      : [],
   };
 }
 
-type ScenePlanPurpose = "setup" | "development" | "conflict" | "turning_point" | "climax" | "aftermath" | "hook";
+type ScenePlanPurpose =
+  "setup" | "development" | "conflict" | "turning_point" | "climax" | "aftermath" | "hook";
 
 export async function generateNarrativePlan(args: {
   need: NarrativeNeed;

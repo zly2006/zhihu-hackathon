@@ -48,7 +48,10 @@ function relationshipPressure(relationships: Relationship[]): number {
 
 function goalPressure(character: Character): number {
   const activeGoals = character.state.currentGoals.filter((goal) => goal.status === "active");
-  const visibleGoalPressure = activeGoals.reduce((highest, goal) => Math.max(highest, goal.priority), 0);
+  const visibleGoalPressure = activeGoals.reduce(
+    (highest, goal) => Math.max(highest, goal.priority),
+    0,
+  );
   const hiddenGoalPressure = Math.min(100, character.privateState?.hiddenGoals.length ? 12 : 0);
   const concernPressure = Math.min(100, (character.privateState?.hiddenConcerns.length ?? 0) * 8);
   return clamp(Math.max(visibleGoalPressure, hiddenGoalPressure + concernPressure));
@@ -82,7 +85,10 @@ function emotionalPressure(character: Character): number {
 
 function candidateFor(character: Character, input: NpcAgentPlanningInput): Candidate {
   const relationships = Object.values(input.world.relationships)
-    .filter((relationship) => relationship.characterAId === character.id || relationship.characterBId === character.id)
+    .filter(
+      (relationship) =>
+        relationship.characterAId === character.id || relationship.characterBId === character.id,
+    )
     .sort((left, right) => left.id.localeCompare(right.id));
   const relationshipScore = relationshipPressure(relationships);
   const goalsScore = goalPressure(character);
@@ -96,10 +102,7 @@ function candidateFor(character: Character, input: NpcAgentPlanningInput): Candi
     decisionPressure: decisionScore,
     emotionalPressure: emotionScore,
     score: clamp(
-      relationshipScore * 0.46 +
-        goalsScore * 0.28 +
-        decisionScore * 0.14 +
-        emotionScore * 0.12,
+      relationshipScore * 0.46 + goalsScore * 0.28 + decisionScore * 0.14 + emotionScore * 0.12,
     ),
   };
 }
@@ -112,7 +115,9 @@ function chooseAction(candidate: Candidate): NpcAgentAction {
       : "contact_player";
   }
   if (hasAny(trend, ["withdrawn", "退缩", "疲惫", "低落"]) && candidate.emotionalPressure >= 24) {
-    return "withdraw";
+    // 低落不等于沉默：仍由 NPC 自主决定以何种程度向可信对象求助。
+    // 该意图只会通过后续可观察行为落地，不能把 privateState 直接给客户端。
+    return "seek_support";
   }
   if (candidate.goalPressure >= 60) return "advance_goal";
   if (candidate.decisionPressure >= 25) return "contact_player";
@@ -121,18 +126,27 @@ function chooseAction(candidate: Candidate): NpcAgentAction {
     : "contact_player";
 }
 
-function relatedTargets(candidate: Candidate, input: NpcAgentPlanningInput): {
+function relatedTargets(
+  candidate: Candidate,
+  input: NpcAgentPlanningInput,
+): {
   targetCharacterIds: string[];
   relationshipIds: string[];
 } {
   const protagonistId = input.world.protagonistId;
   const protagonistRelationships = candidate.relationships.filter(
-    (relationship) => relationship.characterAId === protagonistId || relationship.characterBId === protagonistId,
+    (relationship) =>
+      relationship.characterAId === protagonistId || relationship.characterBId === protagonistId,
   );
-  const relationships = (protagonistRelationships.length ? protagonistRelationships : candidate.relationships).slice(0, 2);
+  const relationships = (
+    protagonistRelationships.length ? protagonistRelationships : candidate.relationships
+  ).slice(0, 2);
   const targetIds = new Set<string>();
   for (const relationship of relationships) {
-    const otherId = relationship.characterAId === candidate.character.id ? relationship.characterBId : relationship.characterAId;
+    const otherId =
+      relationship.characterAId === candidate.character.id
+        ? relationship.characterBId
+        : relationship.characterAId;
     targetIds.add(otherId);
   }
   if (!targetIds.size && candidate.character.id !== protagonistId) targetIds.add(protagonistId);
@@ -150,7 +164,11 @@ function sourceGoalIds(character: Character): string[] {
     .map((goal) => goal.id);
 }
 
-function privateIntent(candidate: Candidate, action: NpcAgentAction, input: NpcAgentPlanningInput): string {
+function privateIntent(
+  candidate: Candidate,
+  action: NpcAgentAction,
+  input: NpcAgentPlanningInput,
+): string {
   const character = candidate.character;
   const hiddenGoals = character.privateState?.hiddenGoals ?? [];
   const concerns = character.privateState?.hiddenConcerns ?? [];

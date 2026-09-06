@@ -8,6 +8,7 @@ import type { WorldState } from "./world";
 
 export type NpcAgentAction =
   | "contact_player"
+  | "seek_support"
   | "advance_goal"
   | "negotiate_relationship"
   | "withdraw"

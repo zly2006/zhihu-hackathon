@@ -66,21 +66,23 @@ function describeCharacterForNovel(character: Character): string {
 
 function describeEvent(event: SimulationEvent, world: NovelWriterInput): string {
   const participants = event.participantIds
-    .map((id) => [world.protagonist, ...world.npcs].find((c) => c.id === id)?.identity.name ?? "某人")
+    .map(
+      (id) => [world.protagonist, ...world.npcs].find((c) => c.id === id)?.identity.name ?? "某人",
+    )
     .join("、");
   const relationshipChanges = event.relationshipChanges
     .map((change) => {
       const rel = world.relationships.find((r) => r.id === change.relationshipId);
-      const other = world.npcs.find((n) => n.id === rel?.characterAId || n.id === rel?.characterBId);
+      const other = world.npcs.find(
+        (n) => n.id === rel?.characterAId || n.id === rel?.characterBId,
+      );
       const delta = Object.entries(change.scoreDelta)
         .map(([k, v]) => `${k}${Number(v) >= 0 ? "+" : ""}${v}`)
         .join("，");
       return `与${other?.identity.name ?? "某人"}：${change.description}${delta ? `（${delta}）` : ""}`;
     })
     .join("；");
-  const characterChanges = event.characterChanges
-    .map((change) => change.description)
-    .join("；");
+  const characterChanges = event.characterChanges.map((change) => change.description).join("；");
   const visibilityNote =
     event.visibility === "partially_known" ? "（主角只部分知情，只能写可观察的表象）" : "";
   return [
@@ -93,12 +95,11 @@ function describeEvent(event: SimulationEvent, world: NovelWriterInput): string 
 }
 
 export function buildNovelPrompt(input: NovelWriterInput): string {
-  const { protagonist, npcs, relationships, startYear, endYear, span, events, narrativePlan } = input;
+  const { protagonist, npcs, relationships, startYear, endYear, span, events, narrativePlan } =
+    input;
   const npcLines = npcs
     .map((npc) => {
-      const rel = relationships.find(
-        (r) => r.characterAId === npc.id || r.characterBId === npc.id,
-      );
+      const rel = relationships.find((r) => r.characterAId === npc.id || r.characterBId === npc.id);
       return `${describeCharacterForNovel(npc)}${rel ? `，与主角关系：${rel.type}` : ""}`;
     })
     .join("\n");
@@ -186,6 +187,11 @@ function describePlanForWriter(plan: NarrativePlan): string {
     lines.unshift(
       `下一幕聚焦（Narrative Director）：${plan.directorBrief.dramaticQuestion}`,
       `聚焦角色：${plan.directorBrief.focusCharacterId}；张力：${plan.directorBrief.tensionLevel}`,
+      ...(plan.directorBrief.pacing
+        ? [
+            `节奏阶段：${plan.directorBrief.pacing.phase}；避免：${plan.directorBrief.pacing.avoid.join("；")}`,
+          ]
+        : []),
       "",
     );
   }
@@ -223,7 +229,10 @@ export function parseNovel(
     const planned = plan?.scenes[index];
     return {
       id: `scene-${index + 1}`,
-      heading: typeof scene.heading === "string" && scene.heading.trim() ? scene.heading.trim().slice(0, 40) : undefined,
+      heading:
+        typeof scene.heading === "string" && scene.heading.trim()
+          ? scene.heading.trim().slice(0, 40)
+          : undefined,
       timeLabel:
         typeof scene.timeLabel === "string" && scene.timeLabel.trim()
           ? scene.timeLabel.trim().slice(0, 20)
@@ -282,7 +291,10 @@ export function buildNovelScenePrompt(input: NovelSceneWriterInput): string {
     : "（无）";
   const evidenceLines = input.featuredEvidence.length
     ? input.featuredEvidence
-        .map((experience) => `- ${experience.source.title}：${experience.outcomes.shortTerm[0]?.description ?? ""}`)
+        .map(
+          (experience) =>
+            `- ${experience.source.title}：${experience.outcomes.shortTerm[0]?.description ?? ""}`,
+        )
         .join("\n")
     : "（无）";
   const sections = [
@@ -294,7 +306,9 @@ export function buildNovelScenePrompt(input: NovelSceneWriterInput): string {
     npcLines || "（无其他角色）",
     "",
     "# 本场景已经确定发生的事件（canonical，不可改变）",
-    sceneEvents(input).map((event) => describeEvent(event, input)).join("\n"),
+    sceneEvents(input)
+      .map((event) => describeEvent(event, input))
+      .join("\n"),
     "",
     "# 相关记忆（用于连续性，非本场景新发生）",
     memoryLines,
@@ -389,7 +403,9 @@ export async function writeNovelStream(
   version = 1,
   callbacks: NovelStreamCallbacks = {},
 ): Promise<Chapter["novel"]> {
-  const plans = [...(input.narrativePlan?.scenes ?? [])].sort((left, right) => left.order - right.order);
+  const plans = [...(input.narrativePlan?.scenes ?? [])].sort(
+    (left, right) => left.order - right.order,
+  );
   if (!plans.length) throw new Error("Scene 级生成需要有效的 NarrativePlan");
   const generatedAt = new Date().toISOString();
   const sceneController = new AbortController();
@@ -430,5 +446,12 @@ export async function writeNovel(input: NovelWriterInput, version = 1): Promise<
     maxTokens: 8000,
     timeoutMs: 180_000,
   });
-  return parseNovel(modeled, new Date().toISOString(), version, input.startYear, input.endYear, input.narrativePlan);
+  return parseNovel(
+    modeled,
+    new Date().toISOString(),
+    version,
+    input.startYear,
+    input.endYear,
+    input.narrativePlan,
+  );
 }
