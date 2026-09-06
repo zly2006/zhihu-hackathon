@@ -47,6 +47,7 @@ const suites = [
   { file: "test/v24-performance.test.mjs", env: "V24_TEST_DIR" },
   { file: "test/v25-narrative-kb.test.mjs", env: "V25_TEST_DIR" },
   { file: "test/v31-v32-agents.test.mjs", env: "V31_V32_TEST_DIR" },
+  { file: "test/v33-narrative-quality.test.mjs", env: "V33_TEST_DIR" },
 ];
 
 let failed = 0;

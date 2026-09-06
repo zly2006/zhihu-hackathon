@@ -4,11 +4,17 @@
 import { callGameModel } from "../llm";
 import type { Character } from "../domain/character";
 import type { NovelScene } from "../domain/chapter";
-import type { DialogueBlock, DialogueChoice, DialogueChoiceId, DialogueScene } from "../domain/dialogue";
+import type {
+  DialogueBlock,
+  DialogueChoice,
+  DialogueChoiceId,
+  DialogueScene,
+} from "../domain/dialogue";
 import type { NarrativeEvidenceBundle, NarrativePlan } from "../domain/narrative";
 import type { SimulationEvent } from "../domain/simulation";
 import type { WorldState } from "../domain/world";
 import { resolveAvatarUrl } from "./avatar-registry";
+import { buildDialogueVoiceCards } from "./dialogue-voice-card";
 import { SCENES, findScene, pickSceneForNovelScene } from "./scene-catalog";
 
 export type DialogueWriterInput = {
@@ -84,7 +90,10 @@ function characterAvatar(character: Character): string | undefined {
 function describePublicCharacter(item: PublicCharacter, input: DialogueWriterInput): string {
   const { character } = item;
   const relationships = Object.values(input.world.relationships)
-    .filter((relationship) => relationship.characterAId === character.id || relationship.characterBId === character.id)
+    .filter(
+      (relationship) =>
+        relationship.characterAId === character.id || relationship.characterBId === character.id,
+    )
     .map((relationship) => `${relationship.type}：${relationship.publicSummary}`)
     .join("；");
   const memories =
@@ -118,7 +127,8 @@ function describeEvent(event: SimulationEvent, input: DialogueWriterInput): stri
       return item ? `${item.alias}（${item.character.identity.name}）` : "未知角色";
     })
     .join("、");
-  const visibility = event.visibility === "partially_known" ? "；主角只部分知情，只写可观察表象" : "";
+  const visibility =
+    event.visibility === "partially_known" ? "；主角只部分知情，只写可观察表象" : "";
   return `${event.year}年｜${event.title}｜${event.summary}｜参与者：${participants || "无"}${visibility}`;
 }
 
@@ -136,7 +146,14 @@ function describePlan(plan: NarrativePlan, input: DialogueWriterInput): string {
     })
     .join("\n");
   const brief = plan.directorBrief
-    ? `下一幕聚焦（Narrative Director）：${plan.directorBrief.dramaticQuestion}；聚焦角色：${plan.directorBrief.focusCharacterId}；张力：${plan.directorBrief.tensionLevel}`
+    ? [
+        `下一幕聚焦（Narrative Director）：${plan.directorBrief.dramaticQuestion}；聚焦角色：${plan.directorBrief.focusCharacterId}；张力：${plan.directorBrief.tensionLevel}`,
+        ...(plan.directorBrief.pacing
+          ? [
+              `节奏阶段：${plan.directorBrief.pacing.phase}；避免：${plan.directorBrief.pacing.avoid.join("；")}`,
+            ]
+          : []),
+      ].join("\n")
     : "";
   return [brief, scenes].filter(Boolean).join("\n");
 }
@@ -172,10 +189,45 @@ function describeNarrativeEvidence(bundle: NarrativeEvidenceBundle): string {
   return sections.join("\n");
 }
 
+function describeVoiceCards(input: DialogueWriterInput): string {
+  return buildDialogueVoiceCards(input.world)
+    .map((card) =>
+      [
+        `- ${card.characterName}（${card.characterId}）：${card.voiceSummary}`,
+        `  表达动作：${card.preferredMoves.join("；")}`,
+        `  当前情绪：${card.emotionGuidance}`,
+        `  避免：${card.avoid.join("；")}`,
+      ].join("\n"),
+    )
+    .join("\n");
+}
+
+function assertNoPrivateDialogueLeak(dialogue: DialogueScene[], input: DialogueWriterInput): void {
+  const privateTexts = Object.values(input.world.characters)
+    .flatMap((character) => [
+      ...(character.privateState?.hiddenGoals ?? []),
+      ...(character.privateState?.hiddenConcerns ?? []),
+      ...(character.privateState?.privateBeliefs ?? []),
+    ])
+    .map((text) => text.trim())
+    .filter((text) => text.length >= 4);
+  const rendered = JSON.stringify(dialogue);
+  for (const secret of privateTexts) {
+    if (rendered.includes(secret)) {
+      throw new Error(`Dialogue 泄漏 NPC 私密状态：${secret.slice(0, 30)}…`);
+    }
+  }
+}
+
 export function buildDialoguePrompt(input: DialogueWriterInput): string {
   const characters = publicCharacters(input);
   const scenes = input.novelScenes.length
-    ? input.novelScenes.map((scene, index) => `${index + 1}. ${scene.id}｜${scene.timeLabel || "未标时间"}｜${scene.heading || ""}\n${scene.text}`).join("\n")
+    ? input.novelScenes
+        .map(
+          (scene, index) =>
+            `${index + 1}. ${scene.id}｜${scene.timeLabel || "未标时间"}｜${scene.heading || ""}\n${scene.text}`,
+        )
+        .join("\n")
     : "（无 NovelScene，按导演规划生成结构化场景）";
   const expected = expectedSceneCount(input);
   const sections = [
@@ -187,6 +239,9 @@ export function buildDialoguePrompt(input: DialogueWriterInput): string {
     "",
     "# 小说场景草稿",
     scenes,
+    "",
+    "# 角色语言卡（只含公开信息）",
+    describeVoiceCards(input),
   ];
   if (input.narrativePlan) {
     sections.push("", "# 叙事导演规划", describePlan(input.narrativePlan, input));
@@ -201,7 +256,7 @@ export function buildDialoguePrompt(input: DialogueWriterInput): string {
   sections.push(
     "",
     "# 输出格式",
-    '{"scenes":[{"id":"scene-1","background":"urban-home-apartment-night-v1","timeLabel":"2027.03","characters":[{"characterId":"C1","position":"left","emotion":"平静"}],"blocks":[{"type":"narration","text":"旁白"},{"type":"dialogue","speakerId":"C2","text":"对白","emotion":"克制"}],"choices":[]}]}' ,
+    '{"scenes":[{"id":"scene-1","background":"urban-home-apartment-night-v1","timeLabel":"2027.03","characters":[{"characterId":"C1","position":"left","emotion":"平静"}],"blocks":[{"type":"narration","text":"旁白"},{"type":"dialogue","speakerId":"C2","text":"对白","emotion":"克制"}],"choices":[]}]}',
     "",
     "# 结构硬约束",
     `1. 必须返回恰好 ${expected} 个 scenes，顺序对应小说场景或导演规划。`,
@@ -212,6 +267,7 @@ export function buildDialoguePrompt(input: DialogueWriterInput): string {
     "6. choice 的 id 只能是 A/B/C 且每个场景最多 3 个；本次选择仅供展示，不改变 canonical 结算。",
     "7. 只能输出 JSON，不要输出解释、Markdown 或额外字段说明。",
     "8. Narrative KB 只提供对白节奏、选择形态和人物弧结构参考；不得把参考模式当作已发生事实。",
+    "9. 每段对话都应回应上一句中的具体事实、情绪或选择；避免万能安慰、重复总结和替其他角色做决定。冲突对白先说分歧的事实，再表达需要或边界。",
   );
   return sections.join("\n");
 }
@@ -237,7 +293,8 @@ function parseChoices(value: unknown, field: string, required: boolean): Dialogu
   return value.map((raw, index) => {
     const choice = (raw ?? {}) as Record<string, unknown>;
     const id = requireText(choice.id, `${field}[${index}].id`, 1) as DialogueChoiceId;
-    if (!VALID_CHOICE_IDS.has(id) || ids.has(id)) throw new Error(`Dialogue 字段 ${field}[${index}].id 非法或重复`);
+    if (!VALID_CHOICE_IDS.has(id) || ids.has(id))
+      throw new Error(`Dialogue 字段 ${field}[${index}].id 非法或重复`);
     ids.add(id);
     return { id, label: requireText(choice.label, `${field}[${index}].label`, MAX_CHOICE_LABEL) };
   });
@@ -261,7 +318,9 @@ function parseBlock(
       speakerId: speaker.character.id,
       text: requireText(block.text, `${field}.text`, MAX_BLOCK_TEXT),
       emotion:
-        optionalText(block.emotion, `${field}.emotion`, 20) || speaker.character.emotionState || "平静",
+        optionalText(block.emotion, `${field}.emotion`, 20) ||
+        speaker.character.emotionState ||
+        "平静",
       ...(avatar ? { avatar } : {}),
     };
   }
@@ -284,29 +343,45 @@ export function parseDialogue(modeled: unknown, input: DialogueWriterInput): Dia
   }
   const aliases = characterByAlias(input);
   const seenSceneIds = new Set<string>();
-  return output.scenes.map((raw, sceneIndex) => {
+  const dialogue = output.scenes.map((raw, sceneIndex) => {
     const scene = (raw ?? {}) as Record<string, unknown>;
-    const id = requireText(scene.id ?? input.novelScenes[sceneIndex]?.id ?? `scene-${sceneIndex + 1}`, `scenes[${sceneIndex}].id`, 80);
+    const id = requireText(
+      scene.id ?? input.novelScenes[sceneIndex]?.id ?? `scene-${sceneIndex + 1}`,
+      `scenes[${sceneIndex}].id`,
+      80,
+    );
     if (seenSceneIds.has(id)) throw new Error(`Dialogue 场景 id 重复：${id}`);
     seenSceneIds.add(id);
     const background = requireText(scene.background, `scenes[${sceneIndex}].background`, 80);
     if (!findScene(background)) throw new Error(`Dialogue 背景不在 scene-catalog：${background}`);
-    if (!Array.isArray(scene.characters)) throw new Error(`Dialogue 字段 scenes[${sceneIndex}].characters 必须是数组`);
+    if (!Array.isArray(scene.characters))
+      throw new Error(`Dialogue 字段 scenes[${sceneIndex}].characters 必须是数组`);
     const seenCharacters = new Set<string>();
     const characters = scene.characters.map((rawCharacter, characterIndex) => {
       const item = (rawCharacter ?? {}) as Record<string, unknown>;
       const alias = item.characterId ?? item.id;
-      const resolved = resolveCharacterAlias(alias, aliases, `scenes[${sceneIndex}].characters[${characterIndex}]`);
-      if (seenCharacters.has(resolved.character.id)) throw new Error(`Dialogue 角色重复：${String(alias)}`);
+      const resolved = resolveCharacterAlias(
+        alias,
+        aliases,
+        `scenes[${sceneIndex}].characters[${characterIndex}]`,
+      );
+      if (seenCharacters.has(resolved.character.id))
+        throw new Error(`Dialogue 角色重复：${String(alias)}`);
       seenCharacters.add(resolved.character.id);
       const position = item.position;
-      if (position !== undefined && (typeof position !== "string" || !VALID_POSITIONS.has(position))) {
+      if (
+        position !== undefined &&
+        (typeof position !== "string" || !VALID_POSITIONS.has(position))
+      ) {
         throw new Error(`Dialogue 角色位置非法：${String(position)}`);
       }
       const avatar = characterAvatar(resolved.character);
       const emotion =
-        optionalText(item.emotion, `scenes[${sceneIndex}].characters[${characterIndex}].emotion`, 20) ||
-        resolved.character.emotionState;
+        optionalText(
+          item.emotion,
+          `scenes[${sceneIndex}].characters[${characterIndex}].emotion`,
+          20,
+        ) || resolved.character.emotionState;
       return {
         id: resolved.character.id,
         name: resolved.character.identity.name,
@@ -325,16 +400,26 @@ export function parseDialogue(modeled: unknown, input: DialogueWriterInput): Dia
     if (choices.length > 0) {
       throw new Error(`Dialogue 场景 ${id} 的 choices 必须为空，本 Sprint 不接入新结算入口`);
     }
-    return {
+    const parsedScene: DialogueScene = {
       id,
       background,
       timeLabel:
-        optionalText(scene.timeLabel, `scenes[${sceneIndex}].timeLabel`, 30) || input.novelScenes[sceneIndex]?.timeLabel,
+        optionalText(scene.timeLabel, `scenes[${sceneIndex}].timeLabel`, 30) ||
+        input.novelScenes[sceneIndex]?.timeLabel,
       characters,
       blocks,
       choices: [],
     };
+    const presentCharacterIds = new Set(parsedScene.characters.map((character) => character.id));
+    for (const block of parsedScene.blocks) {
+      if (block.type === "dialogue" && !presentCharacterIds.has(block.speakerId)) {
+        throw new Error(`Dialogue 场景 ${id} 中说话者 ${block.speaker} 未出现在 characters`);
+      }
+    }
+    return parsedScene;
   });
+  assertNoPrivateDialogueLeak(dialogue, input);
+  return dialogue;
 }
 
 export function buildFallbackDialogueScenes(input: DialogueWriterInput): DialogueScene[] {
@@ -364,9 +449,14 @@ export function buildFallbackDialogueScenes(input: DialogueWriterInput): Dialogu
 }
 
 export async function writeDialogue(input: DialogueWriterInput): Promise<DialogueScene[]> {
-  const modeled = await callGameModel<ModelDialogue>("chapter-dialogue", DIALOGUE_SYSTEM, buildDialoguePrompt(input), {
-    maxTokens: 5000,
-    timeoutMs: 120_000,
-  });
+  const modeled = await callGameModel<ModelDialogue>(
+    "chapter-dialogue",
+    DIALOGUE_SYSTEM,
+    buildDialoguePrompt(input),
+    {
+      maxTokens: 5000,
+      timeoutMs: 120_000,
+    },
+  );
   return parseDialogue(modeled, input);
 }

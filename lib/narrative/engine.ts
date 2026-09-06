@@ -40,7 +40,9 @@ export type NarrativeEngineResult = {
 
 const MAX_DIRECTOR_ATTEMPTS = 3;
 
-export async function runNarrativeEngine(input: NarrativeEngineInput): Promise<NarrativeEngineResult> {
+export async function runNarrativeEngine(
+  input: NarrativeEngineInput,
+): Promise<NarrativeEngineResult> {
   const { chapterId, span, world, events, decision, startYear, endYear, directorBrief } = input;
 
   const need = buildNarrativeNeed({ chapterId, span, world, events, decision });
@@ -53,7 +55,17 @@ export async function runNarrativeEngine(input: NarrativeEngineInput): Promise<N
 
   for (attempts = 1; attempts <= MAX_DIRECTOR_ATTEMPTS; attempts++) {
     plan = await generateNarrativePlan({ need, bundle, info, previousErrors, directorBrief });
-    const validation = validateNarrativePlan({ plan, need, bundle, world, events, span, startYear, endYear });
+    const validation = validateNarrativePlan({
+      plan,
+      need,
+      bundle,
+      world,
+      events,
+      span,
+      startYear,
+      endYear,
+      directorBrief,
+    });
     if (validation.valid) {
       return {
         narrativePlan: plan,

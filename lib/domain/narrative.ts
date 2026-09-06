@@ -6,6 +6,7 @@
 
 import type { ChapterId, LifeDomain } from "./shared";
 import type { RelationshipType } from "./relationship";
+import type { NarrativePacingDirective } from "./narrative-experience";
 
 export type NarrativeFunction =
   | "setup"
@@ -64,10 +65,7 @@ export type NarrativeCharacterArcPattern = {
 };
 
 export type NarrativeDirectorTrigger =
-  | "npc_goal"
-  | "relationship"
-  | "player_choice"
-  | "canonical_event";
+  "npc_goal" | "relationship" | "player_choice" | "canonical_event";
 
 export type NarrativeDirectorBrief = {
   trigger: NarrativeDirectorTrigger;
@@ -76,6 +74,8 @@ export type NarrativeDirectorBrief = {
   focusThreadIds: string[];
   dramaticQuestion: string;
   tensionLevel: "quiet" | "rising" | "high";
+  // V3.3：跨章节的节奏约束；只控制呈现，不新增或改写 canonical 事实。
+  pacing?: NarrativePacingDirective;
 };
 
 export type NarrativeEvidenceBundle = {
@@ -129,7 +129,12 @@ export type NarrativePlan = {
   scenes: ScenePlan[];
   endingHook: {
     textGoal: string;
-    type: "open_question" | "relationship_tension" | "new_opportunity" | "unresolved_cost" | "quiet_aftershock";
+    type:
+      | "open_question"
+      | "relationship_tension"
+      | "new_opportunity"
+      | "unresolved_cost"
+      | "quiet_aftershock";
   };
   referenceFragmentIds: string[];
   canonicalEventIds: string[];
