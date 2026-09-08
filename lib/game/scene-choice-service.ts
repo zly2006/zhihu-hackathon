@@ -221,6 +221,7 @@ export function applySceneChoice(
       revision: projection.revision + 1,
       ...(projection.zhaoLeng ? { zhaoLeng: clone(projection.zhaoLeng) } : {}),
       ...(projection.narrativeRuntime ? { narrativeRuntime: clone(projection.narrativeRuntime) } : {}),
+      ...(projection.storyReveal ? { storyReveal: clone(projection.storyReveal) } : {}),
     };
     return {
       requestId: request.requestId,

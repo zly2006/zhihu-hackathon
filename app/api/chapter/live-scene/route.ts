@@ -7,6 +7,7 @@ import { validateWorldState } from "@/lib/domain/validate";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 180;
 
 type LiveSceneRequest = {
   worldState: WorldState;
@@ -65,6 +66,9 @@ export async function POST(request: Request) {
       events: input.events,
       chapter: input.chapter,
       version: input.version,
+    }, {
+      signal: request.signal,
+      executionId: `live-scene:${input.chapter.id}`,
     });
     return NextResponse.json({ scenePackage, generated: "llm" });
   } catch (error) {

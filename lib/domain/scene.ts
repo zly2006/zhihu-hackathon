@@ -7,6 +7,7 @@ import type { RelationshipScores } from "./relationship";
 import type { SimulationEvent } from "./simulation";
 import type { WorldState } from "./world";
 import type { NarrativeRuntimeState, ZhaoLengRuntimeState } from "./zhao-leng-runtime";
+import type { StorySessionState } from "./story";
 
 export type SceneMode = "retrospective" | "live";
 
@@ -25,8 +26,11 @@ export type SceneRequirement =
 
 export type SceneTarget =
   | { kind: "scene"; sceneId: string }
+  | { kind: "unit_end"; unitId: string; pendingEventIds?: string[] }
   | { kind: "chapter_end" }
   | { kind: "ending"; endingId: string };
+
+export type SceneCompletion = Exclude<SceneTarget, { kind: "scene" }>;
 
 export type SceneCue = {
   characterId: string;
@@ -92,6 +96,7 @@ export type ScenePackage = {
   entrySceneId: string;
   scenes: RuntimeScene[];
   endings: SceneEnding[];
+  completion?: SceneCompletion;
 };
 
 export type SceneTriggerKind = "contact" | "emotional" | "hidden";
@@ -133,6 +138,7 @@ export type SceneRuntimeState = {
   blockId: string;
   status: SceneRuntimeStatus;
   playbackMode: "manual" | "auto";
+  skipPolicy?: "legacy" | "read";
   readBlockIds: string[];
   selectedActionId?: string;
   pendingAction?: {
@@ -144,6 +150,57 @@ export type SceneRuntimeState = {
   feedbackNext?: SceneTarget;
   readOnly?: boolean;
   errorCode?: string;
+  completion?: SceneCompletion;
+};
+
+export type SceneReadingEntry = {
+  key: string;
+  mode: string;
+  branchId: string;
+  chapterId: string;
+  packageId: string;
+  packageVersion: number;
+  sceneId: string;
+  blockId: string;
+  blockType: "narration" | "dialogue" | "choice";
+  text: string;
+  speaker?: string;
+  selectedChoiceId?: DialogueChoiceId;
+  selectedChoiceLabel?: string;
+  contentHash: string;
+  readAt: string;
+};
+
+export type SceneReadingState = {
+  schemaVersion: 1;
+  entries: SceneReadingEntry[];
+  readKeys: string[];
+};
+
+export type SceneFlowPosition = {
+  branchId: string;
+  chapterId: string;
+  packageId: string;
+  packageVersion: number;
+  sceneId: string;
+  blockId: string;
+  revision: number;
+};
+
+export type SceneFlowPendingCommand = {
+  type: string;
+  requestId: string;
+  issuedAt: string;
+  expectedRevision: number;
+  expectedPackageId: string;
+  expectedBranchId?: string;
+  source: "button" | "click" | "keyboard" | "auto" | "recovery";
+};
+
+export type SceneFlowState = {
+  schemaVersion: 1;
+  sourcePosition: SceneFlowPosition;
+  pendingCommand?: SceneFlowPendingCommand;
 };
 
 export type SceneActionRecord = {
@@ -169,7 +226,7 @@ export type SceneActionRecord = {
 
 export type SceneSaveProjection = Pick<
   GameSave,
-  "worldState" | "chapters" | "events" | "experienceCache" | "activeBranchId"
+  "worldState" | "chapters" | "events" | "experienceCache" | "activeBranchId" | "storyReveal"
 > & {
   runtime: SceneRuntimeState;
   actions: SceneActionRecord[];
@@ -177,6 +234,9 @@ export type SceneSaveProjection = Pick<
   revision: number;
   zhaoLeng?: ZhaoLengRuntimeState;
   narrativeRuntime?: NarrativeRuntimeState;
+  sceneReading?: SceneReadingState;
+  sceneFlow?: SceneFlowState;
+  storySession?: StorySessionState;
 };
 
 export type SceneChoiceRequest = {

@@ -8,7 +8,7 @@ export function NovelReader({
   regenerating,
   showRegenerate = true,
 }: {
-  novel: Chapter["novel"];
+  novel: NonNullable<Chapter["novel"]>;
   onRegenerate: () => void;
   regenerating: boolean;
   showRegenerate?: boolean;

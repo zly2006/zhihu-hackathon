@@ -7,6 +7,10 @@ async function load() {
   return import(new URL(`../${buildDir}/game/choice-generator.js`, import.meta.url).href);
 }
 
+async function loadFixture() {
+  return import(new URL("./fixtures/scene-runtime-fixture.mjs", import.meta.url).href);
+}
+
 function modeledChoice(context) {
   return {
     promptTitle: "毕业前的十字路口",
@@ -33,4 +37,22 @@ test("chapter choice rejects over-limit text instead of silently shortening it",
     () => choice.validateChapterChoice(modeledChoice("困".repeat(1201))),
     /context.*最多 1200 字/,
   );
+});
+
+test("chapter choice retries one schema failure inside a bounded generation budget", async () => {
+  const [choice, fixture] = await Promise.all([load(), loadFixture()]);
+  const prompts = [];
+  let calls = 0;
+  const result = await choice.generateChapterChoice(fixture.makeWorld(), 1, {
+    model: async (_purpose, _system, prompt) => {
+      prompts.push(prompt);
+      calls += 1;
+      const modeled = modeledChoice("一个具体的当下困境");
+      if (calls === 1) modeled.options[2].strategyTag = modeled.options[1].strategyTag;
+      return modeled;
+    },
+  });
+  assert.equal(calls, 2);
+  assert.match(prompts[1], /程序校验反馈|重新输出/);
+  assert.equal(result.options.length, 3);
 });

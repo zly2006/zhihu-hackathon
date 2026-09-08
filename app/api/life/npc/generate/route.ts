@@ -1,9 +1,12 @@
 import { NextResponse } from "next/server";
+import { randomUUID } from "node:crypto";
 import { createProtagonist, type ProtagonistDraft } from "@/lib/game/character-factory";
+import { ExecutionBudget } from "@/lib/game/execution-budget";
 import { generateNpcs } from "@/lib/game/npc-generator";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 45;
 
 export async function POST(request: Request) {
   let body: { protagonistDraft: ProtagonistDraft };
@@ -23,8 +26,19 @@ export async function POST(request: Request) {
 
   try {
     const protagonist = createProtagonist(draft);
-    const npcs = await generateNpcs(protagonist);
-    return NextResponse.json({ protagonist, npcs });
+    const budget = new ExecutionBudget({
+      executionId: randomUUID(),
+      timeoutMs: 45_000,
+      maxRequests: 2,
+      phaseLimits: { npc: 2 },
+      signal: request.signal,
+    });
+    try {
+      const npcs = await generateNpcs(protagonist, { budget });
+      return NextResponse.json({ protagonist, npcs });
+    } finally {
+      budget.dispose();
+    }
   } catch (error) {
     console.error("NPC generation failed", error);
     return NextResponse.json(

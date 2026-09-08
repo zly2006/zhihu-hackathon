@@ -13,10 +13,13 @@ import type {
   SceneActionRecord,
   ScenePackage,
   SceneRuntimeState,
+  SceneFlowState,
+  SceneReadingState,
 } from "./scene";
 import type { PublicSceneActionContext } from "../game/scene-action-context";
 import type { WorldSimulationOutput } from "./simulation";
 import type { NarrativeRuntimeState, ZhaoLengRuntimeState } from "./zhao-leng-runtime";
+import type { StoryRevealCursor, StorySessionState } from "./story";
 
 export type PendingChapterStage = "simulated" | "plan" | "reflection" | "novel" | "dialogue" | "live_scene" | "ready" | "error";
 
@@ -41,7 +44,7 @@ export type PendingChapter = {
   planCompleted?: boolean;
   reflectionCompleted?: boolean;
   liveSceneCompleted?: boolean;
-  novel?: Chapter["novel"];
+  novel?: ChapterNovel;
   dialogue?: DialogueScene[];
   liveScenePackage?: ScenePackage;
   narrative?: Chapter["narrative"];
@@ -96,6 +99,14 @@ export type NovelScene = {
   text: string;
 };
 
+export type ChapterNovel = {
+  title: string;
+  subtitle?: string;
+  scenes: NovelScene[];
+  generatedAt: string;
+  version: number;
+};
+
 export type Chapter = {
   id: ChapterId;
   index: number;
@@ -118,12 +129,12 @@ export type Chapter = {
 
   stateAfterHash: string;
 
-  novel: {
-    title: string;
-    subtitle?: string;
-    scenes: NovelScene[];
-    generatedAt: string;
-    version: number;
+  novel?: ChapterNovel;
+
+  presentation?: {
+    mode: "galgame" | "novel";
+    unitIds: string[];
+    status: "in_progress" | "ready" | "complete";
   };
 
   // V2.1 Galgame 表现层产物；缺失时由 NovelScene 确定性降级展示。
@@ -181,4 +192,8 @@ export type GameSave = {
   // 赵冷 Demo / Narrative Agent 增量字段，旧存档缺失时保持原有玩法语义。
   zhaoLeng?: ZhaoLengRuntimeState;
   narrativeRuntime?: NarrativeRuntimeState;
+  sceneReading?: SceneReadingState;
+  sceneFlow?: SceneFlowState;
+  storySession?: StorySessionState;
+  storyReveal?: StoryRevealCursor;
 };

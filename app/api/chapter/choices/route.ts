@@ -6,6 +6,7 @@ import { normalizeSceneActionContext } from "@/lib/game/scene-action-context";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 45;
 
 export async function POST(request: Request) {
   let body: { worldState: WorldState; span: ChapterSpan; sceneActionContext?: unknown };
@@ -36,7 +37,7 @@ export async function POST(request: Request) {
       };
       try {
         send("progress", { stage: "generating", message: "正在生成本章困境与行动方向" });
-        const generatedChoice = await generateChapterChoice(worldState, span);
+        const generatedChoice = await generateChapterChoice(worldState, span, { signal: request.signal });
         const choice = sceneActionContext.length
           ? { ...generatedChoice, sceneActionContext }
           : generatedChoice;

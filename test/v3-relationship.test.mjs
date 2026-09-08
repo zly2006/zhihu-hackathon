@@ -173,12 +173,14 @@ test("choice and simulation boundaries carry only compiled scene action context"
   const lifeApp = readFileSync(join(root, "components", "life", "LifeApp.tsx"), "utf8");
   const choicesRoute = readFileSync(join(root, "app", "api", "chapter", "choices", "route.ts"), "utf8");
   const simulateRoute = readFileSync(join(root, "app", "api", "chapter", "simulate", "route.ts"), "utf8");
+  const simulationService = readFileSync(join(root, "lib", "game", "chapter-simulation-service.ts"), "utf8");
   assert.match(lifeApp, /compileSceneActionContext/);
   assert.match(lifeApp, /sceneActionContext/);
   assert.match(choicesRoute, /normalizeSceneActionContext/);
   assert.match(choicesRoute, /sceneActionContext/);
-  assert.match(simulateRoute, /normalizeSceneActionContext/);
-  assert.match(simulateRoute, /sceneActionContext/);
+  assert.match(simulateRoute, /runChapterSimulation/);
+  assert.match(simulationService, /normalizeSceneActionContext/);
+  assert.match(simulationService, /sceneActionContext/);
   assert.doesNotMatch(choicesRoute, /privateState/);
-  assert.doesNotMatch(simulateRoute, /privateState/);
+  assert.doesNotMatch(simulationService, /privateState/);
 });

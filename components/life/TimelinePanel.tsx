@@ -21,7 +21,7 @@ export function TimelinePanel({ chapters }: { chapters: Chapter[] }) {
             <div style={{ fontSize: 13, color: "#6b7280" }}>
               第 {chapter.index + 1} 章 · {chapter.startYear}—{chapter.endYear} · {chapter.span} 年
             </div>
-            <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2 }}>{chapter.novel.title}</div>
+            <div style={{ fontSize: 14, fontWeight: 600, marginTop: 2 }}>{chapter.novel?.title ?? "互动人生"}</div>
             <div style={{ fontSize: 13, color: "#374151", marginTop: 4 }}>
               {chapter.summary.keyEvents.join(" · ")}
             </div>

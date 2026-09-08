@@ -204,9 +204,9 @@ test("rewriting a chapter preserves the active scene checkpoint metadata", async
 test("chapter integration shares one live runtime and blocks continuation before completion", () => {
   const summary = readFileSync(join(process.cwd(), "components/life/ChapterSummary.tsx"), "utf8");
   const app = readFileSync(join(process.cwd(), "components/life/LifeApp.tsx"), "utf8");
-  assert.match(summary, /SceneRuntimePlayer/);
+  assert.match(summary, /StoryPlayer/);
   assert.match(summary, /scenePackage/);
   assert.match(summary, /canNextChapter|nextDisabled/);
-  assert.match(app, /SceneRuntimePlayer|scene-choice/);
+  assert.match(app, /StoryPlayer|scene-choice/);
   assert.match(app, /pendingChapter|sceneRuntime/);
 });

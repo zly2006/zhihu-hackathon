@@ -45,7 +45,11 @@ export async function startZhaoLengDemo(input: StartZhaoLengDemoInput = {}): Pro
 
   const existing = activePackage(base);
   if (base.sceneRuntime && existing) {
-    return { saveAfter: base, scenePackage: existing, reused: true };
+    const upgradedRuntime = base.sceneRuntime.skipPolicy === "read"
+      ? base.sceneRuntime
+      : { ...base.sceneRuntime, skipPolicy: "read" as const };
+    const saveAfter = upgradedRuntime === base.sceneRuntime ? base : { ...base, sceneRuntime: upgradedRuntime };
+    return { saveAfter, scenePackage: existing, reused: true };
   }
 
   const beatId = zhaoLengRuntime.beatId;
@@ -54,6 +58,7 @@ export async function startZhaoLengDemo(input: StartZhaoLengDemoInput = {}): Pro
   const scenePackage = compileZhaoLengBeat({ save: prepared, beatId, written });
   const runtime = createSceneRuntime(scenePackage, {
     branchId: prepared.activeBranchId ?? "main",
+    skipPolicy: "read",
   });
   const narrativeRuntime = enqueueScriptedBeatDelivery(
     prepared.narrativeRuntime ?? createInitialNarrativeRuntime(),

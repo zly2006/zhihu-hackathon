@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type MouseEvent, type ReactNode } from "react";
 import type { DialogueChoiceId } from "@/lib/domain/dialogue";
 import { ChoicePanel, type ChoicePanelOption } from "./ChoicePanel";
 
@@ -10,6 +10,7 @@ export type DialogueOption = ChoicePanelOption;
 export function DialogueBox({
   speaker, copy, options, selectedOptionId, feedback, onSelect, onContinue, continueLabel = "继续", continueDisabled,
   choiceDisabled, choicesReadOnly = false, children, variant = "subtitle",
+  style,
 }: {
   speaker?: string;
   copy: string;
@@ -17,19 +18,20 @@ export function DialogueBox({
   selectedOptionId?: string | null;
   feedback?: string;
   onSelect?: (id: "A" | "B" | "C") => void;
-  onContinue?: () => void;
+  onContinue?: (event: MouseEvent<HTMLButtonElement>) => void;
   continueLabel?: string;
   continueDisabled?: boolean;
   choiceDisabled?: boolean;
   choicesReadOnly?: boolean;
   children?: ReactNode;
   variant?: "subtitle" | "macro";
+  style?: CSSProperties;
 }) {
   const [expanded, setExpanded] = useState(false);
   const canExpand = variant === "subtitle" && copy.length > 120;
   useEffect(() => setExpanded(false), [copy, variant]);
 
-  return <div className={`life-vn-dialogue life-vn-dialogue--${variant}`}>
+  return <div className={`life-vn-dialogue life-vn-dialogue--${variant}`} style={style}>
     {speaker && <span className="life-vn-speaker">{speaker}</span>}
     <p className={`life-vn-copy${expanded ? " expanded" : ""}`}>{copy}</p>
     {canExpand && <button type="button" className="life-vn-copy-toggle" onClick={() => setExpanded((value) => !value)} aria-expanded={expanded}>

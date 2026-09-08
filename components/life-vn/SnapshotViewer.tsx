@@ -13,7 +13,7 @@ import { DialogueBox } from "./DialogueBox";
 import { StatusHUD } from "./StatusHUD";
 import { NovelReader } from "@/components/life/NovelReader";
 
-function fallbackDialogueScenes(novel: Chapter["novel"]): DialogueScene[] {
+function fallbackDialogueScenes(novel: NonNullable<Chapter["novel"]>): DialogueScene[] {
   return novel.scenes.map((scene) => ({
     id: scene.id,
     background: pickSceneForNovelScene(scene).id,
@@ -157,7 +157,7 @@ function SnapshotChapterViewer({
   actions: ReactNode;
 }) {
   const scenes = useMemo(
-    () => (chapter.dialogue?.length ? chapter.dialogue : fallbackDialogueScenes(chapter.novel)),
+    () => (chapter.dialogue?.length ? chapter.dialogue : chapter.novel ? fallbackDialogueScenes(chapter.novel) : []),
     [chapter.dialogue, chapter.novel],
   );
   const [sceneIndex, setSceneIndex] = useState(0);
@@ -165,7 +165,7 @@ function SnapshotChapterViewer({
   const [finished, setFinished] = useState(false);
   const activeScene = scenes[sceneIndex] ?? scenes[0];
   const activeBlock = activeScene?.blocks[blockIndex];
-  const fallbackNovelScene = chapter.novel.scenes[sceneIndex];
+  const fallbackNovelScene = chapter.novel?.scenes[sceneIndex];
   const sceneDef = activeScene
     ? findScene(activeScene.background) ?? pickSceneForNovelScene(fallbackNovelScene ?? {})
     : pickSceneForNovelScene(fallbackNovelScene ?? {});
@@ -190,7 +190,7 @@ function SnapshotChapterViewer({
       {actions}
       <section className="life-vn-card life-vn-snapshot-card">
         <span className="life-vn-pill">历史节点 · 已读完</span>
-        <h2>{chapter.novel.title}</h2>
+        <h2>{chapter.novel?.title ?? "互动人生"}</h2>
         {legacyNotice}
         <p>{chapter.summary.keyEvents.join("；") || "本章故事已保存。"}</p>
         <div className="life-vn-snapshot-actions inline">
@@ -247,7 +247,7 @@ function SnapshotChapterViewer({
     </div>
   );
 
-  const novelCenter = (
+  const novelCenter = chapter.novel ? (
     <div className="life-vn-snapshot-scroll">
       {actions}
       {legacyNotice}
@@ -257,12 +257,22 @@ function SnapshotChapterViewer({
         <p>{chapter.summary.keyEvents.join("；") || "本章故事已保存。"}</p>
       </section>
     </div>
+  ) : (
+    <div className="life-vn-snapshot-scroll">
+      {actions}
+      {legacyNotice}
+      <section className="life-vn-card life-vn-snapshot-card">
+        <span className="life-vn-pill">互动人生 · 只读快照</span>
+        <h2>本章互动内容</h2>
+        <p>{chapter.summary.keyEvents.join("；") || "本章故事已保存。"}</p>
+      </section>
+    </div>
   );
 
   return (
     <LifeShell
       chapterLabel={`历史回放 · Chapter ${String(chapter.index + 1).padStart(2, "0")}`}
-      title={chapter.novel.title}
+      title={chapter.novel?.title ?? "互动人生"}
       yearRange={`${chapter.startYear} → ${chapter.endYear}`}
       brandLabel="知乎 · 历史回放"
       left={timeline}

@@ -14,9 +14,10 @@ import {
 const SHELL_PREFERENCES_KEY = "restart-life-shell-panels-v1";
 
 // 四个纯展示面板独立开关；偏好不接触 GameSave 或场景运行时。
-export function LifeShell({ chapterLabel, title, yearRange, brandLabel = "知乎 · 互动人生小说", left, right, center, dockItems, sheet, onBrandClick }: {
+export function LifeShell({ chapterLabel, title, yearRange, brandLabel = "知乎 · 互动人生小说", left, right, center, dockItems, sheet, onBrandClick, onSheetOpenChange }: {
   chapterLabel: string; title: string; yearRange?: string; brandLabel?: string; left?: ReactNode; right?: ReactNode;
   center: ReactNode; dockItems?: Array<{ id: string; label: string; sub?: string }>; sheet?: ReactNode; onBrandClick?: () => void;
+  onSheetOpenChange?: (open: boolean) => void;
 }) {
   const [panels, setPanels] = useState<ShellPanelState>(defaultShellPanelState);
   const [preferencesReady, setPreferencesReady] = useState(false);
@@ -40,16 +41,20 @@ export function LifeShell({ chapterLabel, title, yearRange, brandLabel = "知乎
     { id: "inventory", label: "背包", sub: "B" }, { id: "notes", label: "记事本", sub: "N" },
   ];
   const togglePanel = (panel: ShellPanelId) => setPanels((current) => toggleShellPanel(current, panel));
+  const setDockOpen = (open: boolean) => {
+    setSheetOpen(open);
+    onSheetOpenChange?.(open);
+  };
   const toggleDock = (id: string) => {
-    if (id === activeTab) setSheetOpen((open) => !open);
-    else { setActiveTab(id); setSheetOpen(true); }
+    if (id === activeTab) setDockOpen(!sheetOpen);
+    else { setActiveTab(id); setDockOpen(true); }
   };
 
   return <div className="life-vn life-vn-app"><div
     className={`life-vn-shell${panels.left ? "" : " life-vn-timeline-collapsed"}${panels.right ? "" : " life-vn-status-collapsed"}${panels.top ? "" : " life-vn-top-collapsed"}${panels.bottom ? "" : " life-vn-bottom-collapsed"}`}
     style={{ position: "relative" }}
   >
-    <button type="button" className="life-vn-shell-global-toggle" aria-label={shellGlobalActionLabel(panels)} onClick={() => setPanels((current) => toggleAllShellPanels(current))}>{shellGlobalActionLabel(panels)}</button>
+    <button type="button" className="life-vn-shell-global-toggle" aria-label={shellGlobalActionLabel(panels)} onClick={() => { setPanels((current) => toggleAllShellPanels(current)); setDockOpen(false); }}>{shellGlobalActionLabel(panels)}</button>
     {panels.top ? <header id="life-vn-top-panel" className="life-vn-top">
       <div className="life-vn-brand"><button type="button" className="life-vn-brand-mark" aria-label="返回首页" onClick={onBrandClick}>R</button><div><b>{brandLabel}</b><small>Restart Life</small></div></div>
       <div className="life-vn-chapter"><small>{chapterLabel}</small><h1>{title}</h1>{yearRange && <time>{yearRange}</time>}</div>
@@ -70,7 +75,7 @@ export function LifeShell({ chapterLabel, title, yearRange, brandLabel = "知乎
 
     {panels.bottom ? <nav id="life-vn-bottom-panel" className="life-vn-dock" role="tablist" aria-label="功能面板">
       {tabs.map((tab) => <button key={tab.id} type="button" role="tab" aria-selected={activeTab === tab.id} aria-controls="life-vn-dock-sheet" className={activeTab === tab.id ? "active" : ""} onClick={() => toggleDock(tab.id)}><span><b>{tab.label}</b>{tab.sub && <small>{tab.sub}</small>}</span></button>)}
-      <button type="button" className="life-vn-panel-toggle life-vn-dock-collapse" aria-controls="life-vn-bottom-panel" aria-expanded="true" aria-label="收起底部功能栏" onClick={() => togglePanel("bottom")}>﹀</button>
+      <button type="button" className="life-vn-panel-toggle life-vn-dock-collapse" aria-controls="life-vn-bottom-panel" aria-expanded="true" aria-label="收起底部功能栏" onClick={() => { togglePanel("bottom"); setDockOpen(false); }}>﹀</button>
     </nav> : <button type="button" className="life-vn-shell-edge life-vn-shell-edge-bottom" aria-controls="life-vn-bottom-panel" aria-expanded="false" onClick={() => togglePanel("bottom")}>展开功能栏</button>}
     {sheetOpen && sheet && <div id="life-vn-dock-sheet" className="life-vn-dock-sheet" role="tabpanel">{sheet}</div>}
   </div></div>;

@@ -117,6 +117,58 @@ test("live scene prompt exposes current public state but omits NPC private state
   assert.doesNotMatch(prompt, /不得泄露的信念/);
 });
 
+test("live scene prompt sample is executable when the model emits one scene", async () => {
+  const { buildLiveScenePrompt } = await load("live-scene-generator");
+  const fixture = await loadFixture();
+  const prompt = buildLiveScenePrompt({
+    world: fixture.makeWorld(),
+    events: [],
+    chapter: chapterContext(),
+    generationKind: "unit",
+    unitId: "unit-sample",
+  });
+  assert.match(prompt, /"defaultNext":"chapter_end"/);
+  assert.doesNotMatch(prompt, /"next":"scene-2"/);
+});
+
+test("non-final unit prompt requires explicit progress on an unrevealed event", async () => {
+  const { buildLiveScenePrompt } = await load("live-scene-generator");
+  const fixture = await loadFixture();
+  const prompt = buildLiveScenePrompt({
+    world: fixture.makeWorld(),
+    events: [{ id: "event-1", chapterId: "test-chapter-live", year: 2026, title: "测试事件", summary: "测试事件摘要", participantIds: [], visibility: "known" }],
+    chapter: chapterContext(),
+    generationKind: "unit",
+    unitId: "unit-coverage",
+    requiredEventIds: ["event-1"],
+    revealedEventIds: [],
+    isFinalUnit: false,
+  });
+  assert.match(prompt, /至少.*sourceEventIds|至少.*覆盖/);
+  assert.match(prompt, /event-1/);
+});
+
+test("pending coverage events are marked and listed before already revealed events", async () => {
+  const { buildLiveScenePrompt } = await load("live-scene-generator");
+  const fixture = await loadFixture();
+  const prompt = buildLiveScenePrompt({
+    world: fixture.makeWorld(),
+    events: [
+      { id: "event-old", chapterId: "test-chapter-live", year: 2026, title: "已经呈现", summary: "已经呈现的事实", participantIds: [], visibility: "known" },
+      { id: "event-pending", chapterId: "test-chapter-live", year: 2026, title: "尚未呈现", summary: "尚未呈现的事实", participantIds: [], visibility: "known" },
+    ],
+    chapter: chapterContext(),
+    generationKind: "unit",
+    unitId: "unit-pending-order",
+    requiredEventIds: ["event-old", "event-pending"],
+    revealedEventIds: ["event-old"],
+    isFinalUnit: false,
+  });
+  assert.match(prompt, /【本单元必须覆盖】event-pending/);
+  assert.ok(prompt.indexOf("event-pending") < prompt.indexOf("event-old"));
+  assert.match(prompt, /sourceEventIds.*只能登记本单元新覆盖.*不得.*已揭示/);
+});
+
 test("live scene generator returns a current-year executable package with canonical ids", async () => {
   const [{ generateLiveScenePackage }, fixture] = await Promise.all([
     load("live-scene-generator"),
@@ -175,4 +227,150 @@ test("live scene generation retries with the concrete validator failure", async 
   assert.equal(prompts.length, 2);
   assert.match(prompts[1], /unknown_rule|未注册|ruleId/);
   assert.equal(result.scenes.length, 2);
+});
+
+test("live scene transport retry keeps the original prompt instead of adding semantic correction", async () => {
+  const [{ generateLiveScenePackage }, fixture] = await Promise.all([
+    load("live-scene-generator"),
+    loadFixture(),
+  ]);
+  const prompts = [];
+  let attempts = 0;
+  await generateLiveScenePackage({
+    world: fixture.makeWorld(),
+    events: [],
+    chapter: chapterContext(),
+  }, {
+    maxAttempts: 2,
+    model: async (_purpose, _system, prompt) => {
+      prompts.push(prompt);
+      attempts += 1;
+      if (attempts === 1) {
+        const error = new Error("连接中断");
+        error.category = "transport";
+        error.retryable = true;
+        throw error;
+      }
+      return validDraft(fixture.IDS);
+    },
+  });
+  assert.equal(prompts.length, 2);
+  assert.equal(prompts[1], prompts[0]);
+  assert.doesNotMatch(prompts[1], /程序校验反馈/);
+});
+
+test("interactive unit uses the same validator but a bounded direct-output budget", async () => {
+  const [{ generateInteractiveScenePackage }, fixture] = await Promise.all([
+    load("live-scene-generator"),
+    loadFixture(),
+  ]);
+  const purposes = [];
+  const pkg = await generateInteractiveScenePackage({
+    world: fixture.makeWorld(),
+    events: [],
+    chapter: chapterContext(),
+    unitId: "unit-1",
+  }, {
+    model: async (purpose, _system, prompt) => {
+      purposes.push({ purpose, prompt });
+      return validDraft(fixture.IDS);
+    },
+  });
+  assert.equal(pkg.id, "story-unit-test-chapter-live-unit-1-v1");
+  assert.ok(pkg.scenes.length <= 2);
+  assert.equal(purposes[0].purpose, "story-unit");
+  assert.match(purposes[0].prompt, /1 到 2 个场景|互动单元/);
+});
+
+test("interactive unit marks a non-final package as unit_end and does not retry deadline failures", async () => {
+  const [{ generateInteractiveScenePackage }, fixture] = await Promise.all([
+    load("live-scene-generator"),
+    loadFixture(),
+  ]);
+  let calls = 0;
+  const packageItem = await generateInteractiveScenePackage({
+    world: fixture.makeWorld(),
+    events: [],
+    chapter: chapterContext(),
+    unitId: "unit-1",
+  }, {
+    model: async () => {
+      calls += 1;
+      return validDraft(fixture.IDS);
+    },
+    isFinalUnit: false,
+    nextUnitId: "unit-2",
+  });
+  assert.equal(calls, 1);
+  assert.deepEqual(packageItem.completion, { kind: "unit_end", unitId: "unit-2" });
+  assert.equal(packageItem.scenes.at(-1).defaultNext.kind, "unit_end");
+  assert.equal(packageItem.scenes.at(-1).blocks.at(-1).content.choices[0].next.kind, "unit_end");
+
+  calls = 0;
+  await assert.rejects(
+    generateInteractiveScenePackage({
+      world: fixture.makeWorld(),
+      events: [],
+      chapter: chapterContext(),
+      unitId: "unit-timeout",
+    }, {
+      model: async () => {
+        calls += 1;
+        throw new Error("大模型请求超时");
+      },
+      maxAttempts: 2,
+    }),
+    /超时|deadline/i,
+  );
+  assert.equal(calls, 1);
+});
+
+test("event coverage must be explicit when a chapter has canonical events", async () => {
+  const [{ generateLiveScenePackage }, fixture] = await Promise.all([
+    load("live-scene-generator"),
+    loadFixture(),
+  ]);
+  let calls = 0;
+  await assert.rejects(
+    generateLiveScenePackage({
+      world: fixture.makeWorld(),
+      events: [{ id: "event-1", chapterId: "test-chapter-live", year: 2026, title: "测试事件", summary: "测试事件摘要", participantIds: [], visibility: "known" }],
+      chapter: chapterContext(),
+      generationKind: "unit",
+      unitId: "unit-coverage",
+    }, {
+      maxAttempts: 1,
+      model: async () => {
+        calls += 1;
+        return validDraft(fixture.IDS);
+      },
+    }),
+    /sourceEventIds/,
+  );
+  assert.equal(calls, 1);
+});
+
+test("interactive unit must cover at least one unrevealed canonical event before handing off", async () => {
+  const [{ generateLiveScenePackage }, fixture] = await Promise.all([
+    load("live-scene-generator"),
+    loadFixture(),
+  ]);
+  const draft = validDraft(fixture.IDS);
+  await assert.rejects(
+    generateLiveScenePackage({
+      world: fixture.makeWorld(),
+      events: [{ id: "event-1", chapterId: "test-chapter-live", year: 2026, title: "测试事件", summary: "测试事件摘要", participantIds: [], visibility: "known" }],
+      chapter: chapterContext(),
+      generationKind: "unit",
+      unitId: "unit-no-progress",
+      isFinalUnit: false,
+    }, {
+      maxAttempts: 1,
+      model: async () => ({
+        ...draft,
+        scenes: draft.scenes.map((scene) => ({ ...scene, sourceEventIds: [] })),
+      }),
+    }),
+    /至少覆盖一个|未揭示.*事件|覆盖.*事件/,
+  );
 });

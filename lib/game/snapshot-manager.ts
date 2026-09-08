@@ -22,6 +22,10 @@ type SnapshotSource = Pick<
   | "scenePackages"
   | "zhaoLeng"
   | "narrativeRuntime"
+  | "sceneReading"
+  | "sceneFlow"
+  | "storySession"
+  | "storyReveal"
 >;
 
 export type CreateSnapshotOptions = {
@@ -43,6 +47,10 @@ export type CreateSnapshotOptions = {
   scenePackages?: GameSave["scenePackages"];
   zhaoLeng?: GameSave["zhaoLeng"];
   narrativeRuntime?: GameSave["narrativeRuntime"];
+  sceneReading?: GameSave["sceneReading"];
+  sceneFlow?: GameSave["sceneFlow"];
+  storySession?: GameSave["storySession"];
+  storyReveal?: GameSave["storyReveal"];
 };
 
 export type AppendSnapshotOptions = {
@@ -52,6 +60,10 @@ export type AppendSnapshotOptions = {
   sceneRuntime?: SceneRuntimeState;
   sceneActions?: SceneActionRecord[];
   sceneFlags?: Record<string, boolean>;
+  sceneReading?: GameSave["sceneReading"];
+  sceneFlow?: GameSave["sceneFlow"];
+  storySession?: GameSave["storySession"];
+  storyReveal?: GameSave["storyReveal"];
 };
 
 export type AppendSceneChoiceCheckpointOptions = {
@@ -64,6 +76,10 @@ export type AppendSceneChoiceCheckpointOptions = {
   runtime?: SceneRuntimeState;
   actions?: SceneActionRecord[];
   flags?: Record<string, boolean>;
+  sceneReading?: GameSave["sceneReading"];
+  sceneFlow?: GameSave["sceneFlow"];
+  storySession?: GameSave["storySession"];
+  storyReveal?: GameSave["storyReveal"];
   now?: string;
 };
 
@@ -161,6 +177,10 @@ export function createWorldSnapshot(source: SnapshotSource, options: CreateSnaps
     ...(source.scenePackages ? { scenePackages: clone(source.scenePackages) } : {}),
     ...(source.zhaoLeng ? { zhaoLeng: clone(source.zhaoLeng) } : {}),
     ...(source.narrativeRuntime ? { narrativeRuntime: clone(source.narrativeRuntime) } : {}),
+    ...(source.sceneReading ? { sceneReading: clone(source.sceneReading) } : {}),
+    ...(source.sceneFlow ? { sceneFlow: clone(source.sceneFlow) } : {}),
+    ...(options.storySession || source.storySession ? { storySession: clone(options.storySession ?? source.storySession) } : {}),
+    ...(options.storyReveal || source.storyReveal ? { storyReveal: clone(options.storyReveal ?? source.storyReveal) } : {}),
   };
 }
 
@@ -239,6 +259,10 @@ export function appendSnapshot(save: GameSave, options: AppendSnapshotOptions = 
     sceneRuntime: options.sceneRuntime,
     sceneActions: options.sceneActions,
     sceneFlags: options.sceneFlags,
+    sceneReading: options.sceneReading,
+    sceneFlow: options.sceneFlow,
+    storySession: options.storySession,
+    storyReveal: options.storyReveal,
   });
   const nextSnapshotIds = Array.from(new Set([...branch.snapshotIds, snapshot.id]));
   const nextBranch: GameBranch = {
@@ -304,6 +328,10 @@ export function appendSceneChoiceCheckpoint(
       ...(options.runtime ? { sceneRuntime: clone(options.runtime) } : {}),
       ...(options.actions ? { sceneActions: clone(options.actions) } : {}),
       ...(options.flags ? { sceneFlags: clone(options.flags) } : {}),
+      ...(options.sceneReading ? { sceneReading: clone(options.sceneReading) } : {}),
+      ...(options.sceneFlow ? { sceneFlow: clone(options.sceneFlow) } : {}),
+      ...(options.storySession ? { storySession: clone(options.storySession) } : {}),
+      ...(options.storyReveal ? { storyReveal: clone(options.storyReveal) } : {}),
     };
   }
   const snapshot = createWorldSnapshot(prepared, {
@@ -322,6 +350,10 @@ export function appendSceneChoiceCheckpoint(
     sceneRuntime: options.runtime,
     sceneActions: options.actions,
     sceneFlags: options.flags,
+    sceneReading: options.sceneReading,
+    sceneFlow: options.sceneFlow,
+    storySession: options.storySession,
+    storyReveal: options.storyReveal,
   });
   const nextBranch: GameBranch = {
     ...branch,
@@ -335,6 +367,10 @@ export function appendSceneChoiceCheckpoint(
     ...(options.runtime ? { sceneRuntime: clone(options.runtime) } : {}),
     ...(options.actions ? { sceneActions: clone(options.actions) } : {}),
     ...(options.flags ? { sceneFlags: clone(options.flags) } : {}),
+    ...(options.sceneReading ? { sceneReading: clone(options.sceneReading) } : {}),
+    ...(options.sceneFlow ? { sceneFlow: clone(options.sceneFlow) } : {}),
+    ...(options.storySession ? { storySession: clone(options.storySession) } : {}),
+    ...(options.storyReveal ? { storyReveal: clone(options.storyReveal) } : {}),
   };
 }
 
@@ -412,6 +448,9 @@ export function createBranchFromSnapshot(
     cloned.id = snapshotIdFor(branchId, item.chapterIndex);
     cloned.branchId = branchId;
     cloned.createdAt = now;
+    // A pending command belongs to the source branch's request context and
+    // must never be replayed from a newly forked branch.
+    delete cloned.sceneFlow;
     return cloned;
   });
   const clonedSnapshot = clonedSnapshots.find((item) => item.chapterIndex === source.chapterIndex);
@@ -430,7 +469,7 @@ export function createBranchFromSnapshot(
     chapterIds: [...source.worldState.chapterIds],
   };
 
-  return {
+  const next: GameSave = {
     ...prepared,
     savedAt: now,
     activeBranchId: branchId,
@@ -438,9 +477,29 @@ export function createBranchFromSnapshot(
     chapters: clone(source.chapterContent),
     events: clone(source.events),
     experienceCache: clone(source.experienceCache),
+    ...(source.sceneRuntime ? { sceneRuntime: { ...clone(source.sceneRuntime), branchId } } : {}),
+    ...(source.sceneActions ? { sceneActions: clone(source.sceneActions) } : {}),
+    ...(source.sceneFlags ? { sceneFlags: clone(source.sceneFlags) } : {}),
+    ...(source.scenePackages ? { scenePackages: clone(source.scenePackages) } : {}),
+    ...(source.zhaoLeng ? { zhaoLeng: clone(source.zhaoLeng) } : {}),
+    ...(source.narrativeRuntime ? { narrativeRuntime: clone(source.narrativeRuntime) } : {}),
+    ...(source.sceneReading ? { sceneReading: clone(source.sceneReading) } : {}),
+    ...(source.storySession ? { storySession: clone(source.storySession) } : {}),
+    ...(source.storyReveal ? { storyReveal: clone(source.storyReveal) } : {}),
     snapshots: { ...prepared.snapshots, ...clonedSnapshotMap },
     branches: { ...prepared.branches, [branchId]: branch },
   };
+  if (!source.sceneRuntime) delete next.sceneRuntime;
+  if (!source.sceneActions) delete next.sceneActions;
+  if (!source.sceneFlags) delete next.sceneFlags;
+  if (!source.scenePackages) delete next.scenePackages;
+  if (!source.zhaoLeng) delete next.zhaoLeng;
+  if (!source.narrativeRuntime) delete next.narrativeRuntime;
+  if (!source.sceneReading) delete next.sceneReading;
+  if (!source.storySession) delete next.storySession;
+  if (!source.storyReveal) delete next.storyReveal;
+  delete next.sceneFlow;
+  return next;
 }
 
 function snapshotOrder(snapshot: WorldSnapshot): [number, number] {
@@ -490,11 +549,21 @@ function replaceSceneFieldsFromSnapshot(
     ...(snapshot.scenePackages ? { scenePackages: clone(snapshot.scenePackages) } : {}),
     ...(snapshot.zhaoLeng ? { zhaoLeng: clone(snapshot.zhaoLeng) } : {}),
     ...(snapshot.narrativeRuntime ? { narrativeRuntime: clone(snapshot.narrativeRuntime) } : {}),
+    ...(snapshot.sceneReading ? { sceneReading: clone(snapshot.sceneReading) } : {}),
+    ...(snapshot.sceneFlow ? { sceneFlow: clone(snapshot.sceneFlow) } : {}),
+    ...(snapshot.storySession ? { storySession: clone(snapshot.storySession) } : {}),
+    ...(snapshot.storyReveal ? { storyReveal: clone(snapshot.storyReveal) } : {}),
   };
   if (!snapshot.sceneRuntime) delete next.sceneRuntime;
+  if (!snapshot.sceneActions) delete next.sceneActions;
+  if (!snapshot.sceneFlags) delete next.sceneFlags;
   if (!snapshot.scenePackages) delete next.scenePackages;
   if (!snapshot.zhaoLeng) delete next.zhaoLeng;
   if (!snapshot.narrativeRuntime) delete next.narrativeRuntime;
+  if (!snapshot.sceneReading) delete next.sceneReading;
+  if (!snapshot.storySession) delete next.storySession;
+  if (!snapshot.storyReveal) delete next.storyReveal;
+  if (!snapshot.sceneFlow) delete next.sceneFlow;
   return next;
 }
 
@@ -524,6 +593,9 @@ export function createBranchFromSceneCheckpoint(
     cloned.branchId = branchId;
     cloned.createdAt = now;
     if (cloned.sceneRuntime) cloned.sceneRuntime = { ...cloned.sceneRuntime, branchId };
+    // The checkpoint is a new branch start; any pending command from the
+    // source branch is not valid for this branch's position identity.
+    delete cloned.sceneFlow;
     return cloned;
   });
   const sourceIndex = ancestors.findIndex((item) => item.id === source.id);
@@ -549,6 +621,7 @@ export function createBranchFromSceneCheckpoint(
     branchId,
     now,
   );
+  delete copied.sceneFlow;
   return { ...copied, branches: { ...copied.branches, [branchId]: branch } };
 }
 
@@ -602,7 +675,7 @@ function nodeForSnapshot(
     sequence: snapshot.sequence,
     year: snapshot.year,
     label: `第 ${String(chapter.index + 1).padStart(2, "0")} 章 · ${chapter.startYear}—${chapter.endYear}`,
-    title: chapter.novel.title,
+    title: chapter.novel?.title ?? "互动人生",
     summary: chapter.summary.keyEvents.slice(0, 2).join("；"),
     active: snapshot.id === branch.headSnapshotId,
     canReplay: snapshot.replayable,
@@ -617,7 +690,7 @@ function legacyNodes(save: GameSave, branch: GameBranch): SnapshotTimelineNode[]
     chapterIndex: chapter.index + 1,
     year: chapter.endYear,
     label: `第 ${String(chapter.index + 1).padStart(2, "0")} 章 · ${chapter.startYear}—${chapter.endYear}`,
-    title: chapter.novel.title,
+    title: chapter.novel?.title ?? "互动人生",
     summary: chapter.summary.keyEvents.slice(0, 2).join("；"),
     active: chapter.id === branch.chapterIds.at(-1),
     canReplay: false,

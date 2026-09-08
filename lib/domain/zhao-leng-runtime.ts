@@ -53,6 +53,7 @@ export type ZhaoLengRuntimeState = {
   packagesById: Record<string, ScenePackage>;
   cacheKeys: Record<string, string>;
   commandReceipts: Record<string, { payloadHash: string; resultingPackageId: string }>;
+  preparedArtifact?: ZhaoLengPreparedArtifact;
   endingId?: ZhaoLengEndingId;
 };
 
@@ -60,6 +61,7 @@ export type ZhaoLengCommandBase = {
   requestId: string;
   expectedRevision: number;
   expectedPackageId: string;
+  expectedBranchId?: string;
   issuedAt: string;
 };
 
@@ -85,7 +87,23 @@ export type ZhaoLengWrittenLine =
 export type ZhaoLengWrittenBeat = {
   beatId: ZhaoLengBeatId;
   opening: ZhaoLengWrittenLine[];
-  feedback: Record<"A" | "B" | "C", ZhaoLengWrittenLine[]>;
+  feedback: Partial<Record<"A" | "B" | "C", ZhaoLengWrittenLine[]>>;
+};
+
+export type ZhaoLengPreparedArtifact = {
+  schemaVersion: 1;
+  artifactId: string;
+  beatId: ZhaoLengBeatId;
+  inputFingerprint: string;
+  generationMode: ZhaoLengGenerationMode;
+  contentVersion: typeof ZHAO_LENG_CONTENT_VERSION;
+  pipelineVersion: number;
+  branchId: string;
+  sourcePackageId: string;
+  sourcePackageVersion: number;
+  written: ZhaoLengWrittenBeat;
+  createdAt: string;
+  expiresAt: string;
 };
 
 export type ZhaoLengReadingPackage = {

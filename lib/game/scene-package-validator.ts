@@ -197,8 +197,17 @@ function validateTarget(
     if (!endingIds.has(endingId)) fail(`${path}.endingId`, "unknown_target", `不存在结局 ${endingId}`);
     return { kind: "ending", endingId };
   }
+  if (value.kind === "unit_end") {
+    const unitId = stableId(value.unitId, `${path}.unitId`);
+    const pendingEventIds = value.pendingEventIds === undefined
+      ? undefined
+      : Array.isArray(value.pendingEventIds)
+        ? value.pendingEventIds.map((eventId, index) => stableId(eventId, `${path}.pendingEventIds[${index}]`))
+        : fail(`${path}.pendingEventIds`, "invalid_target", "必须是事件 ID 数组");
+    return { kind: "unit_end", unitId, ...(pendingEventIds?.length ? { pendingEventIds } : {}) };
+  }
   if (value.kind === "chapter_end") return { kind: "chapter_end" };
-  fail(`${path}.kind`, "invalid_target", "只支持 scene、chapter_end 或 ending");
+  fail(`${path}.kind`, "invalid_target", "只支持 scene、unit_end、chapter_end 或 ending");
 }
 
 function validateCharacters(
@@ -384,7 +393,10 @@ function validateScene(
 }
 
 function cloneTarget(target: SceneTarget): SceneTarget {
-  return target.kind === "scene" ? { kind: "scene", sceneId: target.sceneId } : target.kind === "ending" ? { kind: "ending", endingId: target.endingId } : { kind: "chapter_end" };
+  if (target.kind === "scene") return { kind: "scene", sceneId: target.sceneId };
+  if (target.kind === "ending") return { kind: "ending", endingId: target.endingId };
+  if (target.kind === "unit_end") return { kind: "unit_end", unitId: target.unitId, ...(target.pendingEventIds?.length ? { pendingEventIds: [...target.pendingEventIds] } : {}) };
+  return { kind: "chapter_end" };
 }
 
 export function validateScenePackage(value: unknown, input?: SceneValidationContext | WorldState): ScenePackage {

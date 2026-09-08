@@ -7,9 +7,9 @@ import type { CharacterMemory } from "./memory";
 import type { SimulationEvent } from "./simulation";
 import type { LifeExperience } from "./experience";
 import type { WorldState } from "./world";
-import type { SceneActionRecord, SceneRuntimeState } from "./scene";
-import type { ScenePackage } from "./scene";
+import type { SceneActionRecord, SceneFlowState, ScenePackage, SceneReadingState, SceneRuntimeState } from "./scene";
 import type { NarrativeRuntimeState, ZhaoLengRuntimeState } from "./zhao-leng-runtime";
+import type { StoryRevealCursor, StorySessionState } from "./story";
 
 export type SnapshotId = string;
 export type BranchId = string;
@@ -50,6 +50,10 @@ export type WorldSnapshot = {
   scenePackages?: Record<string, ScenePackage>;
   zhaoLeng?: ZhaoLengRuntimeState;
   narrativeRuntime?: NarrativeRuntimeState;
+  sceneReading?: SceneReadingState;
+  sceneFlow?: SceneFlowState;
+  storySession?: StorySessionState;
+  storyReveal?: StoryRevealCursor;
 };
 export type GameBranch = {
   id: BranchId;

@@ -381,7 +381,7 @@ export function ProtagonistSetup({
               <div>
                 <b style={{ fontSize: 17 }}>{name.trim() || "未命名主角"}</b>
                 <div style={{ color: "var(--lv-muted)", fontSize: 12, marginTop: 2 }}>
-                  {birthYear + 18} 岁 · 起始 {birthYear + 18} 年
+                  {Math.max(0, new Date().getFullYear() - birthYear)} 岁 · 出生 {birthYear} 年
                 </div>
               </div>
               <div style={{ color: "var(--lv-muted)", fontSize: 12, lineHeight: 1.8 }}>

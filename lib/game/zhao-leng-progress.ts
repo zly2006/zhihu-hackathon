@@ -4,6 +4,7 @@ import type {
   ZhaoLengBeatId,
   ZhaoLengCommand,
   ZhaoLengEndingId,
+  ZhaoLengPreparedArtifact,
   ZhaoLengPhaseId,
   ZhaoLengRuntimeState,
 } from "../domain/zhao-leng-runtime";
@@ -15,7 +16,6 @@ import {
 } from "../narrative/zhao-leng-script";
 import {
   ZHAO_LENG_BEAT_SCRIPTS,
-  type ZhaoLengRelationshipIntent,
 } from "../narrative/zhao-leng-script";
 import { createSceneRuntime } from "./scene-runtime";
 import { appendSnapshot } from "./snapshot-manager";
@@ -28,20 +28,14 @@ import {
   compileZhaoLengBeat,
   compileZhaoLengReadingPackage,
 } from "./zhao-leng-package";
-
-export type ZhaoLengFacts = {
-  choiceByBeat: Partial<Record<ZhaoLengBeatId, "A" | "B" | "C">>;
-  firstMeetingWeekend: boolean;
-  boundaryRespected: boolean;
-  coolingPromiseKept: boolean;
-  autonomyRespected: boolean;
-  jointArrangementActive: boolean;
-  remoteFuture: boolean;
-  relationshipIntent: ZhaoLengRelationshipIntent;
-  canTogether: boolean;
-  completedBeatIds: ZhaoLengBeatId[];
-  observedLibraryCard: boolean;
-};
+import {
+  deriveZhaoLengFacts,
+  zhaoLengFlags,
+} from "./zhao-leng-facts";
+import { validateZhaoLengPreparedArtifact } from "./zhao-leng-artifact-validator";
+export { resolveZhaoLengBoundary } from "./zhao-leng-flow";
+export { deriveZhaoLengFacts, zhaoLengFlags } from "./zhao-leng-facts";
+export type { ZhaoLengFacts } from "./zhao-leng-facts";
 
 export class ZhaoLengCommandError extends Error {
   readonly code: string;
@@ -63,14 +57,11 @@ export type ZhaoLengCommandResult = {
 export type ZhaoLengCommandDependencies = {
   now?: string;
   compileBeat?: typeof compileZhaoLengBeat;
+  preparedArtifact?: ZhaoLengPreparedArtifact;
 };
 
 function clone<T>(value: T): T {
   return JSON.parse(JSON.stringify(value)) as T;
-}
-
-function beatIdFromPackageId(packageId: string): ZhaoLengBeatId | undefined {
-  return ZHAO_LENG_BEAT_SCRIPTS.find((beat) => packageId.includes(`:${beat.id}:`))?.id;
 }
 
 function currentPackage(save: GameSave): ScenePackage {
@@ -94,6 +85,10 @@ function assertBaseCommand(save: GameSave, command: ZhaoLengCommand): {
   const runtime = save.sceneRuntime;
   if (!runtime) throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "赵冷 Demo 尚未建立场景运行时");
   const packageItem = currentPackage(save);
+  const branchId = save.activeBranchId ?? runtime.branchId;
+  if (command.expectedBranchId && command.expectedBranchId !== branchId) {
+    throw new ZhaoLengCommandError("BRANCH_MISMATCH", "场景分支已经变化，请恢复最新存档");
+  }
   if (command.expectedPackageId !== packageItem.id) {
     throw new ZhaoLengCommandError("PACKAGE_MISMATCH", "场景内容已经变化，请恢复最新存档");
   }
@@ -126,71 +121,6 @@ function phaseFor(beatId: ZhaoLengBeatId): ZhaoLengPhaseId {
   return getZhaoLengBeatScript(beatId).phaseId;
 }
 
-function selectedChoices(save: Pick<GameSave, "sceneActions">): ZhaoLengFacts["choiceByBeat"] {
-  const result: ZhaoLengFacts["choiceByBeat"] = {};
-  for (const action of save.sceneActions ?? []) {
-    const beatId = beatIdFromPackageId(action.packageId);
-    if (beatId) result[beatId] = action.choiceId;
-  }
-  return result;
-}
-
-function canTogether(
-  save: GameSave,
-  facts: Omit<ZhaoLengFacts, "canTogether">,
-): boolean {
-  const scores = getZhaoLengRelationship(save).scores;
-  return (
-    scores.closeness >= 55 &&
-    scores.trust >= 60 &&
-    scores.commitment >= 20 &&
-    facts.boundaryRespected &&
-    facts.autonomyRespected &&
-    facts.jointArrangementActive
-  );
-}
-
-export function deriveZhaoLengFacts(save: GameSave): ZhaoLengFacts {
-  const choiceByBeat = selectedChoices(save);
-  const boundaryChoice = choiceByBeat["zl-03-boundary"];
-  const coolingChoice = choiceByBeat["zl-06-distance"];
-  const choice08 = choiceByBeat["zl-08-choice"];
-  const choice09 = choiceByBeat["zl-09-consequence"];
-  const choice11 = choiceByBeat["zl-11-future"];
-  const base = {
-    choiceByBeat,
-    firstMeetingWeekend: choiceByBeat["zl-01-message"] === "C",
-    boundaryRespected: boundaryChoice === "A" || boundaryChoice === "B",
-    coolingPromiseKept: coolingChoice === "A" || coolingChoice === "B",
-    autonomyRespected: choice08 !== undefined,
-    jointArrangementActive:
-      choice09 === "C"
-        ? false
-        : choice09 === "B"
-          ? true
-          : choice08 === "A",
-    remoteFuture: choiceByBeat["zl-10-letter"] === "C",
-    relationshipIntent:
-      choice11 === "A" ? ("together" as const) : choice11 === "B" ? ("friends" as const) : choice11 === "C" ? ("apart" as const) : ("undecided" as const),
-    completedBeatIds: [...(save.zhaoLeng?.completedBeatIds ?? [])],
-    observedLibraryCard: (save.zhaoLeng?.observedClueIds ?? []).includes("library-card"),
-  };
-  return { ...base, canTogether: canTogether(save, base) };
-}
-
-export function zhaoLengFlags(save: GameSave): Record<string, boolean> {
-  const facts = deriveZhaoLengFacts(save);
-  return {
-    ...(save.sceneFlags ?? {}),
-    zhaoFirstMeetingWeekend: facts.firstMeetingWeekend,
-    zhaoBoundaryRespected: facts.boundaryRespected,
-    zhaoCoolingPromiseKept: facts.coolingPromiseKept,
-    zhaoAutonomyRespected: facts.autonomyRespected,
-    zhaoJointArrangementActive: facts.jointArrangementActive,
-    zhaoRemoteFuture: facts.remoteFuture,
-    zhaoCanTogether: facts.canTogether,
-  };
-}
 
 export function resolveZhaoLengNormalEnding(save: GameSave): "mutual-trust" | "kind-distance" {
   const facts = deriveZhaoLengFacts(save);
@@ -249,8 +179,10 @@ function commitCommand(
   if (!draft.zhaoLeng) throw new ZhaoLengCommandError("INVALID_DEMO", "赵冷 Demo 状态缺失");
   const packageId = activePackageId(draft);
   const revision = (save.saveRevision ?? 0) + 1;
+  const draftWithoutPendingFlow: GameSave = { ...draft };
+  delete draftWithoutPendingFlow.sceneFlow;
   let next: GameSave = {
-    ...draft,
+    ...draftWithoutPendingFlow,
     savedAt: now,
     saveRevision: revision,
     zhaoLeng: {
@@ -274,9 +206,18 @@ function commitCommand(
 function prepareNextPackage(save: GameSave, nextBeatId: ZhaoLengBeatId, now: string, dependencies: ZhaoLengCommandDependencies): GameSave {
   const nextFlags = zhaoLengFlags(save);
   const prepared: GameSave = { ...save, sceneFlags: nextFlags };
-  const packageItem = (dependencies.compileBeat ?? compileZhaoLengBeat)({ save: prepared, beatId: nextBeatId });
+  const artifact = dependencies.preparedArtifact
+    ? validateZhaoLengPreparedArtifact(save, nextBeatId, dependencies.preparedArtifact, new Date(now))
+    : undefined;
+  const packageItem = (dependencies.compileBeat ?? compileZhaoLengBeat)({
+    save: prepared,
+    beatId: nextBeatId,
+    ...(artifact ? { written: artifact.written } : {}),
+  });
   const nextRuntime = createSceneRuntime(packageItem, {
     branchId: save.activeBranchId ?? save.sceneRuntime?.branchId ?? "main",
+    playbackMode: save.sceneRuntime?.playbackMode ?? "manual",
+    skipPolicy: save.sceneRuntime?.skipPolicy ?? "legacy",
   });
   return {
     ...prepared,
@@ -289,6 +230,7 @@ function prepareNextPackage(save: GameSave, nextBeatId: ZhaoLengBeatId, now: str
       stage: "reading",
       packagesById: { ...(prepared.zhaoLeng?.packagesById ?? {}), [packageItem.id]: clone(packageItem) },
       cacheKeys: { ...(prepared.zhaoLeng?.cacheKeys ?? {}), [nextBeatId]: packageItem.id },
+      preparedArtifact: undefined,
     },
   };
 }
@@ -306,21 +248,102 @@ function ensureRuntimeCompleted(runtime: NonNullable<GameSave["sceneRuntime"]>) 
   }
 }
 
-export function applyZhaoLengCommand(
+function validateCommandPosition(
   save: GameSave,
   command: ZhaoLengCommand,
-  dependencies: ZhaoLengCommandDependencies = {},
-): ZhaoLengCommandResult {
-  const replay = replayReceipt(save, command);
-  if (replay) return replay;
-  const { runtime, packageItem } = assertBaseCommand(save, command);
-  const now = dependencies.now ?? command.issuedAt;
+  runtime: NonNullable<GameSave["sceneRuntime"]>,
+): ZhaoLengBeatId | undefined {
   const currentBeat = expectedCurrentBeat(save);
 
   if (command.type === "observe_library_card") {
     if (!canObserveZhaoLengLibraryCard(save)) {
       throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "当前无法观察旧借阅卡");
     }
+    return undefined;
+  }
+
+  ensureRuntimeCompleted(runtime);
+
+  if (command.type === "advance_beat") {
+    const currentIndex = ZHAO_LENG_BEAT_SCRIPTS.findIndex((beat) => beat.id === currentBeat);
+    if (currentIndex < 0 || currentIndex >= ZHAO_LENG_BEAT_SCRIPTS.length - 1) {
+      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "第十二节拍不能继续推进为普通关系节拍");
+    }
+    return ZHAO_LENG_BEAT_SCRIPTS[currentIndex + 1].id;
+  }
+
+  if (command.type === "open_hidden") {
+    if (currentBeat !== "zl-12-hook" || save.zhaoLeng!.stage !== "reading") {
+      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "当前不是第十二节拍的普通收束位置");
+    }
+    if (evaluateZhaoLengHidden(save).status !== "eligible") {
+      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "隐藏后续当前不可用");
+    }
+    return undefined;
+  }
+
+  if (command.type === "finish_normal") {
+    if (currentBeat !== "zl-12-hook" || save.zhaoLeng!.stage !== "reading") {
+      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "普通结局只能从第十二节拍收束");
+    }
+    return undefined;
+  }
+
+  if (command.type === "finish_hidden") {
+    if (
+      save.zhaoLeng!.stage !== "hidden_reading" ||
+      save.zhaoLeng!.consumedEventIds.includes("zhao-leng-library-letter")
+    ) {
+      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "隐藏后续尚未读完或已经消费");
+    }
+    return undefined;
+  }
+
+  if (command.type === "finish_ending") {
+    if (save.zhaoLeng!.stage !== "ending_reading" || !save.zhaoLeng!.endingId) {
+      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "结局内容尚未准备好");
+    }
+    return undefined;
+  }
+
+  throw new ZhaoLengCommandError("INVALID_COMMAND", "未知赵冷 Demo 命令");
+}
+
+export type ZhaoLengPreflight =
+  | { replayed: true; result: ZhaoLengCommandResult }
+  | {
+      replayed: false;
+      runtime: NonNullable<GameSave["sceneRuntime"]>;
+      packageItem: ScenePackage;
+      currentBeat: ZhaoLengBeatId;
+      nextBeatId?: ZhaoLengBeatId;
+    };
+
+/**
+ * Validates a command without compiling content or calling an AI writer.
+ * Receipt replay intentionally happens first so a completed request remains idempotent
+ * even after the saved revision has advanced.
+ */
+export function preflightZhaoLengCommand(save: GameSave, command: ZhaoLengCommand): ZhaoLengPreflight {
+  const replay = replayReceipt(save, command);
+  if (replay) return { replayed: true, result: replay };
+  const { runtime, packageItem } = assertBaseCommand(save, command);
+  const currentBeat = expectedCurrentBeat(save);
+  const nextBeatId = validateCommandPosition(save, command, runtime);
+  return { replayed: false, runtime, packageItem, currentBeat, ...(nextBeatId ? { nextBeatId } : {}) };
+}
+
+export function applyZhaoLengCommand(
+  save: GameSave,
+  command: ZhaoLengCommand,
+  dependencies: ZhaoLengCommandDependencies = {},
+): ZhaoLengCommandResult {
+  const preflight = preflightZhaoLengCommand(save, command);
+  if (preflight.replayed === true) return preflight.result;
+  const { runtime, currentBeat, nextBeatId } = preflight;
+  const now = dependencies.now ?? command.issuedAt;
+
+  if (command.type === "observe_library_card") {
     return commitCommand(
       save,
       command,
@@ -336,12 +359,7 @@ export function applyZhaoLengCommand(
   }
 
   if (command.type === "advance_beat") {
-    ensureRuntimeCompleted(runtime);
-    const currentIndex = ZHAO_LENG_BEAT_SCRIPTS.findIndex((beat) => beat.id === currentBeat);
-    if (currentIndex < 0 || currentIndex >= ZHAO_LENG_BEAT_SCRIPTS.length - 1) {
-      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "第十二节拍不能继续推进为普通关系节拍");
-    }
-    const nextBeatId = ZHAO_LENG_BEAT_SCRIPTS[currentIndex + 1].id;
+    if (!nextBeatId) throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "下一节拍不存在");
     const completed = completeBeat(save.zhaoLeng!, currentBeat);
     const advanced = prepareNextPackage(
       {
@@ -357,12 +375,6 @@ export function applyZhaoLengCommand(
   }
 
   if (command.type === "open_hidden") {
-    ensureRuntimeCompleted(runtime);
-    if (currentBeat !== "zl-12-hook" || save.zhaoLeng!.stage !== "reading") {
-      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "当前不是第十二节拍的普通收束位置");
-    }
-    const hidden = evaluateZhaoLengHidden(save);
-    if (hidden.status !== "eligible") throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "隐藏后续当前不可用");
     const intent = deriveZhaoLengFacts(save).relationshipIntent;
     const hiddenPackage = compileZhaoLengReadingPackage(save, "zhao-leng-library-letter", buildZhaoLengHiddenLines(intent));
     const nextState = completeBeat({ ...save.zhaoLeng!, stage: "hidden_reading" }, currentBeat);
@@ -372,7 +384,7 @@ export function applyZhaoLengCommand(
       {
         ...save,
         scenePackages: { ...(save.scenePackages ?? {}), [ZHAO_LENG_CHAPTER_ID]: hiddenPackage },
-        sceneRuntime: createSceneRuntime(hiddenPackage, { branchId: runtime.branchId }),
+        sceneRuntime: createSceneRuntime(hiddenPackage, { branchId: runtime.branchId, playbackMode: runtime.playbackMode, skipPolicy: runtime.skipPolicy ?? "legacy" }),
         zhaoLeng: {
           ...nextState,
           packagesById: { ...nextState.packagesById, [hiddenPackage.id]: hiddenPackage },
@@ -384,10 +396,6 @@ export function applyZhaoLengCommand(
   }
 
   if (command.type === "finish_normal") {
-    ensureRuntimeCompleted(runtime);
-    if (currentBeat !== "zl-12-hook" || save.zhaoLeng!.stage !== "reading") {
-      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "普通结局只能从第十二节拍收束");
-    }
     const endingId = resolveZhaoLengNormalEnding(save);
     const intent = deriveZhaoLengFacts(save).relationshipIntent;
     const endingPackage = compileZhaoLengReadingPackage(save, endingId, buildZhaoLengEndingLines(endingId, intent), endingId);
@@ -398,7 +406,7 @@ export function applyZhaoLengCommand(
       {
         ...save,
         scenePackages: { ...(save.scenePackages ?? {}), [ZHAO_LENG_CHAPTER_ID]: endingPackage },
-        sceneRuntime: createSceneRuntime(endingPackage, { branchId: runtime.branchId }),
+        sceneRuntime: createSceneRuntime(endingPackage, { branchId: runtime.branchId, playbackMode: runtime.playbackMode, skipPolicy: runtime.skipPolicy ?? "legacy" }),
         zhaoLeng: {
           ...nextState,
           packagesById: { ...nextState.packagesById, [endingPackage.id]: endingPackage },
@@ -410,10 +418,6 @@ export function applyZhaoLengCommand(
   }
 
   if (command.type === "finish_hidden") {
-    ensureRuntimeCompleted(runtime);
-    if (save.zhaoLeng!.stage !== "hidden_reading" || save.zhaoLeng!.consumedEventIds.includes("zhao-leng-library-letter")) {
-      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "隐藏后续尚未读完或已经消费");
-    }
     const intent = deriveZhaoLengFacts(save).relationshipIntent;
     const endingPackage = compileZhaoLengReadingPackage(
       save,
@@ -427,7 +431,7 @@ export function applyZhaoLengCommand(
       {
         ...save,
         scenePackages: { ...(save.scenePackages ?? {}), [ZHAO_LENG_CHAPTER_ID]: endingPackage },
-        sceneRuntime: createSceneRuntime(endingPackage, { branchId: runtime.branchId }),
+        sceneRuntime: createSceneRuntime(endingPackage, { branchId: runtime.branchId, playbackMode: runtime.playbackMode, skipPolicy: runtime.skipPolicy ?? "legacy" }),
         zhaoLeng: {
           ...save.zhaoLeng!,
           stage: "ending_reading",
@@ -442,10 +446,6 @@ export function applyZhaoLengCommand(
   }
 
   if (command.type === "finish_ending") {
-    ensureRuntimeCompleted(runtime);
-    if (save.zhaoLeng!.stage !== "ending_reading" || !save.zhaoLeng!.endingId) {
-      throw new ZhaoLengCommandError("INVALID_DEMO_POSITION", "结局内容尚未准备好");
-    }
     return commitCommand(
       save,
       command,

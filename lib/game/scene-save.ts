@@ -63,6 +63,10 @@ export function normalizeSceneSave<T extends GameSave | SceneSaveProjection>(val
       actions: Array.isArray(value.actions) ? clone(value.actions) : [],
       flags: isRecord(value.flags) ? clone(value.flags) : {},
       revision: Number.isInteger(value.revision) && (value.revision as number) >= 0 ? value.revision : 0,
+      ...(isRecord(value.sceneReading) ? { sceneReading: clone(value.sceneReading) } : {}),
+      ...(isRecord(value.sceneFlow) ? { sceneFlow: clone(value.sceneFlow) } : {}),
+      ...(isRecord(value.storySession) ? { storySession: clone(value.storySession) } : {}),
+      ...(isRecord(value.storyReveal) ? { storyReveal: clone(value.storyReveal) } : {}),
     } as T;
   }
   const save = value as GameSave;
@@ -74,6 +78,9 @@ export function normalizeSceneSave<T extends GameSave | SceneSaveProjection>(val
     sceneFlags: isRecord(save.sceneFlags) ? clone(save.sceneFlags) : {},
     scenePackages: isRecord(save.scenePackages) ? clone(save.scenePackages) : {},
     saveRevision: Number.isInteger(save.saveRevision) && (save.saveRevision as number) >= 0 ? save.saveRevision : 0,
+    ...(isRecord(save.sceneReading) ? { sceneReading: clone(save.sceneReading) } : {}),
+    ...(isRecord(save.sceneFlow) ? { sceneFlow: clone(save.sceneFlow) } : {}),
+    ...(isRecord(save.storySession) ? { storySession: clone(save.storySession) } : {}),
   } as T;
 }
 
@@ -230,6 +237,10 @@ export function projectGameSave(
     revision: save.saveRevision ?? 0,
     ...(save.zhaoLeng ? { zhaoLeng: clone(save.zhaoLeng) } : {}),
     ...(save.narrativeRuntime ? { narrativeRuntime: clone(save.narrativeRuntime) } : {}),
+    ...(save.sceneReading ? { sceneReading: clone(save.sceneReading) } : {}),
+    ...(save.sceneFlow ? { sceneFlow: clone(save.sceneFlow) } : {}),
+    ...(save.storySession ? { storySession: clone(save.storySession) } : {}),
+    ...(save.storyReveal ? { storyReveal: clone(save.storyReveal) } : {}),
   };
 }
 
@@ -250,5 +261,13 @@ export function mergeSceneProjection(save: GameSave, projection: SceneSaveProjec
   else delete next.zhaoLeng;
   if (projection.narrativeRuntime) next.narrativeRuntime = clone(projection.narrativeRuntime);
   else delete next.narrativeRuntime;
+  if (projection.sceneReading) next.sceneReading = clone(projection.sceneReading);
+  else delete next.sceneReading;
+  if (projection.sceneFlow) next.sceneFlow = clone(projection.sceneFlow);
+  else delete next.sceneFlow;
+  if (projection.storySession) next.storySession = clone(projection.storySession);
+  else delete next.storySession;
+  if (projection.storyReveal) next.storyReveal = clone(projection.storyReveal);
+  else delete next.storyReveal;
   return next;
 }

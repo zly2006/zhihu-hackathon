@@ -8,7 +8,8 @@ test("DeepSeek requests disable thinking and reserve a complete JSON response bu
   assert.match(source, /thinking:\s*\{\s*type:\s*"disabled"\s*\}/);
   assert.match(source, /response_format:\s*\{\s*type:\s*"json_object"\s*\}/);
   assert.match(source, /max_tokens:\s*options\.maxTokens \?\? 4096/);
-  assert.match(source, /setTimeout\(\(\) => controller\.abort\(\), options\.timeoutMs \?\? 180_000\)/);
+  assert.match(source, /const deadlineAt = options\.deadlineAt[\s\S]*?options\.budget\?\.phaseDeadlineAt/);
+  assert.match(source, /setTimeout\(\(\) => controller\.abort\(\), Math\.max\(1, callTimeoutMs\)\)/);
   assert.match(source, /fenceMatch/, "必须剥离模型输出的 Markdown 代码围栏（opencodego 网关无 json_object 约束）");
   assert.match(source, /transientStreamError/, "必须识别瞬时传输错误并自动重试一次");
   assert.match(source, /模型服务连接中断/, "瞬时错误必须映射为友好提示，不得把原始 terminated 透传到 UI");
@@ -37,4 +38,41 @@ test("narrative constraint corrections reuse the validator's alignment anchors",
 
   assert.match(source, /narrativeAlignmentAnchors/, "语境修正必须复用校验器使用的情境锚点集合");
   assert.match(source, /当前情境锚点词/, "语境修正必须把实际锚点词明确告诉模型");
+});
+
+test("bounded JSON call can finish at a complete object before a slow stream tail", async () => {
+  const llm = await import(new URL("../.tmp/test-all/llm.js", import.meta.url));
+  const originalFetch = globalThis.fetch;
+  const originalProvider = process.env.MODEL_PROVIDER;
+  const originalKey = process.env.DEEPSEEK_API_KEY;
+  let slowTailTimer;
+  try {
+    process.env.MODEL_PROVIDER = "deepseek";
+    process.env.DEEPSEEK_API_KEY = "test-key";
+    globalThis.fetch = async () => new Response(new ReadableStream({
+      start(controller) {
+        controller.enqueue(new TextEncoder().encode('data: {"choices":[{"delta":{"content":"{\\"ok\\":true}"}}]}\n\n'));
+        slowTailTimer = setTimeout(() => controller.close(), 1200);
+      },
+      cancel() {
+        clearTimeout(slowTailTimer);
+      },
+    }), { status: 200, headers: { "content-type": "text/event-stream" } });
+    const startedAt = performance.now();
+    const result = await llm.callGameModel("bounded-json-test", "只输出 JSON", "{}", {
+      responseFormat: "json",
+      maxTransportRetries: 0,
+      stallPolicy: "bounded",
+      firstTokenTimeoutMs: 500,
+      timeoutMs: 1000,
+    });
+    assert.deepEqual(result, { ok: true });
+    assert.ok(performance.now() - startedAt < 800, "完整 JSON 不应等待慢尾流结束");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalProvider === undefined) delete process.env.MODEL_PROVIDER;
+    else process.env.MODEL_PROVIDER = originalProvider;
+    if (originalKey === undefined) delete process.env.DEEPSEEK_API_KEY;
+    else process.env.DEEPSEEK_API_KEY = originalKey;
+  }
 });

@@ -1,6 +1,6 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import type { CSSProperties, MouseEvent, ReactNode } from "react";
 import type { DialogueCharacter } from "@/lib/domain/dialogue";
 import type { SceneCue } from "@/lib/domain/scene";
 import type { SceneDef } from "@/lib/game/scene-catalog";
@@ -17,6 +17,7 @@ export function SceneStage({
   fallbackCharacter,
   cues,
   cueKey,
+  onClick,
   children,
 }: {
   scene: SceneDef;
@@ -27,6 +28,7 @@ export function SceneStage({
   fallbackCharacter?: DialogueCharacter;
   cues?: SceneCue[];
   cueKey?: string;
+  onClick?: (event: MouseEvent<HTMLDivElement>) => void;
   children?: ReactNode;
 }) {
   const style: CSSProperties & Record<string, string> = {
@@ -37,7 +39,7 @@ export function SceneStage({
     "--lv-mobile-pos": scene.backgroundPositionMobile,
   };
   return (
-    <div className="life-vn-scene life-vn-scene-enter" style={style} aria-label={meta ?? scene.label}>
+    <div className="life-vn-scene life-vn-scene-enter" style={style} aria-label={meta ?? scene.label} onClick={onClick}>
       <div className="life-vn-scene-meta">
         <i />
         <span>{meta ?? scene.label}</span>

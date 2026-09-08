@@ -101,6 +101,7 @@ test("V2.4: Scene writer 复用计划时间标签并拒绝空正文", async () =
 test("V2.4: 底层模型和小说端点暴露可取消的增量流", () => {
   const llm = readFileSync(join(root, "lib", "llm.ts"), "utf8");
   const novelRoute = readFileSync(join(root, "app", "api", "chapter", "novel", "route.ts"), "utf8");
+  const storyActionRoute = readFileSync(join(root, "app", "api", "story", "action", "route.ts"), "utf8");
   const app = readFileSync(join(root, "components", "life", "LifeApp.tsx"), "utf8");
 
   assert.match(llm, /onToken\?:/);
@@ -111,19 +112,23 @@ test("V2.4: 底层模型和小说端点暴露可取消的增量流", () => {
   assert.match(novelRoute, /scene_start/);
   assert.match(novelRoute, /delta/);
   assert.match(novelRoute, /ReadableStream/);
-  assert.match(app, /正在推演你的未来/);
+  assert.match(storyActionRoute, /eventLine|ReadableStream/);
+  assert.match(app, /\/api\/story\/action/);
+  assert.doesNotMatch(app, /正在推演你的未来/);
   assert.match(app, /onSceneToken|onDelta/);
   assert.match(app, /stream:\s*Boolean\(narrativePlan/);
 });
 
 test("V2.4: 依赖阶段并行且三类结果接入缓存", () => {
   const simulateRoute = readFileSync(join(root, "app", "api", "chapter", "simulate", "route.ts"), "utf8");
+  const simulationService = readFileSync(join(root, "lib", "game", "chapter-simulation-service.ts"), "utf8");
   const choices = readFileSync(join(root, "lib", "game", "choice-generator.ts"), "utf8");
   const evidence = readFileSync(join(root, "lib", "game", "evidence-retriever.ts"), "utf8");
   const retriever = readFileSync(join(root, "lib", "narrative", "retriever.ts"), "utf8");
   const novelWriter = readFileSync(join(root, "lib", "game", "novel-writer.ts"), "utf8");
 
-  assert.match(simulateRoute, /Promise\.all\(\[[\s\S]*retrieveEvidence[\s\S]*selectRelevantMemories/);
+  assert.match(simulateRoute, /runChapterSimulation/);
+  assert.match(simulationService, /Promise\.all\(\[[\s\S]*retrieveEvidence[\s\S]*selectRelevantMemories/);
   assert.match(choices, /BoundedTtlCache|performance-cache/);
   assert.match(evidence, /BoundedTtlCache|performance-cache/);
   assert.match(retriever, /BoundedTtlCache|performance-cache/);

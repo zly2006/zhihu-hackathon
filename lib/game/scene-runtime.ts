@@ -10,11 +10,14 @@ import type {
 export type SceneRuntimeOptions = {
   branchId: string;
   playbackMode?: "manual" | "auto";
+  skipPolicy?: "legacy" | "read";
   readBlockIds?: string[];
   readOnly?: boolean;
   sceneId?: string;
   blockId?: string;
 };
+
+export type SceneFlowPolicy = "confirm" | "seamless";
 
 export type SceneRuntimeAction =
   | { type: "NEXT" }
@@ -27,7 +30,11 @@ export type SceneRuntimeAction =
       issuedAt: string;
       expectedRevision: number;
     }
-  | { type: "SELECT_SUCCEEDED"; record: Pick<SceneActionRecord, "id" | "next"> & Partial<SceneActionRecord> }
+  | {
+      type: "SELECT_SUCCEEDED";
+      record: Pick<SceneActionRecord, "id" | "next"> & Partial<SceneActionRecord>;
+      flowPolicy?: SceneFlowPolicy;
+    }
   | { type: "SELECT_FAILED"; errorCode?: string }
   | { type: "RESUME" }
   | { type: "ACK_FEEDBACK" }
@@ -77,6 +84,7 @@ function stateAtBlock(
     selectedActionId: undefined,
     pendingAction: undefined,
     feedbackNext: undefined,
+    completion: undefined,
     errorCode: undefined,
   };
 }
@@ -91,6 +99,7 @@ function routeToTarget(pkg: ScenePackage, state: SceneRuntimeState, target: Scen
     return {
       ...state,
       status: "completed",
+      completion: target,
       pendingAction: undefined,
       feedbackNext: undefined,
       errorCode: undefined,
@@ -147,6 +156,7 @@ export function createSceneRuntime(pkg: ScenePackage, options: SceneRuntimeOptio
     status: "reading",
     playbackMode: options.playbackMode ?? "manual",
     readBlockIds: [...new Set(options.readBlockIds ?? [])],
+    ...(options.skipPolicy ? { skipPolicy: options.skipPolicy } : {}),
     ...(options.readOnly ? { readOnly: true } : {}),
   };
   return { ...state, status: statusForBlock(pkg, state) };
@@ -181,6 +191,10 @@ function skipToChoice(pkg: ScenePackage, state: SceneRuntimeState): SceneRuntime
     seen.add(marker);
     const block = getActiveBlock(pkg, current);
     if (!block || (isChoiceBlock(block) && !block.content.readOnly && !current.readOnly)) return current;
+    // Skip is a convenience for content the player has already confirmed reading.
+    // A first visit must remain visible; otherwise the first click on a new
+    // package can swallow an arbitrary run of unseen dialogue.
+    if (current.skipPolicy === "read" && !current.readBlockIds.includes(current.blockId)) return current;
     const next = advanceOne(pkg, current);
     if (next === current || next.status === "completed" || next.status === "error") return next;
     current = next;
@@ -191,6 +205,7 @@ function skipToChoice(pkg: ScenePackage, state: SceneRuntimeState): SceneRuntime
 function targetExists(pkg: ScenePackage, target: SceneTarget): boolean {
   if (target.kind === "scene") return pkg.scenes.some((scene) => scene.id === target.sceneId);
   if (target.kind === "ending") return pkg.endings.some((ending) => ending.id === target.endingId);
+  if (target.kind === "unit_end") return Boolean(target.unitId?.trim());
   return true;
 }
 
@@ -230,14 +245,19 @@ export function transitionSceneRuntime(
   }
   if (action.type === "SELECT_SUCCEEDED") {
     if (state.status !== "submitting" || !targetExists(pkg, action.record.next)) return state;
-    return {
+    const feedback: SceneRuntimeState = {
       ...state,
       status: "feedback",
       selectedActionId: action.record.id,
       pendingAction: undefined,
       feedbackNext: action.record.next,
+      readBlockIds: markRead(state, state.blockId),
       errorCode: undefined,
     };
+    if (action.flowPolicy !== "seamless") return feedback;
+    const routed = routeToTarget(pkg, feedback, action.record.next);
+    if (routed.status === "error") return routed;
+    return { ...routed, selectedActionId: action.record.id };
   }
   if (action.type === "SELECT_FAILED") {
     if (state.status !== "submitting" && state.status !== "error") return state;

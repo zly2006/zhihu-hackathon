@@ -88,6 +88,29 @@ assert.equal(generated.beatId, "zl-03-boundary");
 assert.equal(modelCalls, 2);
 assert.match(prompts[1], /程序校验反馈|重新输出/);
 
+let transportCalls = 0;
+const transportPrompts = [];
+await writer.generateZhaoLengBeat(
+  { save, beatId: "zl-03-boundary", mode: "llm" },
+  {
+    maxAttempts: 2,
+    model: async (_purpose, _system, nextPrompt) => {
+      transportPrompts.push(nextPrompt);
+      transportCalls += 1;
+      if (transportCalls === 1) {
+        const error = new Error("连接中断");
+        error.category = "transport";
+        error.retryable = true;
+        throw error;
+      }
+      return validBeat("zl-03-boundary");
+    },
+  },
+);
+assert.equal(transportPrompts.length, 2);
+assert.equal(transportPrompts[1], transportPrompts[0]);
+assert.doesNotMatch(transportPrompts[1], /程序校验反馈/);
+
 let fixedModelCalls = 0;
 const fixed = await writer.generateZhaoLengBeat(
   { save, beatId: "zl-01-message", mode: "scripted" },

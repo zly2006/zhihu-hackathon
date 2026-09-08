@@ -2,13 +2,14 @@ import { NextResponse } from "next/server";
 import type { GameSave } from "@/lib/domain/chapter";
 import type { ZhaoLengCommand } from "@/lib/domain/zhao-leng-runtime";
 import { normalizeSceneSave } from "@/lib/game/scene-save";
-import { applyZhaoLengCommand, ZhaoLengCommandError } from "@/lib/game/zhao-leng-progress";
+import { applyZhaoLengCommand, preflightZhaoLengCommand, ZhaoLengCommandError } from "@/lib/game/zhao-leng-progress";
 import { compileZhaoLengBeat } from "@/lib/game/zhao-leng-package";
 import { generateZhaoLengBeat } from "@/lib/game/zhao-leng-writer";
-import { listZhaoLengBeatIds } from "@/lib/game/zhao-leng-package";
+import { validateZhaoLengPreparedArtifact } from "@/lib/game/zhao-leng-prepare";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+export const maxDuration = 45;
 
 const COMMAND_TYPES = new Set([
   "observe_library_card",
@@ -30,11 +31,15 @@ function parseCommand(value: unknown): ZhaoLengCommand {
   if (!Number.isInteger(value.expectedRevision) || (value.expectedRevision as number) < 0) throw new Error("command.expectedRevision 无效");
   if (typeof value.expectedPackageId !== "string" || !value.expectedPackageId.trim()) throw new Error("command.expectedPackageId 不能为空");
   if (typeof value.issuedAt !== "string" || !value.issuedAt.trim()) throw new Error("command.issuedAt 不能为空");
+  if (value.expectedBranchId !== undefined && (typeof value.expectedBranchId !== "string" || !value.expectedBranchId.trim())) {
+    throw new Error("command.expectedBranchId 无效");
+  }
   return {
     type: value.type as ZhaoLengCommand["type"],
     requestId: value.requestId,
     expectedRevision: value.expectedRevision,
     expectedPackageId: value.expectedPackageId,
+    ...(value.expectedBranchId !== undefined ? { expectedBranchId: value.expectedBranchId } : {}),
     issuedAt: value.issuedAt,
   } as ZhaoLengCommand;
 }
@@ -52,19 +57,43 @@ export async function POST(request: Request) {
     if (!body.save) throw new Error("缺少赵冷 Demo 存档");
     const save = normalizeSceneSave(body.save as GameSave);
     const command = parseCommand(body.command);
+    const preflight = preflightZhaoLengCommand(save, command);
+    if (preflight.replayed) {
+      const replay = preflight.result;
+      return NextResponse.json({
+        gameSave: replay.saveAfter,
+        scenePackage: replay.saveAfter.scenePackages?.[replay.saveAfter.sceneRuntime?.chapterId ?? ""],
+        runtime: replay.saveAfter.sceneRuntime,
+        replayed: true,
+        endingId: replay.saveAfter.zhaoLeng?.endingId,
+      });
+    }
     let dependencies: Parameters<typeof applyZhaoLengCommand>[2] = { now: command.issuedAt };
-    if (command.type === "advance_beat" && save.zhaoLeng?.generationMode === "llm") {
-      const beatIds = listZhaoLengBeatIds();
-      const currentIndex = beatIds.indexOf(save.zhaoLeng.beatId);
-      const nextBeatId = currentIndex >= 0 ? beatIds[currentIndex + 1] : undefined;
-      if (nextBeatId) {
-        const written = await generateZhaoLengBeat({ save, beatId: nextBeatId, mode: "llm" });
-        dependencies = {
-          now: command.issuedAt,
-          compileBeat: ({ save: prepared, beatId }) =>
-            compileZhaoLengBeat({ save: prepared, beatId, written: beatId === nextBeatId ? written : undefined }),
-        };
-      }
+    const suppliedArtifact = body.preparedArtifact ?? save.zhaoLeng?.preparedArtifact;
+    if (command.type === "advance_beat" && preflight.nextBeatId && suppliedArtifact) {
+      const artifact = validateZhaoLengPreparedArtifact(
+        save,
+        preflight.nextBeatId,
+        suppliedArtifact as Parameters<typeof validateZhaoLengPreparedArtifact>[2],
+        new Date(command.issuedAt),
+      );
+      dependencies = {
+        now: command.issuedAt,
+        preparedArtifact: artifact,
+        compileBeat: ({ save: prepared, beatId, written }) =>
+          compileZhaoLengBeat({ save: prepared, beatId, written }),
+      };
+    } else if (command.type === "advance_beat" && save.zhaoLeng?.generationMode === "llm" && preflight.nextBeatId) {
+      const nextBeatId = preflight.nextBeatId;
+      const written = await generateZhaoLengBeat(
+        { save, beatId: nextBeatId, mode: "llm" },
+        { signal: request.signal, executionId: command.requestId },
+      );
+      dependencies = {
+        now: command.issuedAt,
+        compileBeat: ({ save: prepared, beatId }) =>
+          compileZhaoLengBeat({ save: prepared, beatId, written: beatId === nextBeatId ? written : undefined }),
+      };
     }
     const result = applyZhaoLengCommand(save, command, dependencies);
     return NextResponse.json({
@@ -72,6 +101,7 @@ export async function POST(request: Request) {
       scenePackage: result.saveAfter.scenePackages?.[result.saveAfter.sceneRuntime?.chapterId ?? ""],
       runtime: result.saveAfter.sceneRuntime,
       replayed: result.replayed,
+      artifactReuse: Boolean(suppliedArtifact && command.type === "advance_beat"),
       endingId: result.saveAfter.zhaoLeng?.endingId,
     });
   } catch (error) {

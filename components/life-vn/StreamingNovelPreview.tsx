@@ -2,7 +2,7 @@ import type { Chapter } from "@/lib/domain/chapter";
 
 type StreamingNovelPreviewProps = {
   title?: string;
-  scenes: Chapter["novel"]["scenes"];
+  scenes: NonNullable<Chapter["novel"]>["scenes"];
   loading?: boolean;
 };
 

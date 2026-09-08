@@ -114,7 +114,7 @@ const newId = () => `id-${++idCounter}`;
 const model = {
   events: [
     { year: 2033, month: 3, title: "调整", summary: "项目调整", domain: "career", participantIds: ["C1"], causes: [{ type: "player_choice", description: "留下" }], characterChanges: [{ characterId: "C1", statDelta: { career: -4 }, description: "晋升失败" }], relationshipChanges: [], evidenceIds: ["E1"], importance: 50, visibility: "known_to_protagonist", createsThreadLabels: ["晋升瓶颈"], resolvesThreadIds: [] },
-    { year: 2034, month: null, title: "讨论", summary: "定居讨论", domain: "relocation", participantIds: ["C1", "C2"], causes: [{ type: "relationship", description: "分歧" }], characterChanges: [], relationshipChanges: [{ relationshipId: "R1", scoreDelta: { conflict: 8 }, description: "分歧" }], evidenceIds: [], importance: 60, visibility: "known_to_protagonist", createsThreadLabels: [], resolvesThreadIds: [] },
+    { year: 2034, month: null, title: "讨论", summary: "定居讨论", domain: "relocation", participantIds: ["C1", "C2"], causes: [{ type: "relationship", description: "分歧" }], characterChanges: [], relationshipChanges: [{ relationshipId: "R1", scoreDelta: { conflict: 8 }, description: "分歧" }], evidenceIds: [], importance: 60, visibility: "known_to_protagonist", createsThreadLabels: [], resolvesThreadIds: ["N1"] },
   ],
   newMemories: [
     { characterId: "C1", year: 2033, type: "setback", summary: "晋升失败", relatedCharacterIds: [], domains: ["career"], importance: 60, emotionalValence: -1, permanentFact: true },
@@ -128,6 +128,35 @@ const model = {
 };
 
 const mapped = simulator.buildSimulationOutput(model, input, newId);
+const simulatorPrompt = simulator.buildSimulatorPrompt(input);
+check("模拟提示在输出后再次核对重大事件上限", simulatorPrompt.includes("逐个读取每个事件的 importance") && simulatorPrompt.includes("最多 2 个重大事件"));
+const npcGoalPromptInput = {
+  ...input,
+  characters: input.characters.map((character) => ({
+    ...character,
+    state: {
+      ...character.state,
+      currentGoals: character.id === "p1"
+        ? [{ id: "hero-goal", label: "主角目标", horizon: "long", priority: 80, status: "active" }]
+        : [{ id: "npc-goal", label: "NPC目标", horizon: "medium", priority: 70, status: "active" }],
+    },
+  })),
+  npcAgentDirectives: [{
+    id: "npc-agent-1",
+    characterId: "n1",
+    action: "contact_player",
+    targetCharacterIds: ["p1"],
+    relationshipIds: ["r1"],
+    sourceGoalIds: ["npc-goal"],
+    urgency: 80,
+    privateIntent: "内部意图",
+  }],
+};
+const npcGoalPrompt = simulator.buildSimulatorPrompt(npcGoalPromptInput);
+check(
+  "NPC Agent 的 npc_goal 只允许 NPC 目标别名",
+  npcGoalPrompt.includes("NPC 当前目标别名：G2") && npcGoalPrompt.includes("禁止使用主角目标别名：G1"),
+);
 check("映射后事件数 2", mapped.events.length === 2);
 check("映射后事件有 id 且 chapterId 正确", mapped.events[0].id.startsWith("event-") && mapped.events[0].chapterId === "c1");
 check("别名 C1 解析为真实角色 id p1", mapped.events[0].participantIds.includes("p1") && mapped.events[0].characterChanges[0].characterId === "p1");
@@ -135,7 +164,20 @@ check("别名 C2/R1 解析为真实 id", mapped.events[1].participantIds.include
 check("别名 E1 解析为真实证据 id", mapped.events[0].evidenceIds.includes("e1"));
 check("映射后记忆有 id", mapped.newMemories.length === 3 && mapped.newMemories[0].id.startsWith("mem-"));
 check("映射后 createsThreadLabels 转线程 id", mapped.events[0].createsThreadIds.length === 1 && mapped.threadUpdates.create.length === 1);
+check("同一候选的新线程临时别名 N1 可解析", mapped.events[1].resolvesThreadIds[0] === mapped.events[0].createsThreadIds[0]);
+const duplicatedThreadModel = JSON.parse(JSON.stringify(model));
+duplicatedThreadModel.events[1].resolvesThreadIds = ["晋升瓶颈"];
+duplicatedThreadModel.threadUpdates.create = [{ label: "晋升瓶颈", description: "项目调整留下的待解决问题", domain: "career", relatedCharacterIds: ["C1"], urgency: 60 }];
+const duplicatedThreadMapped = simulator.buildSimulationOutput(duplicatedThreadModel, input, newId);
+check("事件简写与 threadUpdates.create 的同名线索共享临时引用", duplicatedThreadMapped.events[1].resolvesThreadIds[0] === duplicatedThreadMapped.events[0].createsThreadIds[0] && duplicatedThreadMapped.threadUpdates.create.length === 1);
 check("映射输出通过 validator", !throws(() => validator.validateSimulationOutput(mapped, vctx)));
+
+let observedCandidate;
+await simulator.runWorldSimulator(input, {
+  model: async () => model,
+  onCandidate: (candidate) => { observedCandidate = candidate; },
+});
+check("世界推演在结构映射前暴露本次候选供有界校正复用", observedCandidate === model);
 
 console.log(failures === 0 ? "\nALL PASS" : `\n${failures} FAILURE(S)`);
 process.exit(failures === 0 ? 0 : 1);

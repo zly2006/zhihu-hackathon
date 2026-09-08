@@ -3,13 +3,15 @@
 // 玩家只选择"行动方向"，不选择"成功/失败"（方案 §3.1）。
 
 import { randomUUID } from "node:crypto";
-import { callGameModel } from "../llm";
+import { callGameModel, type CallOptions } from "../llm";
 import type { ChapterSpan } from "../domain/shared";
 import type { ChapterChoice } from "../domain/chapter";
 import type { WorldState } from "../domain/world";
 import type { Relationship } from "../domain/relationship";
 import { hashState } from "./hash";
 import { BoundedTtlCache, stableCacheKey } from "./performance-cache";
+import { ExecutionBudget } from "./execution-budget";
+import { canRetryGeneration, generationFailure } from "./generation-error";
 
 type ModelOption = {
   id?: unknown;
@@ -24,6 +26,22 @@ type ModelChoice = {
   promptTitle?: unknown;
   context?: unknown;
   options?: unknown;
+};
+
+type ChoiceModel = (
+  purpose: string,
+  system: string,
+  prompt: string,
+  options: CallOptions,
+) => Promise<ModelChoice>;
+
+export type ChapterChoiceGenerationOptions = {
+  model?: ChoiceModel;
+  budget?: ExecutionBudget;
+  signal?: AbortSignal;
+  executionId?: string;
+  maxAttempts?: number;
+  forceFresh?: boolean;
 };
 
 function requireText(value: unknown, field: string, maximum: number): string {
@@ -172,13 +190,72 @@ export function clearChoiceCache(): void {
   choiceCache.clear();
 }
 
-export async function generateChapterChoice(world: WorldState, span: ChapterSpan): Promise<ChapterChoice> {
+export async function generateChapterChoice(
+  world: WorldState,
+  span: ChapterSpan,
+  options: ChapterChoiceGenerationOptions = {},
+): Promise<ChapterChoice> {
   const key = stableCacheKey("chapter-choice", { stateHash: hashState(world), span });
-  return choiceCache.getOrSet(key, async () => {
+  const produce = async (): Promise<ChapterChoice> => {
     const worldDescription = describeWorld(world, span);
-    const prompt = `请根据以下当前世界状态，生成本章的核心困境与三个行动方向。\n\n${worldDescription}\n\n要求：\n1. context 是一个具体的当下困境（80-200字），从一个可见的处境切入，不要抽象的人生规划。\n2. 三个选项必须改变行动机制（例如：留任争取 / 接受邀请 / 迁移换环境；自己承担 / 借助他人 / 改变目标），strategyTag 互不相同。\n3. estimatedRisk 是资源正常的人执行该行动的 0-100 结构风险；stateFit 表示该行动相对主角当前处境的契合度（顺势/可行/吃力）。\n4. 只输出 JSON，格式如下：\n{"promptTitle":"16字内","context":"200字内困境","options":[{"id":"A","label":"12字内","description":"40字内","strategyTag":"行动机制","estimatedRisk":0到100,"stateFit":"顺势|可行|吃力"},{"id":"B","label":"...","description":"...","strategyTag":"...","estimatedRisk":0到100,"stateFit":"..."},{"id":"C","label":"...","description":"...","strategyTag":"...","estimatedRisk":0到100,"stateFit":"..."}]}`;
-
-    const modeled = await callGameModel<ModelChoice>("chapter-choice", CHOICE_SYSTEM, prompt);
-    return validateChapterChoice(modeled);
-  });
+    const prompt = `请根据以下当前世界状态，生成本章的核心困境与三个行动方向。\n\n${worldDescription}\n\n要求：\n1. context 是一个具体的当下困境（80-200字），从一个可见的处境切入，不要抽象的人生规划。\n2. 三个选项必须改变行动机制（例如：留任争取 / 接受邀请 / 迁移换环境；自己承担 / 借助他人 / 改变目标），strategyTag 互不相同。\n3. estimatedRisk 是资源正常的人执行该行动的 0-100 结构风险；stateFit 表示该行动相对主角当前处境的契合度（顺势/可行/吃力）。\n4. strategyTag 必须是不超过 12 个字符的短标签，只描述行动机制，不要把解释句塞进该字段。\n5. 只输出 JSON，格式如下：\n{"promptTitle":"16字内","context":"200字内困境","options":[{"id":"A","label":"12字内","description":"40字内","strategyTag":"行动机制","estimatedRisk":0到100,"stateFit":"顺势|可行|吃力"},{"id":"B","label":"...","description":"...","strategyTag":"...","estimatedRisk":0到100,"stateFit":"..."},{"id":"C","label":"...","description":"...","strategyTag":"...","estimatedRisk":0到100,"stateFit":"..."}]}`;
+    const promptWithConstraints = prompt;
+    const executionId = options.executionId ?? `choice-${randomUUID()}`;
+    const ownsBudget = !options.budget;
+    const budget = options.budget ?? new ExecutionBudget({
+      executionId,
+      timeoutMs: 45_000,
+      maxRequests: 2,
+      phaseLimits: { choice: 2 },
+      signal: options.signal,
+    });
+    const maxAttempts = Math.min(options.maxAttempts ?? 2, 2);
+    if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 2) {
+      throw new Error("章节选择 maxAttempts 必须是 1 到 2");
+    }
+    let correction = "";
+    try {
+      for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+        try {
+          const callOptions: CallOptions = {
+            signal: budget.signal,
+            budget,
+            budgetPhase: "choice",
+            executionId: budget.executionId,
+            deadlineAt: budget.deadlineAt,
+            maxTokens: 2400,
+            timeoutMs: Math.min(45_000, budget.remainingMs()),
+            firstTokenTimeoutMs: Math.min(15_000, budget.remainingMs()),
+            stallPolicy: "bounded",
+            responseFormat: "json",
+            maxTransportRetries: 0,
+            logMode: "metadata",
+            ...(correction ? { appendMessages: [{ role: "user" as const, content: correction }] } : {}),
+          };
+          const modeled = options.model
+            ? await (async () => {
+                const request = budget.reserve("chapter-choice", "choice");
+                return options.model!("chapter-choice", CHOICE_SYSTEM, `${promptWithConstraints}${correction}`, {
+                  ...callOptions,
+                  requestId: request.requestId,
+                  executionId: request.executionId,
+                });
+              })()
+            : await callGameModel<ModelChoice>("chapter-choice", CHOICE_SYSTEM, promptWithConstraints, callOptions);
+          return validateChapterChoice(modeled);
+        } catch (error) {
+          const failure = generationFailure(error);
+          if (attempt === maxAttempts - 1 || !canRetryGeneration(error)) throw error;
+          correction = failure.category === "transport" || failure.category === "rate_limit"
+            ? ""
+            : `上一次候选只在以下程序校验项失败：${failure.message}。保持当前困境和三种不同的行动机制，只修正该项并重新输出完整 JSON。`;
+        }
+      }
+      throw new Error("章节选择生成失败");
+    } finally {
+      if (ownsBudget) budget.dispose();
+    }
+  };
+  if (options.model || options.forceFresh) return produce();
+  return choiceCache.getOrSet(key, produce);
 }

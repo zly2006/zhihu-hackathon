@@ -2,18 +2,24 @@
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import type { GameSave } from "@/lib/domain/chapter";
-import type { SceneChoiceResponse, ScenePackage, SceneRuntimeState } from "@/lib/domain/scene";
-import type { ZhaoLengCommand, ZhaoLengGenerationMode } from "@/lib/domain/zhao-leng-runtime";
-import { canObserveZhaoLengLibraryCard, evaluateZhaoLengHidden, deriveZhaoLengFacts } from "@/lib/game/zhao-leng-progress";
+import type { ScenePackage, SceneRuntimeState } from "@/lib/domain/scene";
+import type { ZhaoLengGenerationMode } from "@/lib/domain/zhao-leng-runtime";
+import { canObserveZhaoLengLibraryCard, deriveZhaoLengFacts, evaluateZhaoLengHidden } from "@/lib/game/zhao-leng-progress";
 import { getZhaoLengRelationship, ZHAO_LENG_SAVE_KEYS } from "@/lib/game/zhao-leng-demo";
+import { serializeSceneSave } from "@/lib/game/scene-save";
+import {
+  DEFAULT_SCENE_READING_PREFERENCES,
+  normalizeSceneReadingPreferences,
+  type SceneReadingPreferences,
+} from "@/lib/game/scene-reading";
+import { resolveZhaoLengBoundary } from "@/lib/game/zhao-leng-flow";
 import { ZHAO_LENG_BEAT_SCRIPTS } from "@/lib/narrative/zhao-leng-script";
-import { commitSceneChoice, mergeSceneProjection, projectGameSave, serializeSceneSave } from "@/lib/game/scene-save";
-import { SceneRuntimePlayer } from "@/components/life-vn/SceneRuntimePlayer";
 import { LifeShell } from "@/components/life-vn/LifeShell";
+import { SceneReadingLog, SceneReadingTools } from "@/components/life-vn/SceneReadingTools";
+import { StoryPlayer } from "@/components/life-vn/StoryPlayer";
+import { useZhaoLengFlow } from "./use-zhao-leng-flow";
 
-type StartResponse = { gameSave: GameSave; scenePackage: ScenePackage; reused: boolean };
-type CommandResponse = { gameSave: GameSave; scenePackage?: ScenePackage; runtime: SceneRuntimeState; replayed: boolean };
-type ExperienceResponse = { saveAfter: GameSave };
+const SCENE_READING_PREFERENCES_KEY = "restart-life-reading-preferences-v1";
 
 function readError(payload: unknown): string {
   if (payload && typeof payload === "object" && !Array.isArray(payload)) {
@@ -26,7 +32,7 @@ function readError(payload: unknown): string {
   return "请求失败";
 }
 
-async function postJson<T>(url: string, body: unknown): Promise<T> {
+export async function postJson<T>(url: string, body: unknown): Promise<T> {
   const response = await fetch(url, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -35,11 +41,6 @@ async function postJson<T>(url: string, body: unknown): Promise<T> {
   const payload: unknown = await response.json();
   if (!response.ok) throw new Error(readError(payload));
   return payload as T;
-}
-
-function requestId(prefix: string): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) return `${prefix}-${crypto.randomUUID()}`;
-  return `${prefix}-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
 function storedSave(mode: ZhaoLengGenerationMode): GameSave | undefined {
@@ -60,19 +61,46 @@ function persistSave(save: GameSave): void {
   window.localStorage.setItem(ZHAO_LENG_SAVE_KEYS[mode], serializeSceneSave(save));
 }
 
+export function ZhaoLengCompletion({ endingId }: { endingId?: string }) {
+  return (
+    <div className="life-vn-ending-screen" role="status" aria-label="赵冷结局完成">
+      <span className="life-vn-tool-kicker">STORY COMPLETE</span>
+      <h2>这一段故事已经走到结尾</h2>
+      <p>你已经读完赵冷 Demo 的全部回应。关系结算与隐藏事件已保存，本页不会自动重新开始。</p>
+      {endingId && <div className="life-vn-ending-screen-id">结局 · {endingId}</div>}
+      <small>如要探索另一条路径，请从阅读菜单选择“重新开始”。</small>
+    </div>
+  );
+}
+
 export function ZhaoLengDemo() {
   const [save, setSave] = useState<GameSave | null>(null);
   const saveRef = useRef<GameSave | null>(null);
   const [mode, setMode] = useState<ZhaoLengGenerationMode>("scripted");
   const [resumeModes, setResumeModes] = useState<ZhaoLengGenerationMode[]>([]);
-  const [busy, setBusy] = useState(false);
+  const [startBusy, setStartBusy] = useState(false);
   const [error, setError] = useState("");
+  const [pendingSave, setPendingSave] = useState<GameSave | null>(null);
+  const pendingSaveRef = useRef<GameSave | null>(null);
+  const [readingPreferences, setReadingPreferences] = useState<SceneReadingPreferences>(DEFAULT_SCENE_READING_PREFERENCES);
+  const [readingLogOpen, setReadingLogOpen] = useState(false);
+  const [readingSheetOpen, setReadingSheetOpen] = useState(false);
+  const [pauseAfterReadingLog, setPauseAfterReadingLog] = useState(false);
 
   useEffect(() => {
-    const available = (['scripted', 'llm'] as const).filter((candidate) => Boolean(storedSave(candidate)));
+    const available = (["scripted", "llm"] as const).filter((candidate) => Boolean(storedSave(candidate)));
     setResumeModes([...available]);
     if (available.includes("scripted")) setMode("scripted");
     else if (available.includes("llm")) setMode("llm");
+  }, []);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem(SCENE_READING_PREFERENCES_KEY);
+      if (raw) setReadingPreferences(normalizeSceneReadingPreferences(JSON.parse(raw)));
+    } catch {
+      setReadingPreferences(DEFAULT_SCENE_READING_PREFERENCES);
+    }
   }, []);
 
   useEffect(() => {
@@ -91,6 +119,9 @@ export function ZhaoLengDemo() {
         stage: current?.zhaoLeng?.stage ?? null,
         runtimeStatus: current?.sceneRuntime?.status ?? null,
         endingId: current?.zhaoLeng?.endingId ?? null,
+        readingEntries: current?.sceneReading?.entries.length ?? 0,
+        pendingSave: Boolean(pendingSaveRef.current),
+        pendingCommand: current?.sceneFlow?.pendingCommand?.type ?? null,
         scores: relation?.scores ?? null,
         error,
       });
@@ -100,47 +131,26 @@ export function ZhaoLengDemo() {
     };
   }, [error, mode]);
 
-  const updateSave = useCallback((next: GameSave) => {
+  const publishSave = useCallback((next: GameSave, options: { allowPending?: boolean } = {}) => {
+    if (pendingSaveRef.current && !options.allowPending) {
+      setError("上一笔存档还没有写入成功，请先重试保存。");
+      return false;
+    }
     saveRef.current = next;
     setSave(next);
     try {
       persistSave(next);
+      pendingSaveRef.current = null;
+      setPendingSave(null);
+      setError("");
+      return true;
     } catch {
-      setError("浏览器存档写入失败；当前页面仍可继续，但刷新后可能丢失最近进度。");
+      pendingSaveRef.current = next;
+      setPendingSave(next);
+      setError("浏览器存档写入失败；最近成功结果只保留在当前页面，请重试保存。");
+      return false;
     }
   }, []);
-
-  const refreshNarrative = useCallback(async (next: GameSave, contextKind: "demo-entry" | "zhao-leng-beat") => {
-    try {
-      const result = await postJson<ExperienceResponse>("/api/life/zhao-leng/experience", {
-        save: next,
-        contextKind,
-      });
-      updateSave(result.saveAfter);
-    } catch {
-      // 主动事件预览失败不阻断已结算的场景；下一次进入仍可重试。
-    }
-  }, [updateSave]);
-
-  const start = useCallback(async (nextMode: ZhaoLengGenerationMode, continueExisting: boolean) => {
-    setBusy(true);
-    setError("");
-    try {
-      const candidate = continueExisting ? storedSave(nextMode) : undefined;
-      const result = await postJson<StartResponse>("/api/life/zhao-leng", {
-        mode: nextMode,
-        ...(candidate ? { save: candidate } : {}),
-        currentYear: new Date().getFullYear(),
-      });
-      updateSave(result.gameSave);
-      setMode(nextMode);
-      await refreshNarrative(result.gameSave, "demo-entry");
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "赵冷 Demo 启动失败");
-    } finally {
-      setBusy(false);
-    }
-  }, [refreshNarrative, updateSave]);
 
   const activePackage = useMemo(() => {
     if (!save?.sceneRuntime) return undefined;
@@ -150,60 +160,58 @@ export function ZhaoLengDemo() {
       : save.zhaoLeng?.packagesById[save.sceneRuntime.packageId];
   }, [save]);
 
-  const onPersistPosition = useCallback((runtime: SceneRuntimeState) => {
-    const current = saveRef.current;
-    if (!current) return;
-    if (JSON.stringify(current.sceneRuntime) === JSON.stringify(runtime)) return;
-    updateSave({ ...current, sceneRuntime: runtime, savedAt: new Date().toISOString() });
-  }, [updateSave]);
+  const flow = useZhaoLengFlow({
+    saveRef,
+    activePackage,
+    publishSave,
+    postJson: (url, body) => postJson<unknown>(url, body),
+    onError: setError,
+  });
 
-  const onSelect = useCallback(async (input: {
-    requestId: string;
-    issuedAt: string;
-    expectedRevision: number;
-    choiceId: "A" | "B" | "C";
-  }): Promise<SceneChoiceResponse> => {
-    const current = saveRef.current;
-    const packageItem = activePackage;
-    if (!current?.sceneRuntime || !packageItem) throw new Error("赵冷 Demo 场景尚未就绪");
-    const projection = projectGameSave(current, current.sceneRuntime, current.sceneActions, current.sceneFlags);
-    const response = await postJson<SceneChoiceResponse>("/api/chapter/scene-choice", {
-      projection,
-      package: packageItem,
-      ...input,
-    });
-    const nextProjection = commitSceneChoice(projection, response);
-    updateSave(mergeSceneProjection(current, nextProjection));
-    return response;
-  }, [activePackage, updateSave]);
+  const updateReadingPreferences = useCallback((next: SceneReadingPreferences) => {
+    const normalized = normalizeSceneReadingPreferences(next);
+    setReadingPreferences(normalized);
+    try {
+      window.localStorage.setItem(SCENE_READING_PREFERENCES_KEY, JSON.stringify(normalized));
+    } catch {
+      // 阅读偏好不可写时继续使用当前页面的内存值，不影响游戏存档。
+    }
+  }, []);
 
-  const command = useCallback(async (type: ZhaoLengCommand["type"]) => {
-    const current = saveRef.current;
-    const packageItem = activePackage;
-    if (!current?.sceneRuntime || !packageItem) return;
-    setBusy(true);
+  const start = useCallback(async (nextMode: ZhaoLengGenerationMode, continueExisting: boolean) => {
+    flow.invalidateSession();
+    setStartBusy(true);
     setError("");
     try {
-      const result = await postJson<CommandResponse>("/api/life/zhao-leng/command", {
-        save: current,
-        command: {
-          type,
-          requestId: requestId(`zhao-${type}`),
-          expectedRevision: current.saveRevision ?? 0,
-          expectedPackageId: packageItem.id,
-          issuedAt: new Date().toISOString(),
-        },
+      const candidate = continueExisting ? storedSave(nextMode) : undefined;
+      const result = await postJson<{ gameSave: GameSave; scenePackage: ScenePackage; reused: boolean }>("/api/life/zhao-leng", {
+        mode: nextMode,
+        ...(candidate ? { save: candidate } : {}),
+        currentYear: new Date().getFullYear(),
       });
-      updateSave(result.gameSave);
-      if (type === "advance_beat" || type === "observe_library_card") {
-        await refreshNarrative(result.gameSave, "zhao-leng-beat");
-      }
+      const saved = publishSave(result.gameSave);
+      setMode(result.gameSave.zhaoLeng?.generationMode ?? nextMode);
+      if (saved) await flow.refreshNarrative(result.gameSave, "demo-entry");
     } catch (err) {
-      setError(err instanceof Error ? err.message : "赵冷 Demo 命令失败");
+      setError(err instanceof Error ? err.message : "赵冷 Demo 启动失败");
     } finally {
-      setBusy(false);
+      setStartBusy(false);
     }
-  }, [activePackage, refreshNarrative, updateSave]);
+  }, [flow, publishSave]);
+
+  const retrySave = useCallback(() => {
+    const candidate = pendingSaveRef.current;
+    if (candidate) publishSave(candidate, { allowPending: true });
+  }, [publishSave]);
+
+  const handleReadingLogOpen = useCallback(() => {
+    setPauseAfterReadingLog(true);
+    setReadingLogOpen(true);
+  }, []);
+  const handleReadingLogClose = useCallback(() => setReadingLogOpen(false), []);
+  const handlePlaybackModeChange = useCallback((nextMode: SceneRuntimeState["playbackMode"]) => {
+    if (nextMode === "auto") setPauseAfterReadingLog(false);
+  }, []);
 
   const restart = useCallback(() => {
     void start(mode, false);
@@ -217,15 +225,15 @@ export function ZhaoLengDemo() {
           <h1 className="life-vn-title" style={{ fontSize: 30, marginTop: 16 }}>十二节拍，三种收束</h1>
           <p className="life-vn-sub">固定剧本用于稳定验收；AI 模式只生成对白与旁白，选择后果仍由服务端规则结算。</p>
           <div style={{ display: "flex", gap: 8, flexWrap: "wrap", margin: "22px 0" }} role="group" aria-label="生成模式">
-            <button type="button" className={mode === "scripted" ? "life-vn-btn" : "life-vn-btn ghost"} onClick={() => setMode("scripted")} disabled={busy}>固定剧本</button>
-            <button type="button" className={mode === "llm" ? "life-vn-btn" : "life-vn-btn ghost"} onClick={() => setMode("llm")} disabled={busy}>AI 写作</button>
+            <button type="button" className={mode === "scripted" ? "life-vn-btn" : "life-vn-btn ghost"} onClick={() => setMode("scripted")} disabled={startBusy}>固定剧本</button>
+            <button type="button" className={mode === "llm" ? "life-vn-btn" : "life-vn-btn ghost"} onClick={() => setMode("llm")} disabled={startBusy}>AI 写作</button>
           </div>
           <div style={{ display: "grid", gap: 10 }}>
-            <button type="button" className="life-vn-btn" onClick={() => void start(mode, false)} disabled={busy}>
-              {busy ? "正在准备…" : "开始赵冷 Demo"}
+            <button type="button" className="life-vn-btn" onClick={() => void start(mode, false)} disabled={startBusy}>
+              {startBusy ? "正在准备…" : "开始赵冷 Demo"}
             </button>
             {resumeModes.includes(mode) && (
-              <button type="button" className="life-vn-btn ghost" onClick={() => void start(mode, true)} disabled={busy}>
+              <button type="button" className="life-vn-btn ghost" onClick={() => void start(mode, true)} disabled={startBusy}>
                 继续 {mode === "llm" ? "AI" : "固定剧本"} 存档
               </button>
             )}
@@ -243,16 +251,19 @@ export function ZhaoLengDemo() {
   const currentBeatIndex = ZHAO_LENG_BEAT_SCRIPTS.findIndex((beat) => beat.id === save.zhaoLeng?.beatId);
   const runtime = save.sceneRuntime;
   const canObserveCard = canObserveZhaoLengLibraryCard(save);
-  const atCompletedBoundary = runtime.status === "completed";
-  const canFinishNormal = atCompletedBoundary && save.zhaoLeng?.beatId === "zl-12-hook" && save.zhaoLeng.stage === "reading";
-  const canFinishHidden = canFinishNormal && hidden.status === "eligible";
-  const endingReady = atCompletedBoundary && save.zhaoLeng?.stage === "ending_reading";
+  const boundary = runtime.status === "completed"
+    ? resolveZhaoLengBoundary({ save, completedRuntime: runtime })
+    : { kind: "none" as const };
+  const pendingCommand = save.sceneFlow?.pendingCommand;
+  const interactionDisabled = Boolean(pendingSave) || flow.busy || Boolean(pendingCommand);
+  const commandDisabled = Boolean(pendingSave) || flow.busy;
+  const autoPaused = readingLogOpen || readingSheetOpen || pauseAfterReadingLog;
 
   return (
     <LifeShell
       chapterLabel="赵冷 · 成人关系 Demo"
       title={ZHAO_LENG_BEAT_SCRIPTS[currentBeatIndex]?.title ?? "剧情现场"}
-      yearRange={`${save.worldState.currentYear} 年 · ${mode === "llm" ? "AI 写作" : "固定剧本"}`}
+      yearRange={`${save.worldState.currentYear} 年 · ${save.zhaoLeng?.generationMode === "llm" ? "AI 写作" : "固定剧本"}`}
       brandLabel="赵冷 Demo · Restart Life"
       onBrandClick={() => { window.location.href = "/life"; }}
       left={
@@ -276,37 +287,87 @@ export function ZhaoLengDemo() {
       }
       center={
         <div style={{ position: "absolute", inset: 0 }}>
-          <SceneRuntimePlayer
-            key={`${activePackage.id}:v${activePackage.version}`}
-            scenePackage={activePackage}
-            initialState={runtime}
-            projection={projectGameSave(save, runtime, save.sceneActions, save.sceneFlags)}
-            onSelect={onSelect}
-            onPersistPosition={onPersistPosition}
-          />
-          <div style={{ position: "absolute", right: 18, bottom: 18, zIndex: 6, display: "flex", gap: 8, flexWrap: "wrap", justifyContent: "flex-end" }}>
-            {canObserveCard && <button type="button" className="life-vn-btn ghost" onClick={() => void command("observe_library_card")} disabled={busy}>查看旧借阅卡</button>}
-            {atCompletedBoundary && save.zhaoLeng?.beatId !== "zl-12-hook" && <button type="button" className="life-vn-btn" onClick={() => void command("advance_beat")} disabled={busy}>{busy ? "正在进入下一节拍…" : "进入下一节拍"}</button>}
-            {canFinishNormal && <button type="button" className="life-vn-btn" onClick={() => void command("finish_normal")} disabled={busy}>收束普通结局</button>}
-            {canFinishHidden && <button type="button" className="life-vn-btn ghost" onClick={() => void command("open_hidden")} disabled={busy}>打开隐藏来信</button>}
-            {save.zhaoLeng?.stage === "hidden_reading" && atCompletedBoundary && <button type="button" className="life-vn-btn" onClick={() => void command("finish_hidden")} disabled={busy}>读完来信</button>}
-            {endingReady && <button type="button" className="life-vn-btn" onClick={() => void command("finish_ending")} disabled={busy}>完成结局</button>}
+          {save.zhaoLeng?.stage === "ended" ? (
+            <ZhaoLengCompletion endingId={save.zhaoLeng.endingId} />
+          ) : (
+            <StoryPlayer
+              key={`${activePackage.id}:v${activePackage.version}`}
+              scenePackage={activePackage}
+              initialState={runtime}
+              projection={{
+                ...projectGameSaveForPlayer(save, runtime),
+              }}
+              flowPolicy="seamless"
+            readingPreferences={readingPreferences}
+            autoPaused={autoPaused}
+            observationWindow={canObserveCard}
+            interactionDisabled={interactionDisabled}
+              onSelect={flow.onSelect}
+              onPersistPosition={flow.onPersistPosition}
+              onBlockRead={flow.onBlockRead}
+              onBoundary={flow.onBoundary}
+              onPlaybackModeChange={handlePlaybackModeChange}
+            />
+          )}
+          <div className="life-vn-zhao-overlay">
+            {canObserveCard && <button type="button" className="life-vn-btn ghost" onClick={() => void flow.runCommand("observe_library_card", "button")} disabled={commandDisabled || Boolean(pendingCommand)}>查看旧借阅卡</button>}
+            {boundary.kind === "decision" && (
+              <div className="life-vn-boundary-decision" role="group" aria-label="结局选择">
+                <span>这封信要不要打开？</span>
+                <button type="button" className="life-vn-btn" onClick={() => flow.chooseBoundary("open_hidden")} disabled={commandDisabled}>打开隐藏来信</button>
+                <button type="button" className="life-vn-btn ghost" onClick={() => flow.chooseBoundary("finish_normal")} disabled={commandDisabled}>在这里告别</button>
+              </div>
+            )}
+            {pendingCommand && <div className="life-vn-flow-status" role="status"><span>{pendingCommand.type === "advance_beat" && flow.preparing ? "正在准备下一节拍…" : "故事已经读到边界，正在继续。"}</span><button type="button" className="life-vn-btn ghost" onClick={flow.retryPendingCommand} disabled={commandDisabled || flow.preparing}>重试继续</button></div>}
+            {flow.prepareError && !pendingCommand && <div className="life-vn-flow-status life-vn-flow-status--warning" role="alert"><span>下一节拍准备失败：{flow.prepareError}</span><button type="button" className="life-vn-btn ghost" onClick={() => { const current = saveRef.current; if (current) void flow.prepareNextBeat(current).catch(() => undefined); }}>重试准备</button></div>}
+            {pendingSave && <div className="life-vn-flow-status life-vn-flow-status--warning" role="alert"><span>最近结果尚未写入浏览器存档。</span><button type="button" className="life-vn-btn ghost" onClick={retrySave}>重试保存</button></div>}
+            {error && <div className="life-vn-error" role="alert">{error}</div>}
           </div>
-          {save.zhaoLeng?.stage === "ended" && <div className="life-vn-pill" style={{ position: "absolute", top: 18, right: 18, zIndex: 6 }}>结局：{save.zhaoLeng.endingId}</div>}
-          {error && <div className="life-vn-error" role="alert" style={{ position: "absolute", left: 18, right: 18, top: 18, zIndex: 7 }}>{error}</div>}
+          <SceneReadingLog open={readingLogOpen} entries={save.sceneReading?.entries ?? []} onClose={handleReadingLogClose} />
         </div>
       }
+      dockItems={[{ id: "reading", label: "阅读", sub: "R" }]}
+      onSheetOpenChange={setReadingSheetOpen}
       sheet={
-        <div style={{ display: "grid", gap: 12 }}>
-          <div><b>存档</b><p style={{ margin: "6px 0 0", color: "var(--lv-muted)", fontSize: 12 }}>自动保存至本浏览器的 {mode === "llm" ? "AI" : "固定剧本"} 独立存档。</p></div>
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <button type="button" className="life-vn-btn ghost" onClick={restart} disabled={busy}>重新开始</button>
-            <button type="button" className="life-vn-btn ghost" onClick={() => { const blob = new Blob([serializeSceneSave(save)], { type: "application/json" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `zhao-leng-${mode}-save.json`; link.click(); URL.revokeObjectURL(link.href); }}>导出存档</button>
-          </div>
-          {save.zhaoLeng?.stage === "ended" && <p style={{ margin: 0, color: "var(--lv-gold-strong)" }}>本次结局已完成，可以重新开始探索其他路径。</p>}
+        <div style={{ display: "grid", gap: 16 }}>
+          <SceneReadingTools
+            entries={save.sceneReading?.entries ?? []}
+            preferences={readingPreferences}
+            onOpenRecords={handleReadingLogOpen}
+            onChangePreferences={updateReadingPreferences}
+          />
+          <section className="life-vn-save-tools">
+            <b>存档</b>
+            <p style={{ margin: "6px 0 0", color: "var(--lv-muted)", fontSize: 12 }}>自动保存至本浏览器的 {save.zhaoLeng?.generationMode === "llm" ? "AI" : "固定剧本"} 独立存档。</p>
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+              <button type="button" className="life-vn-btn ghost" onClick={restart} disabled={commandDisabled || Boolean(pendingCommand)}>重新开始</button>
+              <button type="button" className="life-vn-btn ghost" onClick={() => { const blob = new Blob([serializeSceneSave(save)], { type: "application/json" }); const link = document.createElement("a"); link.href = URL.createObjectURL(blob); link.download = `zhao-leng-${save.zhaoLeng?.generationMode ?? mode}-save.json`; link.click(); URL.revokeObjectURL(link.href); }}>导出存档</button>
+              {pendingSave && <button type="button" className="life-vn-btn" onClick={retrySave}>重试保存</button>}
+            </div>
+          </section>
           <div><b>当前运行时</b><p style={{ margin: "6px 0 0", color: "var(--lv-muted)", fontSize: 12 }}>{runtime.status} · revision {save.saveRevision ?? 0}</p></div>
+          {save.zhaoLeng?.stage === "ended" && <p style={{ margin: 0, color: "var(--lv-gold-strong)" }}>本次结局已完成，可以重新开始探索其他路径。</p>}
         </div>
       }
     />
   );
+}
+
+function projectGameSaveForPlayer(save: GameSave, runtime: SceneRuntimeState) {
+  return {
+    worldState: save.worldState,
+    chapters: save.chapters,
+    events: save.events,
+    experienceCache: save.experienceCache,
+    activeBranchId: save.activeBranchId ?? runtime.branchId,
+    runtime,
+    actions: save.sceneActions ?? [],
+    flags: save.sceneFlags ?? {},
+    revision: save.saveRevision ?? 0,
+    ...(save.zhaoLeng ? { zhaoLeng: save.zhaoLeng } : {}),
+    ...(save.narrativeRuntime ? { narrativeRuntime: save.narrativeRuntime } : {}),
+    ...(save.sceneReading ? { sceneReading: save.sceneReading } : {}),
+    ...(save.sceneFlow ? { sceneFlow: save.sceneFlow } : {}),
+    ...(save.storySession ? { storySession: save.storySession } : {}),
+  };
 }

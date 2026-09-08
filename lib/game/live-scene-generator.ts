@@ -2,10 +2,16 @@
 // 只生成当前章节的公开互动表现，不拥有 WorldState，也不直接结算选择后果。
 
 import { callGameModel } from "../llm";
+import type { ModelProgress } from "../llm";
 import { assertNoPrivateNarrativeLeak } from "./public-narrative-guard";
+import { ExecutionBudget } from "./execution-budget";
+import type { ExecutionBudget as ExecutionBudgetType } from "./execution-budget";
+import { canRetryGeneration, generationFailure } from "./generation-error";
 import type { Character } from "../domain/character";
 import type { Chapter } from "../domain/chapter";
 import type { NarrativePlan } from "../domain/narrative";
+import type { NarrativeDirectorBrief } from "../domain/narrative";
+import type { NarrativePacingDirective } from "../domain/narrative-experience";
 import type { DialogueCharacter, DialogueChoiceId } from "../domain/dialogue";
 import type { SimulationEvent } from "../domain/simulation";
 import type {
@@ -27,6 +33,8 @@ export type LiveSceneChapterContext = Pick<
   "id" | "index" | "startYear" | "endYear" | "span" | "decision" | "summary"
 > & {
   narrativePlan?: NarrativePlan;
+  directorBrief?: NarrativeDirectorBrief;
+  pacing?: NarrativePacingDirective;
 };
 
 export type LiveSceneGenerationInput = {
@@ -34,12 +42,26 @@ export type LiveSceneGenerationInput = {
   events: SimulationEvent[];
   chapter: LiveSceneChapterContext;
   version?: number;
+  generationKind?: "chapter" | "unit";
+  unitId?: string;
+  /** Events that the current short unit is required to make readable. */
+  requiredEventIds?: string[];
+  /** Necessary events already revealed by earlier units of this chapter. */
+  revealedEventIds?: string[];
+  /** A non-final unit must hand control to the next unit instead of closing the chapter. */
+  isFinalUnit?: boolean;
+  nextUnitId?: string;
 };
 
 type ModelCallOptions = {
   maxTokens?: number;
   timeoutMs?: number;
   responseFormat?: "json" | "text";
+  signal?: AbortSignal;
+  deadlineAt?: number;
+  requestId?: string;
+  executionId?: string;
+  attempt?: number;
 };
 
 export type LiveSceneModel = (
@@ -52,6 +74,15 @@ export type LiveSceneModel = (
 export type LiveSceneGenerationOptions = {
   model?: LiveSceneModel;
   maxAttempts?: number;
+  purpose?: string;
+  maxTokens?: number;
+  timeoutMs?: number;
+  signal?: AbortSignal;
+  budget?: ExecutionBudgetType;
+  executionId?: string;
+  onProgress?: (progress: ModelProgress) => void;
+  isFinalUnit?: boolean;
+  nextUnitId?: string;
 };
 
 type AnyRecord = Record<string, unknown>;
@@ -140,15 +171,20 @@ function describeRelationships(world: WorldState): string {
 }
 
 function describeEvents(input: LiveSceneGenerationInput): string {
-  return input.events.length
-    ? input.events
-        .slice(-12)
-        .map((event) => {
-          const visibility = event.visibility === "partially_known" ? "；主角只部分知情，只写可观察表象" : "";
-          return `${event.id}｜${event.year}年｜${event.title}｜${event.summary}｜参与者 ${event.participantIds.join("、") || "无"}${visibility}`;
-        })
-        .join("\n")
-    : "（本章没有额外 canonical 事件）";
+  if (!input.events.length) return "（本章没有额外 canonical 事件）";
+  const pendingIds = new Set(input.generationKind === "unit" ? eventIdsForCoverage(input) : []);
+  return input.events
+    .slice(-12)
+    .map((event, index) => ({ event, index, pending: pendingIds.has(event.id) }))
+    .sort((left, right) => Number(right.pending) - Number(left.pending) || left.index - right.index)
+    .map(({ event, pending }) => {
+      const visibility = event.visibility === "partially_known" ? "；主角只部分知情，只写可观察表象" : "";
+      const coverage = input.generationKind === "unit"
+        ? pending ? "【本单元必须覆盖】" : "【已揭示，可回顾】"
+        : "";
+      return `${coverage}${event.id}｜${event.year}年｜${event.title}｜${event.summary}｜参与者 ${event.participantIds.join("、") || "无"}${visibility}`;
+    })
+    .join("\n");
 }
 
 function describeRules(): string {
@@ -178,6 +214,130 @@ function describeNarrativePlan(plan: NarrativePlan | undefined): string {
     .join("\n");
 }
 
+function describeDirectorContext(input: LiveSceneGenerationInput): string {
+  const brief = input.chapter.directorBrief ?? input.chapter.narrativePlan?.directorBrief;
+  const pacing = input.chapter.pacing;
+  return [
+    brief
+      ? `导演 brief：焦点角色 ${brief.focusCharacterId}；问题 ${brief.dramaticQuestion}；张力 ${brief.tensionLevel}；触发 ${brief.trigger}`
+      : "导演 brief：当前没有额外焦点，围绕已发生事实组织短场景。",
+    pacing
+      ? `六拍节奏：第 ${pacing.chapterOrdinal} 章 ${pacing.phase}；目标张力 ${pacing.targetTension}；场景目的 ${pacing.requiredScenePurposes.join("、")}；避免 ${pacing.avoid.join("、")}`
+      : "六拍节奏：按当前事件与公开关系压力决定，不把普通事件写成高潮。",
+  ].join("\n");
+}
+
+function eventIdsForCoverage(input: LiveSceneGenerationInput): string[] {
+  const revealed = new Set(input.revealedEventIds ?? []);
+  return [...new Set((input.requiredEventIds ?? input.events.map((event) => event.id)).filter((eventId) => eventId && !revealed.has(eventId)))];
+}
+
+function nextUnitIdFor(input: LiveSceneGenerationInput): string {
+  const proposed = input.nextUnitId?.trim();
+  if (proposed && proposed !== input.unitId) return proposed;
+  return `${input.unitId ?? input.chapter.id}-continuation`;
+}
+
+function rewriteUnitTarget(target: SceneTarget, completion: SceneTarget): SceneTarget {
+  // An ending is also terminal. A non-final unit must hand off through the
+  // unit boundary even when the model chose an ending-shaped target.
+  return target.kind === "chapter_end" || (target.kind === "ending" && completion.kind === "unit_end")
+    ? completion
+    : target;
+}
+
+/**
+ * A generated package is a playable unit, not a chapter marker.  The model is
+ * allowed to choose scene/ending branches, but it cannot accidentally turn a
+ * short unit's default path into a chapter_end before the coverage ledger is
+ * complete.
+ */
+function finalizePackageBoundary(pkg: ScenePackage, input: LiveSceneGenerationInput): ScenePackage {
+  if (input.generationKind !== "unit") return { ...pkg, completion: { kind: "chapter_end" } };
+  const requiredEventIds = eventIdsForCoverage(input);
+  const coveredEventIds = new Set(pkg.scenes.flatMap((scene) => scene.sourceEventIds));
+  const pendingEventIds = requiredEventIds.filter((eventId) => !coveredEventIds.has(eventId));
+  if (requiredEventIds.length > 0 && pendingEventIds.length === requiredEventIds.length) {
+    const referencedEventIds = [...coveredEventIds].filter((eventId) => input.events.some((event) => event.id === eventId));
+    throw new Error(`互动单元必须至少覆盖一个尚未揭示的 canonical 事件，才能交接到下一单元；本次必须从 ${requiredEventIds.join("、")} 中至少选择一个 sourceEventIds，当前只引用了 ${referencedEventIds.join("、") || "无"}`);
+  }
+  const finalRequested = input.isFinalUnit === true;
+  const completion: SceneTarget = finalRequested && pendingEventIds.length === 0
+    ? { kind: "chapter_end" }
+    : {
+        kind: "unit_end",
+        unitId: nextUnitIdFor(input),
+        ...(pendingEventIds.length ? { pendingEventIds } : {}),
+      };
+  const scenes = pkg.scenes.map((scene) => ({
+    ...scene,
+    defaultNext: rewriteUnitTarget(scene.defaultNext, completion),
+    blocks: scene.blocks.map((block) => {
+      if (block.content.type !== "choice") return block;
+      return {
+        ...block,
+        content: {
+          ...block.content,
+          choices: block.content.choices.map((choice) => {
+            if (!("next" in choice)) return choice;
+            return { ...choice, next: rewriteUnitTarget(choice.next, completion) };
+          }),
+        },
+      };
+    }),
+  }));
+  return { ...pkg, scenes, completion };
+}
+
+function generationExecutionId(input: LiveSceneGenerationInput, options: LiveSceneGenerationOptions): string {
+  return options.executionId
+    ?? `story-${input.generationKind ?? "chapter"}-${input.chapter.id}-${input.unitId ?? input.version ?? "current"}`;
+}
+
+async function invokeSceneModel(
+  model: LiveSceneModel,
+  purpose: string,
+  prompt: string,
+  input: LiveSceneGenerationInput,
+  options: LiveSceneGenerationOptions,
+  budget: ExecutionBudgetType,
+): Promise<unknown> {
+  const phaseTimeoutMs = input.generationKind === "unit" ? 45_000 : 180_000;
+  const phaseDeadlineAt = budget.phaseDeadlineAt("interactive", phaseTimeoutMs);
+  const remainingMs = budget.remainingMsFor("interactive", phaseTimeoutMs);
+  budget.assertCanStart(purpose, "interactive");
+  const callOptions = {
+    maxTokens: options.maxTokens ?? (input.generationKind === "unit" ? 3600 : 6500),
+    timeoutMs: Math.min(options.timeoutMs ?? (input.generationKind === "unit" ? 45_000 : 180_000), remainingMs),
+    responseFormat: "json" as const,
+    signal: options.signal ?? budget.signal,
+    deadlineAt: phaseDeadlineAt,
+    executionId: budget.executionId,
+  };
+  if (model === (callGameModel as unknown as LiveSceneModel)) {
+    return callGameModel<unknown>(purpose, LIVE_SCENE_SYSTEM, prompt, {
+      ...callOptions,
+      maxTransportRetries: 0,
+      stallPolicy: "bounded",
+      firstTokenTimeoutMs: Math.min(15_000, callOptions.timeoutMs),
+      budget,
+      budgetPhase: "interactive",
+      onProgress: options.onProgress,
+      auditMetadata: {
+        executionId: budget.executionId,
+        stage: input.generationKind === "unit" ? "interactive-unit" : "live-scene",
+      },
+    });
+  }
+  const request = budget.reserve(purpose, "interactive");
+  return model(purpose, LIVE_SCENE_SYSTEM, prompt, {
+    ...callOptions,
+    requestId: request.requestId,
+    executionId: request.executionId,
+    attempt: request.attempt,
+  });
+}
+
 function availableTargetIds(world: WorldState): string[] {
   return Object.values(world.relationships)
     .filter((relationship) => relationship.characterAId === world.protagonistId || relationship.characterBId === world.protagonistId)
@@ -193,6 +353,9 @@ export function buildLiveScenePrompt(input: LiveSceneGenerationInput): string {
   const sceneIds = SCENES.map((scene) => scene.id).join("、");
   const targetIds = availableTargetIds(input.world).join("、") || "（无）";
   const eventIds = input.events.map((event) => event.id).join("、") || "（无）";
+  const coverageEventIds = eventIdsForCoverage(input).join("、") || "（无）";
+  const isUnit = input.generationKind === "unit";
+  const maxScenes = isUnit ? 2 : 4;
   const sceneSample = JSON.stringify({
     scenes: [{
       id: "scene-1",
@@ -206,13 +369,14 @@ export function buildLiveScenePrompt(input: LiveSceneGenerationInput): string {
           type: "choice",
           text: "你准备怎样回应？",
           choices: [
-            { id: "A", label: "行动 A", ruleId: "listen_without_promise", targetCharacterId: targetIds === "（无）" ? input.world.protagonistId : targetIds.split("、")[0], requirements: [], next: "scene-2" },
-            { id: "B", label: "行动 B", ruleId: "clarify_boundary", targetCharacterId: targetIds === "（无）" ? input.world.protagonistId : targetIds.split("、")[0], requirements: [], next: "scene-2" },
+            { id: "A", label: "行动 A", ruleId: "listen_without_promise", targetCharacterId: targetIds === "（无）" ? input.world.protagonistId : targetIds.split("、")[0], requirements: [], next: "chapter_end" },
+            { id: "B", label: "行动 B", ruleId: "clarify_boundary", targetCharacterId: targetIds === "（无）" ? input.world.protagonistId : targetIds.split("、")[0], requirements: [], next: "chapter_end" },
             { id: "C", label: "行动 C", ruleId: "avoid_conversation", targetCharacterId: targetIds === "（无）" ? input.world.protagonistId : targetIds.split("、")[0], requirements: [], next: "chapter_end" },
           ],
         },
       ],
-      defaultNext: "scene-2",
+      defaultNext: "chapter_end",
+      sourceEventIds: [],
     }],
     endings: [],
   });
@@ -232,6 +396,7 @@ export function buildLiveScenePrompt(input: LiveSceneGenerationInput): string {
     "",
     "# 叙事偏好（不能覆盖硬约束）",
     describeNarrativePlan(input.chapter.narrativePlan),
+    describeDirectorContext(input),
     "",
     "# 世界规则（由程序解释，不由模型发明）",
     describeRules(),
@@ -240,7 +405,7 @@ export function buildLiveScenePrompt(input: LiveSceneGenerationInput): string {
     sceneSample,
     "",
     "# 结构硬约束",
-    "1. 生成 1 到 4 个 scene，所有 scene 都必须是当前年份的 live 场景；至少包含一个可执行 choice block。",
+    `1. 生成 1 到 ${maxScenes} 个 scene，所有 scene 都必须是当前年份的 live 场景；至少包含一个可执行 choice block。${isUnit ? "这是一个当前可玩的短互动单元，不要写成完整章节或回顾小说；为控制等待，优先只生成 1 个 scene，但该 scene 必须保留完整铺垫、对白和 A/B/C choice block。" : ""}`,
     "2. 每个 choice block 必须放在所在 scene 的最后，并且必须恰好包含 A、B、C 三个不同的行动选项；三个 ruleId 必须互不相同。",
     "3. 每个选项必须带 targetCharacterId、requirements 数组和 next；只能引用下方允许的角色、规则和目标。",
     "4. 只能写玩家可观察到的行为、对白和环境；不得写 NPC privateState、隐藏目标、私密信念或未公开因果。",
@@ -255,6 +420,10 @@ export function buildLiveScenePrompt(input: LiveSceneGenerationInput): string {
     `允许的 scene-catalog ID：${sceneIds}`,
     `允许引用的 canonical event ID：${eventIds}`,
     `允许的 ruleId：${listSceneChoiceRuleIds().join("、")}`,
+    `本次尚未揭示、必须优先覆盖的 canonical event ID：${coverageEventIds}；每个 scene 必须显式声明 sourceEventIds（没有引用时填 []），只能填写这些 ID，不能凭空新增。${isUnit && coverageEventIds !== "（无）" ? "当前不是最终单元时，至少一个 scene 必须在 sourceEventIds 中填写一个上述未揭示 ID；sourceEventIds 只能登记本单元新覆盖的尚未揭示事件，已揭示事件可以在正文中作为上下文回顾，但不得作为本单元的 coverage 来源；不能只填写已揭示 ID，也不能全部填 []，否则无法交接到下一单元。" : ""}`,
+    isUnit
+      ? `当前 unitId：${input.unitId ?? "current"}；除非明确标记最终单元且所有必要事件已覆盖，否则不要使用 chapter_end；由程序把未覆盖内容交给后续 unit。`
+      : "每个可选行动都要在后续可读文本中具体回应其行动内容，不要让三个选项共用一段泛化反馈。",
     "选择的后果只能由 /api/chapter/scene-choice 的注册规则和 reducer 计算；不要在 JSON 中自行填写任何数值后果。",
   ];
   return sections.join("\n");
@@ -334,8 +503,9 @@ function parseDraftScenes(value: unknown, input: LiveSceneGenerationInput): Draf
   if ("worldState" in root || "statDelta" in root || "relationshipDelta" in root || "events" in root || "flagsAfter" in root) {
     throw new Error("模型输出包含被禁止的直接结算字段");
   }
-  if (!Array.isArray(root.scenes) || root.scenes.length < 1 || root.scenes.length > 4) {
-    throw new Error("scenes 必须包含 1 到 4 个场景");
+  const maxScenes = input.generationKind === "unit" ? 2 : 4;
+  if (!Array.isArray(root.scenes) || root.scenes.length < 1 || root.scenes.length > maxScenes) {
+    throw new Error(`scenes 必须包含 1 到 ${maxScenes} 个场景`);
   }
   const scenes: DraftScene[] = root.scenes.map((raw, index) => {
     const scene = record(raw, `scenes[${index}]`);
@@ -365,7 +535,10 @@ function parseDraftScenes(value: unknown, input: LiveSceneGenerationInput): Draf
 
 function parseSourceEventIds(value: unknown, path: string, events: SimulationEvent[]): string[] {
   const known = new Set(events.map((event) => event.id));
-  if (value === undefined) return [...known];
+  if (value === undefined) {
+    if (known.size === 0) return [];
+    throw new Error(`${path} 必须显式声明 sourceEventIds，不能把整章事件隐式算作已覆盖`);
+  }
   if (!Array.isArray(value)) throw new Error(`${path} 必须是数组`);
   const result = value.map((eventId, index) => requiredText(eventId, `${path}[${index}]`, 160));
   for (const eventId of result) if (!known.has(eventId)) throw new Error(`${path} 引用了当前章节之外的事件 ${eventId}`);
@@ -456,7 +629,10 @@ export function parseLiveScenePackage(value: unknown, input: LiveSceneGeneration
   }
   if (!availableTargetIds(input.world).length) throw new Error("当前世界没有可用于互动场景的公开关系目标");
   const version = Number.isInteger(input.version) && (input.version as number) > 0 ? (input.version as number) : 1;
-  const packageId = `live-${stableKey(input.chapter.id, "chapter.id")}-v${version}`;
+  const chapterKey = stableKey(input.chapter.id, "chapter.id");
+  const packageId = input.generationKind === "unit"
+    ? `story-unit-${chapterKey}-${stableKey(input.unitId ?? "current", "unitId")}-v${version}`
+    : `live-${chapterKey}-v${version}`;
   const drafts = parseDraftScenes(value, input);
   const sceneKeys = refMap(drafts, packageId);
   const endings = parseEndings(isRecord(value) ? value.endings : undefined, packageId);
@@ -534,25 +710,77 @@ export async function generateLiveScenePackage(
   input: LiveSceneGenerationInput,
   options: LiveSceneGenerationOptions = {},
 ): Promise<ScenePackage> {
-  const maxAttempts = options.maxAttempts ?? 3;
-  if (!Number.isInteger(maxAttempts) || maxAttempts < 1 || maxAttempts > 4) throw new Error("maxAttempts 必须是 1 到 4");
+  const effectiveInput: LiveSceneGenerationInput = {
+    ...input,
+    ...(options.isFinalUnit !== undefined ? { isFinalUnit: options.isFinalUnit } : {}),
+    ...(options.nextUnitId !== undefined ? { nextUnitId: options.nextUnitId } : {}),
+  };
+  const executionId = generationExecutionId(effectiveInput, options);
+  const ownsBudget = !options.budget;
+  const budget = options.budget ?? new ExecutionBudget({
+    executionId,
+    timeoutMs: effectiveInput.generationKind === "unit" ? 45_000 : 180_000,
+    maxRequests: 2,
+    phaseLimits: { interactive: 2 },
+    signal: options.signal,
+  });
+  const maxAttempts = Math.min(options.maxAttempts ?? 2, 2);
+  if (!Number.isInteger(maxAttempts) || maxAttempts < 1) throw new Error("maxAttempts 必须是 1 到 2");
   const model = options.model ?? (callGameModel as unknown as LiveSceneModel);
-  const basePrompt = buildLiveScenePrompt(input);
+  const basePrompt = buildLiveScenePrompt(effectiveInput);
   let correction = "";
-  for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
-    try {
-      const modeled = await model(
-        "chapter-live-scene",
-        LIVE_SCENE_SYSTEM,
-        `${basePrompt}${correction}`,
-        { maxTokens: 6500, timeoutMs: 120_000, responseFormat: "json" },
-      );
-      return parseLiveScenePackage(modeled, input);
-    } catch (error) {
-      const message = error instanceof Error ? error.message : "live 场景未通过程序校验";
-      if (attempt === maxAttempts - 1) throw new Error(`AI 互动场景生成失败：${message}`);
-      correction = `\n\n# 上一次输出的程序校验反馈（只修正这些问题，然后重新输出完整 JSON）\n${message}\n不要改变当前年份、角色 ID、事件 ID 或已允许的 ruleId。`;
+  try {
+    for (let attempt = 0; attempt < maxAttempts; attempt += 1) {
+      try {
+        const modeled = await invokeSceneModel(
+          model,
+          options.purpose ?? (input.generationKind === "unit" ? "story-unit" : "chapter-live-scene"),
+          `${basePrompt}${correction}`,
+          effectiveInput,
+          options,
+          budget,
+        );
+        return finalizePackageBoundary(parseLiveScenePackage(modeled, effectiveInput), effectiveInput);
+      } catch (error) {
+        const failure = generationFailure(error);
+        if (attempt === maxAttempts - 1 || !canRetryGeneration(error)) {
+          throw new Error(`AI 互动场景生成失败：${failure.message}`);
+        }
+        correction = failure.category === "transport" || failure.category === "rate_limit"
+          ? ""
+          : `\n\n# 上一次输出的程序校验反馈（修正问题后重新输出完整 JSON）\n${failure.message}\n这是一次完整重试：不得只返回修改片段，也不得删除可玩的内容。必须保留至少一个 scene；至少一个 scene 的最后一个 block 必须是完整可执行的 choice，恰好包含 A、B、C 三项，且每项都有具体 label、合法 ruleId、targetCharacterId、requirements 和 next。${effectiveInput.generationKind === "unit" && eventIdsForCoverage(effectiveInput).length > 0 ? "非最终单元还必须在 sourceEventIds 中填写至少一个当前尚未揭示的事件 ID；已揭示 ID 只能作为正文上下文，不要作为本单元唯一 coverage 来源。" : ""}\n不要改变当前年份、角色 ID、事件 ID 或已允许的 ruleId。`;
+        options.onProgress?.({
+          stage: "retrying",
+          elapsedMs: 0,
+          firstTokenMs: null,
+          completionTokens: 0,
+          tokenCountEstimated: true,
+          tokensPerSecond: 0,
+          retryAttempt: attempt + 1,
+          retryReason: failure.message,
+          promptCacheHitTokens: 0,
+          promptCacheMissTokens: 0,
+        });
+      }
     }
+  } finally {
+    if (ownsBudget) budget.dispose();
   }
   throw new Error("AI 互动场景生成失败");
+}
+
+export async function generateInteractiveScenePackage(
+  input: Omit<LiveSceneGenerationInput, "generationKind"> & { unitId: string },
+  options: LiveSceneGenerationOptions = {},
+): Promise<ScenePackage> {
+  return generateLiveScenePackage(
+    { ...input, generationKind: "unit" },
+    {
+      maxAttempts: 2,
+      purpose: "story-unit",
+      maxTokens: 3600,
+      timeoutMs: 45_000,
+      ...options,
+    },
+  );
 }

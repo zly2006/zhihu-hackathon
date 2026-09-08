@@ -11,7 +11,7 @@ import { deriveRelationshipLevel, levelLabel, nextRelationshipThreshold } from "
 import type { RelationshipScores } from "../domain/relationship";
 
 export const STAT_LABELS: Record<LifeStatKey, string> = {
-  cash: "现金",
+  cash: "现金储备指数",
   health: "健康",
   happiness: "幸福",
   knowledge: "学识",
@@ -159,7 +159,7 @@ export function buildLifePresentation(args: {
     };
   });
 
-  const scenes = chapter?.novel.scenes ?? [];
+  const scenes = chapter?.novel?.scenes ?? [];
   const activeScene = scenes[sceneIndex ?? 0];
   const scene = {
     heading: activeScene?.heading,
@@ -169,7 +169,7 @@ export function buildLifePresentation(args: {
     blocks: [],
   };
 
-  const title = chapter ? `第 ${chapter.index + 1} 章 · ${chapter.novel.title || "未完"}` : "第一章 · 开始";
+  const title = chapter ? `第 ${chapter.index + 1} 章 · ${chapter.novel?.title || "互动人生"}` : "第一章 · 开始";
   const yearRange = chapter ? `${chapter.startYear} → ${chapter.endYear}` : `${world.currentYear} 年起`;
 
   return {

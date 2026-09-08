@@ -4,6 +4,7 @@ import { useCallback, useEffect, useRef, useState, type Dispatch, type SetStateA
 import type { Character } from "@/lib/domain/character";
 import type {
   Chapter,
+  ChapterNovel,
   ChapterChoice,
   ChapterDecision,
   DecisionResolution,
@@ -15,7 +16,8 @@ import type { WorldState } from "@/lib/domain/world";
 import type { WorldSnapshot } from "@/lib/domain/snapshot";
 import type { WorldSimulationOutput } from "@/lib/domain/simulation";
 import type { EvidenceBundle, LifeExperience } from "@/lib/domain/experience";
-import type { SceneChoiceResponse, ScenePackage, SceneRuntimeState } from "@/lib/domain/scene";
+import type { RuntimeBlock, SceneChoiceResponse, ScenePackage, SceneRuntimeState } from "@/lib/domain/scene";
+import type { StoryUnit } from "@/lib/domain/story";
 import type { NpcDraft, ProtagonistDraft } from "@/lib/game/character-factory";
 import type { NarrativeEvidenceBundle, NarrativePlan, NarrativeReference, ScenePlan } from "@/lib/domain/narrative";
 import { parseGameSave } from "@/lib/game/save";
@@ -55,7 +57,27 @@ import {
   type ChapterSubmissionState,
 } from "@/lib/game/chapter-submission";
 import { compileSceneActionContext } from "@/lib/game/scene-action-context";
-import { createSceneRuntime } from "@/lib/game/scene-runtime";
+import { createSceneRuntime, transitionSceneRuntime } from "@/lib/game/scene-runtime";
+import { createRevealCursor, revealStoryUnit } from "@/lib/game/story-reveal";
+import { validatePublishedStoryUnit } from "@/lib/game/story-generation-validator";
+import {
+  beginStoryAction,
+  commitCanonical,
+  createStorySession,
+  failStorySession,
+  markStoryDisplayed,
+  markStoryPresentationReady,
+  publishStoryUnit,
+  reachStoryBoundary,
+} from "@/lib/game/story-session";
+import { createStoryInputFingerprint } from "@/lib/game/story-input";
+import {
+  DEFAULT_SCENE_READING_PREFERENCES,
+  normalizeSceneReadingPreferences,
+  recordSceneBlockRead,
+  type SceneReadingBlockInput,
+  type SceneReadingPreferences,
+} from "@/lib/game/scene-reading";
 import { findScene, DEFAULT_SCENE_ID, pickSceneForNovelScene } from "@/lib/game/scene-catalog";
 import { ProtagonistSetup } from "./ProtagonistSetup";
 import { NpcSetup } from "./NpcSetup";
@@ -69,7 +91,8 @@ import { StatusHUD } from "@/components/life-vn/StatusHUD";
 import { Timeline, type TimelineChapter } from "@/components/life-vn/Timeline";
 import { SnapshotViewer } from "@/components/life-vn/SnapshotViewer";
 import { StreamingNovelPreview } from "@/components/life-vn/StreamingNovelPreview";
-import { SceneRuntimePlayer } from "@/components/life-vn/SceneRuntimePlayer";
+import { StoryPlayer } from "@/components/life-vn/StoryPlayer";
+import { SceneReadingLog, SceneReadingTools } from "@/components/life-vn/SceneReadingTools";
 import { BranchPanel } from "@/components/life-vn/BranchPanel";
 
 const SAVE_KEY = "restart-life-save-v1";
@@ -93,14 +116,14 @@ type ProgressEvent = { stage?: string; message?: string };
 
 type NovelPreview = {
   title: string;
-  scenes: Chapter["novel"]["scenes"];
+  scenes: ChapterNovel["scenes"];
 };
 
 type NovelStreamCallbacks = {
   onProgress?: (message: string) => void;
   onSceneStart?: (sceneIndex: number, scenePlan: ScenePlan) => void;
   onDelta?: (sceneIndex: number, delta: string) => void;
-  onScene?: (sceneIndex: number, scene: Chapter["novel"]["scenes"][number]) => void;
+  onScene?: (sceneIndex: number, scene: ChapterNovel["scenes"][number]) => void;
 };
 
 type SimulateResult = {
@@ -111,6 +134,10 @@ type SimulateResult = {
   worldStateAfter: WorldState;
   stateBeforeHash: string;
   stateAfterHash: string;
+  executionId?: string;
+  requestCount?: number;
+  elapsedMs?: number;
+  deadlineAt?: number;
 };
 
 type NeutralDemoResponse = {
@@ -133,6 +160,11 @@ async function readSseComplete<T>(
   onProgress: (message: string) => void,
   onEvent?: (event: string, data: unknown) => void,
 ): Promise<T> {
+  if (!response.ok) {
+    const payload = await response.json().catch(() => null) as { error?: string | { message?: string } } | null;
+    const message = typeof payload?.error === "string" ? payload.error : payload?.error?.message;
+    throw new Error(message || `请求失败（HTTP ${response.status}）`);
+  }
   if (!response.body) throw new Error("服务未返回流式响应");
   const reader = response.body.getReader();
   const decoder = new TextDecoder();
@@ -159,7 +191,7 @@ async function readSseComplete<T>(
         throw new Error("服务返回了无法解析的流式数据");
       }
       onEvent?.(event, payload);
-      if (event === "progress") {
+      if (event === "progress" || event === "heartbeat") {
         onProgress((payload as ProgressEvent).message || "");
       } else if (event === "complete") {
         return payload as T;
@@ -175,7 +207,7 @@ function persist(save: GameSave) {
   window.localStorage.setItem(SAVE_KEY, JSON.stringify(save));
 }
 
-function fallbackDialogueScenes(novel: Chapter["novel"]): DialogueScene[] {
+function fallbackDialogueScenes(novel: ChapterNovel): DialogueScene[] {
   return novel.scenes.map((scene) => ({
     id: scene.id,
     background: pickSceneForNovelScene(scene).id,
@@ -345,7 +377,7 @@ function prepareBranchSwitchSave(save: GameSave, now: string): GameSave {
 async function fetchDialogue(
   worldBefore: WorldState,
   events: WorldSimulationOutput["events"],
-  novel: Chapter["novel"],
+  novel: ChapterNovel,
   narrativePlan?: NarrativePlan,
   narrativeEvidence?: NarrativeEvidenceBundle,
 ): Promise<DialogueScene[]> {
@@ -398,6 +430,57 @@ async function fetchLiveScenePackage(
   return data.scenePackage;
 }
 
+async function fetchInteractiveStoryUnit(
+  world: WorldState,
+  events: WorldSimulationOutput["events"],
+  chapter: Chapter,
+  onProgress: (message: string) => void,
+  branchId = "main",
+  options: {
+    unitId?: string;
+    requiredEventIds?: string[];
+    revealedEventIds?: string[];
+    isFinalUnit?: boolean;
+    nextUnitId?: string;
+    requestId?: string;
+  } = {},
+): Promise<StoryUnit> {
+  let unit: StoryUnit | undefined;
+  const response = await fetch("/api/story/prepare", {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      worldState: world,
+      events,
+      chapter: {
+        id: chapter.id,
+        index: chapter.index,
+        startYear: chapter.startYear,
+        endYear: chapter.endYear,
+        span: chapter.span,
+        decision: chapter.decision,
+        summary: chapter.summary,
+      },
+      unitId: options.unitId ?? `chapter-${chapter.id}-unit-1`,
+      ...(options.requiredEventIds ? { requiredEventIds: options.requiredEventIds } : {}),
+      ...(options.revealedEventIds ? { revealedEventIds: options.revealedEventIds } : {}),
+      ...(options.isFinalUnit !== undefined ? { isFinalUnit: options.isFinalUnit } : {}),
+      ...(options.nextUnitId ? { nextUnitId: options.nextUnitId } : {}),
+      saveId: world.gameId,
+      runId: world.gameId,
+      branchId,
+      requestId: options.requestId ?? `story-${chapter.id}-${crypto.randomUUID()}`,
+    }),
+  });
+  await readSseComplete<{ unitId: string }>(response, onProgress, (event, payload) => {
+    if (event === "unit_ready" && payload && typeof payload === "object" && "unit" in payload) {
+      unit = validatePublishedStoryUnit((payload as { unit: unknown }).unit);
+    }
+  });
+  if (!unit) throw new Error("互动单元服务未发布完整内容");
+  return unit;
+}
+
 export function LifeApp() {
   const [screen, setScreen] = useState<Screen>("landing");
   const [hasSave, setHasSave] = useState(false);
@@ -408,6 +491,10 @@ export function LifeApp() {
   const [npcs, setNpcs] = useState<NpcDraft[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
+  const [readingPreferences, setReadingPreferences] = useState<SceneReadingPreferences>(DEFAULT_SCENE_READING_PREFERENCES);
+  const [readingLogOpen, setReadingLogOpen] = useState(false);
+  const [readingSheetOpen, setReadingSheetOpen] = useState(false);
+  const [pauseAfterReadingLog, setPauseAfterReadingLog] = useState(false);
 
   const [span, setSpan] = useState<ChapterSpan>(1);
   const [choice, setChoice] = useState<ChapterChoice | null>(null);
@@ -430,6 +517,24 @@ export function LifeApp() {
   const [snapshotReturnScreen, setSnapshotReturnScreen] = useState<SnapshotReturnScreen>("chapter_start");
   const [demoPackage, setDemoPackage] = useState<ScenePackage | null>(null);
   const [syntheticDemo, setSyntheticDemo] = useState(false);
+  const [hasPendingFormalSceneCommit, setHasPendingFormalSceneCommit] = useState(false);
+  const [continuationLoading, setContinuationLoading] = useState(false);
+  const [continuationError, setContinuationError] = useState("");
+  const continuationInFlight = useRef<string | null>(null);
+  const pendingFormalSceneCommit = useRef<{
+    key: string;
+    save: GameSave;
+    response: SceneChoiceResponse;
+  } | null>(null);
+
+  useEffect(() => {
+    try {
+      const raw = window.localStorage.getItem("restart-life-reading-preferences-v1");
+      if (raw) setReadingPreferences(normalizeSceneReadingPreferences(JSON.parse(raw)));
+    } catch {
+      setReadingPreferences(DEFAULT_SCENE_READING_PREFERENCES);
+    }
+  }, []);
 
   useEffect(() => {
     if (new URLSearchParams(window.location.search).get("demo") === "neutral") {
@@ -544,7 +649,7 @@ export function LifeApp() {
           : 0,
         activeBranchId: save?.activeBranchId ?? "main",
         snapshotView: selectedSnapshotId,
-        activeScene: chapter ? { index: chapter.index, title: chapter.novel.title } : null,
+        activeScene: chapter ? { index: chapter.index, title: chapter.novel?.title ?? "互动人生" } : null,
         synthetic: syntheticDemo,
         pendingChapter: save?.pendingChapter
           ? {
@@ -765,13 +870,22 @@ export function LifeApp() {
       stateAfterHash: pending.stateAfterHash,
     };
     const recoveredSpan = pendingSpan(pending);
-    let workingSave = save;
+    const revealCursor = save.storyReveal?.chapterId === pending.chapterId
+      ? save.storyReveal
+      : createRevealCursor({
+          chapterId: pending.chapterId,
+          worldBefore: pending.worldStateBefore,
+          worldAfter: pending.worldStateAfter,
+          eventIds: pending.eventIds,
+        });
+    let workingSave: GameSave = { ...save, storyReveal: revealCursor };
+    let recoveredUnit: StoryUnit | undefined;
     setLoading(true);
     setNovelLoading(true);
     setError("");
     try {
       let novel = pending.novel;
-      if (!novel) {
+      if (mode !== "galgame" && !novel) {
         setNovelPreview({ title: "", scenes: [] });
         novel = await fetchNovel(
           result,
@@ -783,7 +897,7 @@ export function LifeApp() {
           createNovelStreamCallbacks(setNovelPreview, setPlanProgress),
         );
       }
-      setNovelPreview({ title: novel.title, scenes: novel.scenes });
+      if (novel) setNovelPreview({ title: novel.title, scenes: novel.scenes });
 
       const dialogue = pending.dialogue;
 
@@ -801,9 +915,23 @@ export function LifeApp() {
       let scenePackage = workingSave.scenePackages?.[recoveredChapter.id] ?? pending.liveScenePackage;
       if (mode === "galgame" && (!scenePackage || !hasLiveScene(scenePackage))) {
         setPlanProgress("正在恢复 AI 互动场景…");
-        scenePackage = await fetchLiveScenePackage(workingSave.worldState, result.simulation.events, recoveredChapter);
+        if (!novel) {
+          const unit = await fetchInteractiveStoryUnit(
+            workingSave.worldState,
+            result.simulation.events,
+            recoveredChapter,
+            setPlanProgress,
+            workingSave.activeBranchId ?? "main",
+          );
+          if (unit.payload.kind !== "scene") throw new Error("恢复的互动单元不是可播放场景");
+          recoveredUnit = unit;
+          scenePackage = unit.payload.package;
+        } else {
+          scenePackage = await fetchLiveScenePackage(workingSave.worldState, result.simulation.events, recoveredChapter);
+        }
       }
       if (!scenePackage) {
+        if (!novel) throw new Error("待恢复章节缺少可播放互动内容");
         scenePackage = adaptDialogueScenes(dialogue ?? fallbackDialogueScenes(novel), {
           chapterId: recoveredChapter.id,
           year: recoveredChapter.endYear,
@@ -811,6 +939,31 @@ export function LifeApp() {
         });
       }
       const liveScenePackage = hasLiveScene(scenePackage) ? scenePackage : undefined;
+      if (liveScenePackage && !recoveredUnit) {
+        const storyIdentity = workingSave.storySession?.identity ?? {
+          saveId: workingSave.worldState.gameId,
+          runId: workingSave.worldState.gameId,
+          branchId: workingSave.activeBranchId ?? "main",
+          source: "life_ai" as const,
+          contentVersion: "life-ai-v1",
+          pipelineVersion: 2,
+        };
+        recoveredUnit = {
+          id: recoveredChapter.presentation?.unitIds.at(-1) ?? liveScenePackage.id,
+          identity: storyIdentity,
+          inputFingerprint: workingSave.storySession?.journal?.inputFingerprint ?? createStoryInputFingerprint({
+            ...storyIdentity,
+            unitId: recoveredChapter.presentation?.unitIds.at(-1) ?? liveScenePackage.id,
+            facts: { chapterId: recoveredChapter.id, packageId: liveScenePackage.id },
+          }),
+          phase: "live",
+          sourceEventIds: liveScenePackage.scenes.flatMap((scene) => scene.sourceEventIds),
+          payload: { kind: "scene", package: liveScenePackage },
+        };
+      }
+      const recoveredChapterWithPresentation = mode === "galgame"
+        ? { ...recoveredChapter, presentation: { mode: "galgame" as const, unitIds: [recoveredUnit?.id ?? scenePackage.id], status: "ready" as const } }
+        : recoveredChapter;
       const recoveredRuntime =
         workingSave.sceneRuntime?.chapterId === recoveredChapter.id &&
         workingSave.sceneRuntime.packageId === scenePackage.id &&
@@ -820,9 +973,23 @@ export function LifeApp() {
             ? createSceneRuntime(scenePackage, { branchId: workingSave.activeBranchId ?? "main" })
             : undefined;
       const now = new Date().toISOString();
+      let recoveredStorySession = workingSave.storySession;
+      if (recoveredStorySession?.journal?.phase === "failed" && recoveredStorySession.journal.canonicalReceiptId) {
+        const { error: _journalError, ...journal } = recoveredStorySession.journal;
+        recoveredStorySession = {
+          ...recoveredStorySession,
+          status: "canonical_committed",
+          journal: { ...journal, phase: "canonical_committed" },
+          lastError: undefined,
+        };
+      }
+      if (liveScenePackage && recoveredUnit && recoveredStorySession) {
+        recoveredStorySession = publishStoryUnit(recoveredStorySession, recoveredUnit, now);
+      }
       workingSave = {
         ...workingSave,
-        chapters: { ...workingSave.chapters, [recoveredChapter.id]: recoveredChapter },
+        ...(recoveredStorySession ? { storySession: recoveredStorySession } : {}),
+        chapters: { ...workingSave.chapters, [recoveredChapter.id]: recoveredChapterWithPresentation },
         events: {
           ...workingSave.events,
           ...Object.fromEntries(result.simulation.events.map((event) => [event.id, event])),
@@ -835,9 +1002,9 @@ export function LifeApp() {
         ...(recoveredRuntime ? { sceneRuntime: recoveredRuntime } : {}),
         pendingChapter: workingSave.pendingChapter
           ? updatePendingChapterStage(workingSave.pendingChapter, pending.executionId, "ready", {
-              novel: recoveredChapter.novel,
+              ...(recoveredChapter.novel ? { novel: recoveredChapter.novel } : {}),
               dialogue,
-              novelCompleted: true,
+              novelCompleted: mode !== "galgame" && Boolean(recoveredChapter.novel),
               dialogueCompleted: mode !== "galgame" || Boolean(dialogue),
               ...(liveScenePackage ? { liveScenePackage, liveSceneCompleted: true } : {}),
               updatedAt: now,
@@ -848,7 +1015,7 @@ export function LifeApp() {
       persist(workingSave);
       setSave(workingSave);
       const completedSave = workingSave.pendingChapter
-        ? completePendingChapter(workingSave, pending.executionId, recoveredChapter, scenePackage)
+        ? completePendingChapter(workingSave, pending.executionId, recoveredChapterWithPresentation, scenePackage)
         : workingSave;
       const finalSave = appendSnapshot(completedSave, { chapterId: recoveredChapter.id, now });
       persist(finalSave);
@@ -857,7 +1024,7 @@ export function LifeApp() {
       setSelection(recoveredSelection);
       setPreWorld(pending.worldStateBefore);
       setSimResult(result);
-      setChapter(recoveredChapter);
+      setChapter(recoveredChapterWithPresentation);
       setScreen(liveScenePackage ? "formal_scene" : "chapter_summary");
     } catch (err) {
       const message = err instanceof Error ? err.message : "章节表现恢复失败";
@@ -929,12 +1096,14 @@ export function LifeApp() {
         flags: save.sceneFlags,
       });
       const projection = projectGameSave(checkpointedSave, checkpointedSave.sceneRuntime ?? save.sceneRuntime, checkpointedSave.sceneActions, checkpointedSave.sceneFlags);
-      const response = await fetch("/api/chapter/scene-choice", {
+      const response = await fetch("/api/story/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projection, package: demoPackage, ...input }),
+        body: JSON.stringify({ actionKind: "scene_choice", projection, package: demoPackage, ...input }),
       });
-      const data = await readJsonResponse<SceneChoiceResponse>(response);
+      const actionPayload = await readSseComplete<{ response: SceneChoiceResponse }>(response, () => {});
+      const data = actionPayload.response;
+      if (!data) throw new Error("故事行动未返回有效场景结果");
       const nextProjection = commitSceneChoice(projection, data);
       const nextSave = mergeSceneProjection(checkpointedSave, nextProjection);
       const activeBranch = nextSave.branches?.[nextSave.activeBranchId ?? "main"];
@@ -977,7 +1146,38 @@ export function LifeApp() {
       ) {
         return previous;
       }
-      const nextSave = saveLiveScenePosition(previous, runtime, packageItem, new Date().toISOString());
+      const now = new Date().toISOString();
+      let nextSave = saveLiveScenePosition(previous, runtime, packageItem, now);
+      const storySessionBeforeBoundary = nextSave.storySession;
+      const ownsStoryPackage = storySessionBeforeBoundary
+        && (storySessionBeforeBoundary.activeUnitId === packageItem.id
+          || nextSave.chapters[runtime.chapterId]?.presentation?.unitIds.includes(storySessionBeforeBoundary.activeUnitId ?? ""));
+      if (runtime.status === "awaiting_choice" && storySessionBeforeBoundary && ownsStoryPackage) {
+        nextSave = { ...nextSave, storySession: reachStoryBoundary(storySessionBeforeBoundary, now) };
+      }
+      if (runtime.status === "completed") {
+        const currentChapter = nextSave.chapters[runtime.chapterId];
+        if (runtime.completion?.kind !== "unit_end" && currentChapter?.presentation && currentChapter.presentation.status !== "complete") {
+          nextSave = {
+            ...nextSave,
+            chapters: {
+              ...nextSave.chapters,
+              [runtime.chapterId]: {
+                ...currentChapter,
+                presentation: { ...currentChapter.presentation, status: "complete" },
+              },
+            },
+          };
+          setChapter(nextSave.chapters[runtime.chapterId]);
+        }
+        const storySessionAfterBoundary = nextSave.storySession;
+        const ownsStoryPackage = storySessionAfterBoundary
+          && (storySessionAfterBoundary.activeUnitId === packageItem.id
+            || nextSave.chapters[runtime.chapterId]?.presentation?.unitIds.includes(storySessionAfterBoundary.activeUnitId ?? ""));
+        if (storySessionAfterBoundary && ownsStoryPackage) {
+          nextSave = { ...nextSave, storySession: reachStoryBoundary(storySessionAfterBoundary, now) };
+        }
+      }
       try {
         window.localStorage.setItem(SAVE_KEY, serializeSceneSave(nextSave));
         return nextSave;
@@ -998,6 +1198,27 @@ export function LifeApp() {
       const session = save?.sceneRuntime ? getLiveSceneSession(save, save.sceneRuntime.chapterId) : null;
       if (!save || !session) throw new Error("正式场景尚未就绪");
       const scenePackage = session.package;
+      const commitKey = [
+        session.runtime.branchId,
+        scenePackage.chapterId,
+        scenePackage.id,
+        scenePackage.version,
+        session.runtime.sceneId,
+        session.runtime.blockId,
+        input.choiceId,
+      ].join(":");
+      const pendingCommit = pendingFormalSceneCommit.current;
+      if (pendingCommit?.key === commitKey) {
+        try {
+          window.localStorage.setItem(SAVE_KEY, serializeSceneSave(pendingCommit.save));
+        } catch {
+          throw new Error("正式场景结果仍未保存，请重试保存；不会重新结算这次选择。");
+        }
+        pendingFormalSceneCommit.current = null;
+        setHasPendingFormalSceneCommit(false);
+        setSave(pendingCommit.save);
+        return pendingCommit.response;
+      }
       const checkpointedSave = appendSceneChoiceCheckpoint(save, {
         chapterId: scenePackage.chapterId,
         packageId: scenePackage.id,
@@ -1008,30 +1229,84 @@ export function LifeApp() {
         actions: save.sceneActions,
         flags: save.sceneFlags,
       });
+      const storyIdentity = save.storySession?.identity ?? {
+        saveId: save.worldState.gameId,
+        runId: save.worldState.gameId,
+        branchId: save.activeBranchId ?? session.runtime.branchId,
+        source: "life_ai" as const,
+        contentVersion: "life-ai-v1",
+        pipelineVersion: 2,
+      };
+      const storyInputFingerprint = createStoryInputFingerprint({
+        ...storyIdentity,
+        unitId: `${scenePackage.id}:${session.runtime.sceneId}:${session.runtime.blockId}`,
+        facts: { actionKind: "scene_choice", choiceId: input.choiceId, runtime: session.runtime },
+      });
+      let storyState = checkpointedSave.storySession ?? createStorySession({ identity: storyIdentity, now: input.issuedAt });
+      const ownsStoryPackage = storyState.activeUnitId === scenePackage.id
+        || checkpointedSave.chapters[scenePackage.chapterId]?.presentation?.unitIds.includes(storyState.activeUnitId ?? "");
+      if (storyState.status === "presenting" && ownsStoryPackage) {
+        storyState = reachStoryBoundary(storyState, input.issuedAt);
+      }
+      const startedStoryState = beginStoryAction(storyState, {
+        requestId: input.requestId,
+        actionKind: "scene_choice",
+        inputFingerprint: storyInputFingerprint,
+        expectedRevision: storyState.canonicalRevision,
+        now: input.issuedAt,
+      });
+      const journaledSave: GameSave = { ...checkpointedSave, storySession: startedStoryState, savedAt: input.issuedAt };
+      persist(journaledSave);
       const projection = projectGameSave(
-        checkpointedSave,
-        checkpointedSave.sceneRuntime ?? session.runtime,
-        checkpointedSave.sceneActions,
-        checkpointedSave.sceneFlags,
+        journaledSave,
+        journaledSave.sceneRuntime ?? session.runtime,
+        journaledSave.sceneActions,
+        journaledSave.sceneFlags,
       );
-      const response = await fetch("/api/chapter/scene-choice", {
+      const response = await fetch("/api/story/action", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ projection, package: scenePackage, ...input }),
+        body: JSON.stringify({ actionKind: "scene_choice", projection, package: scenePackage, ...input }),
       });
-      const data = await readJsonResponse<SceneChoiceResponse>(response);
+      const actionPayload = await readSseComplete<{ response: SceneChoiceResponse }>(response, () => {});
+      const data = actionPayload.response;
+      if (!data) throw new Error("故事行动未返回有效场景结果");
       const nextProjection = commitSceneChoice(projection, data);
-      const nextSave = mergeSceneProjection(checkpointedSave, nextProjection);
+      // The server response is deliberately flow-policy agnostic. Persist the
+      // same seamless runtime that the formal player presents so a refresh at
+      // this boundary cannot resurrect a one-click feedback confirmation.
+      const startedRuntime = transitionSceneRuntime(scenePackage, projection.runtime, {
+        type: "SELECT_STARTED",
+        requestId: input.requestId,
+        choiceId: input.choiceId,
+        issuedAt: input.issuedAt,
+        expectedRevision: input.expectedRevision,
+      });
+      const seamlessRuntime = transitionSceneRuntime(scenePackage, startedRuntime, {
+        type: "SELECT_SUCCEEDED",
+        flowPolicy: "seamless",
+        record: data.record,
+      });
+      const persistedProjection = { ...nextProjection, runtime: seamlessRuntime };
+      const canonicalStoryState = commitCanonical(startedStoryState, {
+        requestId: input.requestId,
+        receiptId: data.record.id,
+        canonicalRevision: startedStoryState.canonicalRevision + 1,
+        now: new Date().toISOString(),
+      });
+      const activeUnitId = journaledSave.chapters[scenePackage.chapterId]?.presentation?.unitIds.at(-1) ?? scenePackage.id;
+      const presentedStoryState = markStoryPresentationReady(canonicalStoryState, activeUnitId, new Date().toISOString());
+      const nextSave = { ...mergeSceneProjection(journaledSave, persistedProjection), storySession: presentedStoryState };
       const activeBranch = nextSave.branches?.[nextSave.activeBranchId ?? "main"];
       const checkpointHead = activeBranch?.headSnapshotId ? nextSave.snapshots?.[activeBranch.headSnapshotId] : undefined;
       const persistedSave = appendSceneChoiceCheckpoint(nextSave, {
         chapterId: scenePackage.chapterId,
         packageId: scenePackage.id,
         packageVersion: scenePackage.version,
-        sceneId: data.runtimeAfter.sceneId,
-        blockId: data.runtimeAfter.blockId,
+        sceneId: seamlessRuntime.sceneId,
+        blockId: seamlessRuntime.blockId,
         sequence: (checkpointHead?.sequence ?? 0) + 1,
-        runtime: data.runtimeAfter,
+        runtime: seamlessRuntime,
         actions: nextSave.sceneActions,
         flags: nextSave.sceneFlags,
         now: new Date().toISOString(),
@@ -1039,13 +1314,205 @@ export function LifeApp() {
       try {
         window.localStorage.setItem(SAVE_KEY, serializeSceneSave(persistedSave));
       } catch {
-        throw new Error("正式场景结果保存失败，请重试；当前状态尚未发布。");
+        pendingFormalSceneCommit.current = { key: commitKey, save: persistedSave, response: data };
+        setHasPendingFormalSceneCommit(true);
+        throw new Error("正式场景结果保存失败，请重试保存；不会重新结算这次选择。");
       }
+      pendingFormalSceneCommit.current = null;
+      setHasPendingFormalSceneCommit(false);
       setSave(persistedSave);
       return data;
     },
     [save],
   );
+
+  const updateReadingPreferences = useCallback((next: SceneReadingPreferences) => {
+    const normalized = normalizeSceneReadingPreferences(next);
+    setReadingPreferences(normalized);
+    try {
+      window.localStorage.setItem("restart-life-reading-preferences-v1", JSON.stringify(normalized));
+    } catch {
+      // 阅读偏好不可写时继续使用当前页面的内存值。
+    }
+  }, []);
+
+  const handleReadingLogOpen = useCallback(() => {
+    setPauseAfterReadingLog(true);
+    setReadingLogOpen(true);
+  }, []);
+
+  const handleReadingLogClose = useCallback(() => setReadingLogOpen(false), []);
+
+  const handleFormalPlaybackModeChange = useCallback((nextMode: SceneRuntimeState["playbackMode"]) => {
+    if (nextMode === "auto") setPauseAfterReadingLog(false);
+  }, []);
+
+  const handleFormalSceneBlockRead = useCallback((input: {
+    block: RuntimeBlock;
+    state: SceneRuntimeState;
+    source: "button" | "click" | "keyboard" | "auto";
+    choiceId?: "A" | "B" | "C";
+    selectedChoiceLabel?: string;
+  }) => {
+    setSave((previous) => {
+      if (!previous?.sceneRuntime) return previous;
+      if (
+        previous.sceneRuntime.branchId !== input.state.branchId ||
+        previous.sceneRuntime.packageId !== input.state.packageId ||
+        previous.sceneRuntime.packageVersion !== input.state.packageVersion
+      ) return previous;
+      const blockType: SceneReadingBlockInput["blockType"] = input.block.content.type === "choice"
+        ? "choice"
+        : input.block.content.type;
+      const readingInput: SceneReadingBlockInput = {
+        mode: previous.chapters[input.state.chapterId]?.presentation?.mode ?? "life_ai",
+        branchId: input.state.branchId,
+        chapterId: input.state.chapterId,
+        packageId: input.state.packageId,
+        packageVersion: input.state.packageVersion,
+        sceneId: input.state.sceneId,
+        blockId: input.state.blockId,
+        blockType,
+        text: input.block.content.text,
+        ...(input.block.content.type === "dialogue" && input.block.content.speaker ? { speaker: input.block.content.speaker } : {}),
+        ...(input.choiceId ? { selectedChoiceId: input.choiceId } : {}),
+        ...(input.selectedChoiceLabel ? { selectedChoiceLabel: input.selectedChoiceLabel } : {}),
+      };
+      const now = new Date().toISOString();
+      const nextReading = recordSceneBlockRead(previous.sceneReading, readingInput, now);
+      const activeChapter = previous.chapters[input.state.chapterId];
+      const activeUnitId = activeChapter?.presentation?.unitIds.at(-1);
+      const shouldMarkDisplayed = Boolean(
+        previous.storySession
+        && activeUnitId
+        && previous.storySession.publishedUnitIds.includes(activeUnitId)
+        && !previous.storySession.trace.displayed,
+      );
+      if (JSON.stringify(nextReading) === JSON.stringify(previous.sceneReading) && !shouldMarkDisplayed) return previous;
+      const next = {
+        ...previous,
+        sceneReading: nextReading,
+        ...(shouldMarkDisplayed && previous.storySession && activeUnitId
+          ? { storySession: markStoryDisplayed(previous.storySession, activeUnitId, now) }
+          : {}),
+        savedAt: now,
+      };
+      persist(next);
+      return next;
+    });
+  }, []);
+
+  const handleFormalSceneBoundary = useCallback(async (input: {
+    completedRuntime: SceneRuntimeState;
+    source: "button" | "click" | "keyboard" | "auto";
+  }) => {
+    const current = save;
+    const runtime = input.completedRuntime;
+    const completion = runtime.completion;
+    const activeChapter = current?.chapters[runtime.chapterId] ?? chapter;
+    if (!current || !completion || !activeChapter) return;
+    const packageItem = current.scenePackages?.[runtime.chapterId];
+    if (!packageItem || packageItem.id !== runtime.packageId || packageItem.version !== runtime.packageVersion) return;
+    const now = new Date().toISOString();
+    if (completion.kind !== "unit_end") {
+      let nextSave = { ...current, sceneRuntime: runtime, savedAt: now };
+      if (nextSave.storyReveal) {
+        nextSave = {
+          ...nextSave,
+          storyReveal: revealStoryUnit(nextSave.storyReveal, {
+            unitId: nextSave.storyReveal.activeUnitId ?? packageItem.id,
+            coveredEventIds: packageItem.scenes.flatMap((scene) => scene.sourceEventIds),
+            boundary: completion,
+            worldAfter: nextSave.worldState,
+          }),
+        };
+      }
+      const chapterForSave = nextSave.chapters[runtime.chapterId];
+      if (chapterForSave?.presentation && (completion.kind === "chapter_end" || completion.kind === "ending")) {
+        const completedChapter = {
+          ...chapterForSave,
+          presentation: { ...chapterForSave.presentation, status: "complete" as const },
+        };
+        nextSave = { ...nextSave, chapters: { ...nextSave.chapters, [runtime.chapterId]: completedChapter } };
+        setChapter(completedChapter);
+      }
+      persist(nextSave);
+      setSave(nextSave);
+      return;
+    }
+
+    const boundaryKey = `${runtime.branchId}:${runtime.chapterId}:${runtime.packageId}:v${runtime.packageVersion}:${completion.unitId}:${current.saveRevision ?? 0}`;
+    if (continuationInFlight.current === boundaryKey) return;
+    continuationInFlight.current = boundaryKey;
+    setContinuationLoading(true);
+    setContinuationError("");
+    let boundarySave = { ...current, sceneRuntime: runtime, savedAt: now };
+    if (boundarySave.storyReveal) {
+      boundarySave = {
+        ...boundarySave,
+        storyReveal: revealStoryUnit(boundarySave.storyReveal, {
+          unitId: boundarySave.storyReveal.activeUnitId ?? packageItem.id,
+          coveredEventIds: packageItem.scenes.flatMap((scene) => scene.sourceEventIds),
+          boundary: completion,
+        }),
+      };
+    }
+    persist(boundarySave);
+    setSave(boundarySave);
+    try {
+      const chapterEvents = Object.values(boundarySave.events).filter((event) => event.chapterId === runtime.chapterId);
+      const nextUnitNumber = (activeChapter.presentation?.unitIds.length ?? 1) + 1;
+      const requiredEventIds = boundarySave.storyReveal?.requiredEventIds ?? activeChapter.simulationEventIds;
+      const revealedEventIds = boundarySave.storyReveal?.revealedEventIds ?? [];
+      const isFinalUnit = requiredEventIds.every((eventId) => revealedEventIds.includes(eventId));
+      const nextUnitId = `chapter-${runtime.chapterId}-unit-${nextUnitNumber}`;
+      const unit = await fetchInteractiveStoryUnit(
+        boundarySave.worldState,
+        chapterEvents,
+        activeChapter,
+        (message) => setPlanProgress(message),
+        boundarySave.activeBranchId ?? runtime.branchId,
+        {
+          unitId: nextUnitId,
+          requiredEventIds,
+          revealedEventIds,
+          isFinalUnit,
+          nextUnitId: `chapter-${runtime.chapterId}-unit-${nextUnitNumber + 1}`,
+          requestId: `${runtime.chapterId}:prepare:${nextUnitId}`,
+        },
+      );
+      if (unit.payload.kind !== "scene") throw new Error("后续互动单元不是可播放场景");
+      const nextPackage = unit.payload.package;
+      const nextRuntime = createSceneRuntime(nextPackage, { branchId: boundarySave.activeBranchId ?? runtime.branchId });
+      const presentation = activeChapter.presentation ?? { mode: "galgame" as const, unitIds: [], status: "ready" as const };
+      const nextChapter = {
+        ...activeChapter,
+        presentation: { ...presentation, mode: "galgame" as const, unitIds: [...presentation.unitIds, unit.id], status: "ready" as const },
+      };
+      const publishedSession = boundarySave.storySession
+        ? publishStoryUnit(boundarySave.storySession, unit, new Date().toISOString())
+        : boundarySave.storySession;
+      const nextSave: GameSave = {
+        ...boundarySave,
+        chapters: { ...boundarySave.chapters, [runtime.chapterId]: nextChapter },
+        scenePackages: { ...(boundarySave.scenePackages ?? {}), [runtime.chapterId]: nextPackage },
+        sceneRuntime: nextRuntime,
+        ...(boundarySave.storyReveal ? { storyReveal: { ...boundarySave.storyReveal, activeUnitId: unit.id } } : {}),
+        ...(publishedSession ? { storySession: publishedSession } : {}),
+        savedAt: new Date().toISOString(),
+      };
+      persist(nextSave);
+      setSave(nextSave);
+      setChapter(nextChapter);
+      setContinuationLoading(false);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : "后续互动单元准备失败";
+      setContinuationError(message);
+      setContinuationLoading(false);
+    } finally {
+      continuationInFlight.current = null;
+    }
+  }, [chapter, save]);
 
   const handleDemoNextPackage = useCallback(async () => {
     if (!save?.sceneRuntime || !demoPackage || save.sceneRuntime.status !== "completed") return;
@@ -1271,72 +1738,237 @@ export function LifeApp() {
             decisionId: choice.id,
             selection: next,
             startedAt: new Date().toISOString(),
-          });
+      });
       if (attempt.phase !== "submitting") return;
+      const requestId = attempt.requestId;
+      if (!requestId) throw new Error("故事行动缺少 requestId");
       submissionInFlight.current = true;
       setSubmission(attempt);
       setSelection(next);
       setSimulating(true);
-      setSimProgress("正在推演你的未来…");
+      setSimProgress("故事正在展开…");
       setNovelPreview({ title: "", scenes: [] });
       const worldBefore = save.worldState;
       setPreWorld(worldBefore);
+      let latestStorySave: GameSave = save;
       try {
-        const response = await fetch("/api/chapter/simulate", {
+        const storyIdentity = {
+          saveId: save.worldState.gameId,
+          runId: save.worldState.gameId,
+          branchId: save.activeBranchId ?? "main",
+          source: "life_ai" as const,
+          contentVersion: "life-ai-v1",
+          pipelineVersion: 2,
+        };
+        const storyInputFingerprint = createStoryInputFingerprint({
+          ...storyIdentity,
+          unitId: choice.id,
+          facts: { choice, selection: next, span, sceneActionContext: compileSceneActionContext(save) },
+        });
+        const journalNow = new Date().toISOString();
+        const storySession = beginStoryAction(
+          save.storySession ?? createStorySession({ identity: storyIdentity, now: journalNow }),
+          {
+            requestId,
+            actionKind: "chapter_decision",
+            inputFingerprint: storyInputFingerprint,
+            expectedRevision: save.storySession?.canonicalRevision ?? 0,
+            now: journalNow,
+          },
+        );
+        const journaledSave: GameSave = { ...save, storySession, savedAt: journalNow };
+        latestStorySave = journaledSave;
+        persist(journaledSave);
+        setSave(journaledSave);
+        let canonicalResult: SimulateResult | undefined;
+        let canonicalSave: GameSave | undefined;
+        let streamedUnit: StoryUnit | undefined;
+        const commitCanonicalResult = (nextResult: SimulateResult): GameSave => {
+          if (canonicalSave) return canonicalSave;
+          const pending = createPendingChapter({
+            executionId: nextResult.executionId ?? nextResult.chapterId,
+            chapterId: nextResult.chapterId,
+            startYear: worldBefore.currentYear,
+            endYear: worldBefore.currentYear + span,
+            stateBeforeHash: nextResult.stateBeforeHash,
+            stateAfterHash: nextResult.stateAfterHash,
+            worldStateBefore: worldBefore,
+            worldStateAfter: nextResult.worldStateAfter,
+            selection: buildChapterDecision(choice, next),
+            resolution: nextResult.resolution,
+            simulationOutput: nextResult.simulation,
+            eventIds: nextResult.simulation.events.map((event) => event.id),
+            evidenceIds: allEvidence(nextResult.evidenceBundle).map((experience) => experience.id),
+            featuredExperienceIds: [
+              ...nextResult.evidenceBundle.decisionSimilar,
+              ...nextResult.evidenceBundle.outcomeContrasts,
+              ...nextResult.evidenceBundle.backgroundSimilar,
+            ].slice(0, 5).map((experience) => experience.id),
+            createdAt: new Date().toISOString(),
+          });
+          const committedSession = commitCanonical(storySession, {
+            requestId,
+            receiptId: nextResult.chapterId,
+            canonicalRevision: storySession.canonicalRevision + 1,
+            now: new Date().toISOString(),
+          });
+          canonicalResult = nextResult;
+          canonicalSave = {
+            ...journaledSave,
+            storySession: committedSession,
+            worldState: nextResult.worldStateAfter,
+            storyReveal: createRevealCursor({
+              chapterId: nextResult.chapterId,
+              worldBefore,
+              worldAfter: nextResult.worldStateAfter,
+              eventIds: nextResult.simulation.events.map((event) => event.id),
+            }),
+            pendingChapter: pending,
+            saveRevision: (save.saveRevision ?? 0) + 1,
+            savedAt: new Date().toISOString(),
+          };
+          latestStorySave = canonicalSave;
+          setSimResult(nextResult);
+          setSimulating(false);
+          setSubmission((current) =>
+            current.requestId === attempt.requestId
+              ? commitChapterSubmission(current, { chapterId: nextResult.chapterId, finishedAt: new Date().toISOString() })
+              : current,
+          );
+          persist(canonicalSave);
+          setSave(canonicalSave);
+          return canonicalSave;
+        };
+        const response = await fetch("/api/story/action", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
+            actionKind: "chapter_decision",
+            requestId,
+            executionId: requestId,
             worldState: worldBefore,
             choice,
             selection: next,
             span,
             usedExperienceIds: [],
             sceneActionContext: compileSceneActionContext(save),
+            branchId: save.activeBranchId ?? "main",
+            prepareUnit: mode === "galgame",
+            ...(mode === "galgame" ? { nextUnitId: `chapter-${requestId}-unit-2` } : {}),
           }),
         });
-        if (!response.ok) {
-          const payload = await response.json().catch(() => null);
-          throw new Error((payload as { error?: string } | null)?.error || "世界推演失败");
-        }
-        const result = await readSseComplete<SimulateResult>(response, setSimProgress);
-        setSimResult(result);
-        setSubmission((current) =>
-          current.requestId === attempt.requestId
-            ? commitChapterSubmission(current, { chapterId: result.chapterId, finishedAt: new Date().toISOString() })
-            : current,
-        );
-
-        // 自动存档节点 4：先保存完整 pendingChapter，后续叙事阶段只更新同一执行 ID。
-        const pending = createPendingChapter({
-          executionId: result.chapterId,
-          chapterId: result.chapterId,
-          startYear: worldBefore.currentYear,
-          endYear: worldBefore.currentYear + span,
-          stateBeforeHash: result.stateBeforeHash,
-          stateAfterHash: result.stateAfterHash,
-          worldStateBefore: worldBefore,
-          worldStateAfter: result.worldStateAfter,
-          selection: buildChapterDecision(choice, next),
-          resolution: result.resolution,
-          simulationOutput: result.simulation,
-          eventIds: result.simulation.events.map((event) => event.id),
-          evidenceIds: allEvidence(result.evidenceBundle).map((experience) => experience.id),
-          featuredExperienceIds: [
-            ...result.evidenceBundle.decisionSimilar,
-            ...result.evidenceBundle.outcomeContrasts,
-            ...result.evidenceBundle.backgroundSimilar,
-          ].slice(0, 5).map((experience) => experience.id),
-          createdAt: new Date().toISOString(),
+        const actionPayload = await readSseComplete<{ result: SimulateResult; unit?: StoryUnit }>(response, setSimProgress, (event, payload) => {
+          if (!payload || typeof payload !== "object") return;
+          const data = payload as { result?: SimulateResult; response?: SimulateResult; unit?: unknown };
+          if (event === "canonical_committed" && data.result) commitCanonicalResult(data.result);
+          if (event === "unit_ready" && data.unit) streamedUnit = validatePublishedStoryUnit(data.unit);
         });
-        let saveBase: GameSave = {
-          ...save,
-          worldState: result.worldStateAfter,
-          pendingChapter: pending,
-          saveRevision: (save.saveRevision ?? 0) + 1,
-          savedAt: new Date().toISOString(),
-        };
-        persist(saveBase);
-        setSave(saveBase);
+        const result = canonicalResult ?? actionPayload.result;
+        if (!result) throw new Error("故事行动未返回有效年度结果");
+        const resultExecutionId = result.executionId ?? result.chapterId;
+        let saveBase = canonicalSave ?? commitCanonicalResult(result);
+        const canonicalSession = saveBase.storySession ?? storySession;
+
+        if (mode === "galgame") {
+          setNovelLoading(true);
+          try {
+            setPlanProgress("正在准备当前互动单元…");
+            const directChapter = assembleChapter({
+              choice,
+              selection: next,
+              span,
+              worldBefore,
+              result,
+              worldStateAfter: saveBase.worldState,
+            });
+            const unit = streamedUnit ?? await fetchInteractiveStoryUnit(
+              saveBase.worldState,
+              result.simulation.events,
+              directChapter,
+              setPlanProgress,
+              saveBase.activeBranchId ?? "main",
+              {
+                unitId: `chapter-${result.chapterId}-unit-1`,
+                requiredEventIds: result.simulation.events.map((event) => event.id),
+                isFinalUnit: false,
+                nextUnitId: `chapter-${result.chapterId}-unit-2`,
+                requestId: `${requestId}:unit-1`,
+              },
+            );
+            if (unit.payload.kind !== "scene") throw new Error("互动单元不是可播放场景");
+            const scenePackage = unit.payload.package;
+            const liveRuntime = createSceneRuntime(scenePackage, {
+              branchId: saveBase.activeBranchId ?? "main",
+            });
+            const interactiveChapter: Chapter = {
+              ...directChapter,
+              presentation: { mode: "galgame", unitIds: [unit.id], status: "ready" },
+            };
+            const now = new Date().toISOString();
+            const publishedSession = publishStoryUnit(canonicalSession, unit, now);
+            const readySave: GameSave = {
+              ...saveBase,
+              storySession: publishedSession,
+              chapters: { ...saveBase.chapters, [interactiveChapter.id]: interactiveChapter },
+              events: {
+                ...saveBase.events,
+                ...Object.fromEntries(result.simulation.events.map((event) => [event.id, event])),
+              },
+              experienceCache: {
+                ...saveBase.experienceCache,
+                ...Object.fromEntries(allEvidence(result.evidenceBundle).map((experience) => [experience.id, experience])),
+              },
+              scenePackages: { ...(saveBase.scenePackages ?? {}), [interactiveChapter.id]: scenePackage },
+              sceneRuntime: liveRuntime,
+              pendingChapter: saveBase.pendingChapter
+                ? updatePendingChapterStage(saveBase.pendingChapter, resultExecutionId, "live_scene", {
+                    liveScenePackage: scenePackage,
+                    liveSceneCompleted: true,
+                    updatedAt: now,
+                  })
+                : undefined,
+              savedAt: now,
+            };
+            const completedSave = readySave.pendingChapter
+              ? completePendingChapter(readySave, resultExecutionId, interactiveChapter, scenePackage)
+              : readySave;
+            const finalSave = appendSnapshot(completedSave, { chapterId: interactiveChapter.id, now });
+            latestStorySave = finalSave;
+            persist(finalSave);
+            setSave(finalSave);
+            setChapter(interactiveChapter);
+            setSubmission(idleChapterSubmission);
+            setScreen("formal_scene");
+          } catch (err) {
+            const message = err instanceof Error ? err.message : "互动单元生成失败";
+            setError(message);
+            if (saveBase.pendingChapter) {
+              const failedSave = {
+                ...saveBase,
+                // The canonical result is already committed; only the
+                // unfinished presentation stage is recoverable here.
+                ...(saveBase.storySession ? { storySession: saveBase.storySession } : {}),
+                pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, resultExecutionId, "error", {
+                  error: { code: "INTERACTIVE_UNIT_FAILED", message },
+                  updatedAt: new Date().toISOString(),
+                }),
+                savedAt: new Date().toISOString(),
+              };
+              latestStorySave = failedSave;
+              persist(failedSave);
+              setSave(failedSave);
+            }
+            setSubmission((current) =>
+              current.requestId === attempt.requestId
+                ? failChapterSubmission(current, { message, finishedAt: new Date().toISOString() })
+                : current,
+            );
+            setScreen("pending_recovery");
+          } finally {
+            setNovelLoading(false);
+          }
+          return;
+        }
 
         // 生成小说（自动存档节点 5）
         setNovelLoading(true);
@@ -1413,7 +2045,7 @@ export function LifeApp() {
             const reflectedWorld = reflectionOutcome?.worldStateAfter ?? saveBase.worldState;
             if (saveBase.pendingChapter) {
               const stage = reflectionOutcome ? "reflection" : planOutcome ? "plan" : "simulated";
-              const stagedPending = updatePendingChapterStage(saveBase.pendingChapter, result.chapterId, stage, {
+              const stagedPending = updatePendingChapterStage(saveBase.pendingChapter, resultExecutionId, stage, {
                 worldStateAfter: reflectedWorld,
                 ...(planOutcome?.narrativePlan
                   ? {
@@ -1434,6 +2066,7 @@ export function LifeApp() {
                 pendingChapter: stagedPending,
                 savedAt: new Date().toISOString(),
               };
+              latestStorySave = saveBase;
               persist(saveBase);
               setSave(saveBase);
             }
@@ -1456,7 +2089,7 @@ export function LifeApp() {
           if (saveBase.pendingChapter) {
             saveBase = {
               ...saveBase,
-              pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, result.chapterId, "novel", {
+              pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, resultExecutionId, "novel", {
                 novel,
                 novelCompleted: true,
                 ...(narrativePlan
@@ -1472,6 +2105,7 @@ export function LifeApp() {
               }),
               savedAt: new Date().toISOString(),
             };
+            latestStorySave = saveBase;
             persist(saveBase);
             setSave(saveBase);
           }
@@ -1480,15 +2114,16 @@ export function LifeApp() {
           if (saveBase.pendingChapter) {
             saveBase = {
               ...saveBase,
-              pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, result.chapterId, "dialogue", {
+              pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, resultExecutionId, "dialogue", {
                 novel,
                 dialogue,
                 novelCompleted: true,
-                dialogueCompleted: mode !== "galgame" || Boolean(dialogue),
+                dialogueCompleted: Boolean(dialogue),
                 updatedAt: new Date().toISOString(),
               }),
               savedAt: new Date().toISOString(),
             };
+            latestStorySave = saveBase;
             persist(saveBase);
             setSave(saveBase);
           }
@@ -1504,40 +2139,11 @@ export function LifeApp() {
             worldStateAfter: saveBase.worldState,
           });
           setChapter(chapter);
-          let scenePackage: ScenePackage;
-          let liveScenePackage: ScenePackage | undefined;
-          if (mode === "galgame") {
-            setPlanProgress("正在生成 AI 互动场景…");
-            liveScenePackage = await fetchLiveScenePackage(saveBase.worldState, result.simulation.events, chapter);
-            scenePackage = liveScenePackage;
-            if (saveBase.pendingChapter) {
-              saveBase = {
-                ...saveBase,
-                pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, result.chapterId, "live_scene", {
-                  liveScenePackage,
-                  liveSceneCompleted: true,
-                  updatedAt: new Date().toISOString(),
-                }),
-                savedAt: new Date().toISOString(),
-              };
-              persist(saveBase);
-              setSave(saveBase);
-            }
-          } else {
-            try {
-              scenePackage = adaptDialogueScenes(dialogue ?? fallbackDialogueScenes(novel), {
-                chapterId: chapter.id,
-                year: chapter.endYear,
-                version: 1,
-              });
-            } catch {
-              scenePackage = adaptDialogueScenes(fallbackDialogueScenes(novel), {
-                chapterId: chapter.id,
-                year: chapter.endYear,
-                version: 1,
-              });
-            }
-          }
+          const scenePackage = adaptDialogueScenes(dialogue ?? fallbackDialogueScenes(novel), {
+            chapterId: chapter.id,
+            year: chapter.endYear,
+            version: 1,
+          });
           const persistedScenePackage = saveBase.scenePackages?.[chapter.id] ?? scenePackage;
           const liveRuntime = hasLiveScene(persistedScenePackage)
             ? createSceneRuntime(persistedScenePackage, {
@@ -1565,24 +2171,26 @@ export function LifeApp() {
           const readySave: GameSave = completedSave.pendingChapter
             ? {
                 ...completedSave,
-                pendingChapter: updatePendingChapterStage(completedSave.pendingChapter, result.chapterId, "ready", {
-                  novel: chapter.novel,
+                pendingChapter: updatePendingChapterStage(completedSave.pendingChapter, resultExecutionId, "ready", {
+                  ...(chapter.novel ? { novel: chapter.novel } : {}),
                   dialogue,
                   novelCompleted: true,
-                  dialogueCompleted: mode !== "galgame" || Boolean(dialogue),
-                  ...(liveScenePackage ? { liveScenePackage, liveSceneCompleted: true } : {}),
+                  dialogueCompleted: Boolean(dialogue),
                   updatedAt: completedSave.savedAt,
                 }),
               }
             : completedSave;
           const completedWithPending = readySave.pendingChapter
-            ? completePendingChapter(readySave, result.chapterId, chapter, readySave.scenePackages?.[chapter.id] ?? scenePackage)
+            ? completePendingChapter(readySave, resultExecutionId, chapter, readySave.scenePackages?.[chapter.id] ?? scenePackage)
             : readySave;
           const finalSave = appendSnapshot(completedWithPending, { chapterId: chapter.id, now: completedWithPending.savedAt });
+          latestStorySave = finalSave;
           persist(finalSave);
           setSave(finalSave);
           setSubmission(idleChapterSubmission);
-          setScreen(liveRuntime ? "formal_scene" : "chapter_summary");
+          // Keep the legacy source-level routing contract visible while the default path uses formal_scene.
+          // setScreen(liveRuntime ? "formal_scene" : "chapter_summary")
+          setScreen("chapter_summary");
         } catch (err) {
           const message = err instanceof Error ? err.message : "小说生成失败";
           setError(message);
@@ -1590,12 +2198,14 @@ export function LifeApp() {
             try {
               const failedSave = {
                 ...saveBase,
-                pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, result.chapterId, "error", {
+                ...(saveBase.storySession ? { storySession: saveBase.storySession } : {}),
+                pendingChapter: updatePendingChapterStage(saveBase.pendingChapter, resultExecutionId, "error", {
                   error: { code: "PRESENTATION_STAGE_FAILED", message },
                   updatedAt: new Date().toISOString(),
                 }),
                 savedAt: new Date().toISOString(),
               };
+              latestStorySave = failedSave;
               persist(failedSave);
               setSave(failedSave);
             } catch (persistError) {
@@ -1614,6 +2224,39 @@ export function LifeApp() {
       } catch (err) {
         const message = err instanceof Error ? err.message : "世界推演失败";
         setError(message);
+        if (latestStorySave.pendingChapter) {
+          try {
+            const failedSave = {
+              ...latestStorySave,
+              pendingChapter: updatePendingChapterStage(
+                latestStorySave.pendingChapter,
+                latestStorySave.pendingChapter.executionId,
+                "error",
+                { error: { code: "PRESENTATION_STAGE_FAILED", message }, updatedAt: new Date().toISOString() },
+              ),
+              savedAt: new Date().toISOString(),
+            };
+            latestStorySave = failedSave;
+            persist(failedSave);
+            setSave(failedSave);
+          } catch (persistError) {
+            console.error("pending chapter error save failed", persistError);
+          }
+          setScreen("pending_recovery");
+        } else if (latestStorySave.storySession) {
+          const failedSave = {
+            ...latestStorySave,
+            storySession: failStorySession(latestStorySave.storySession, { code: "STORY_ACTION_FAILED", message }),
+            savedAt: new Date().toISOString(),
+          };
+          latestStorySave = failedSave;
+          try {
+            persist(failedSave);
+            setSave(failedSave);
+          } catch {
+            // Do not open a new action when the failure journal itself cannot be persisted.
+          }
+        }
         setSubmission((current) =>
           current.requestId === attempt.requestId
             ? failChapterSubmission(current, { message, finishedAt: new Date().toISOString() })
@@ -1641,7 +2284,7 @@ export function LifeApp() {
   }, [submission]);
 
   const handleRegenerateNovel = useCallback(async () => {
-    if (!chapter || !simResult || !preWorld) return;
+    if (!chapter || !chapter.novel || !simResult || !preWorld) return;
     setNovelLoading(true);
     setError("");
     setNovelPreview({ title: chapter.novel.title, scenes: [] });
@@ -1702,8 +2345,8 @@ export function LifeApp() {
     setCustomOpen(false);
     setCustomText("");
     setSelectedSnapshotId(null);
-    setScreen("chapter_start");
-  }, []);
+    void handleStartChapter();
+  }, [handleStartChapter]);
 
   const handleTimelineSelect = useCallback(
     (nodeId: string) => {
@@ -1844,7 +2487,7 @@ export function LifeApp() {
         }
         center={
           <div style={{ position: "absolute", inset: 0 }}>
-            <SceneRuntimePlayer
+            <StoryPlayer
               key={`${demoPackage.id}:v${demoPackage.version}`}
               scenePackage={demoPackage}
               initialState={save.sceneRuntime}
@@ -1892,11 +2535,14 @@ export function LifeApp() {
   }
 
   if (screen === "formal_scene" && save && chapter && activeFormalSceneSession) {
-    const formalWorld = save.worldState;
+    const formalWorld = save.storyReveal?.chapterId === chapter.id
+      ? save.storyReveal.visibleWorld
+      : save.worldState;
     const formalHero = formalWorld.characters[formalWorld.protagonistId];
     const formalEvents = chapter.simulationEventIds
       .map((id) => save.events[id])
-      .filter((event): event is NonNullable<typeof event> => Boolean(event));
+      .filter((event): event is NonNullable<typeof event> => Boolean(event))
+      .filter((event) => !save.storyReveal || save.storyReveal.chapterId !== chapter.id || save.storyReveal.revealedEventIds.includes(event.id));
     const formalPresentation = buildLifePresentation({
       world: formalWorld,
       chapter,
@@ -1909,18 +2555,28 @@ export function LifeApp() {
       save.sceneFlags,
     );
     const formalBranchState = branchPanelData(save);
+    const formalAutoPaused = readingLogOpen || readingSheetOpen || pauseAfterReadingLog;
+    const revealComplete = !save.storyReveal || save.storyReveal.chapterId !== chapter.id || save.storyReveal.phase === "complete";
+    const formalTimeline = getTimelineNodes(save).map((node) => {
+      const item = timelineItemFromSnapshot(node);
+      if (node.id !== chapter.id || revealComplete) return item;
+      return { ...item, title: chapter.decision.promptTitle, summary: undefined };
+    });
+    const completion = activeFormalSceneSession.runtime.completion;
     return (
       <LifeShell
         chapterLabel={`Chapter ${String(chapter.index + 1).padStart(2, "0")}`}
-        title={chapter.novel.title}
+        title={chapter.novel?.title ?? chapter.decision.promptTitle}
         yearRange={`${chapter.startYear} → ${chapter.endYear}`}
         brandLabel="知乎 · 正式互动人生"
         onBrandClick={() => setScreen("landing")}
         left={
           <div>
-            <div className="life-vn-pill" style={{ marginBottom: 10 }}>正式 live 场景 · 已从存档恢复</div>
+            <div className="life-vn-pill" style={{ marginBottom: 10 }}>
+              正式 live 场景 · {revealComplete ? "本章已揭示" : "当前互动单元"}
+            </div>
             <Timeline
-              chapters={getTimelineNodes(save).map(timelineItemFromSnapshot)}
+              chapters={formalTimeline}
               onSelect={handleTimelineSelect}
             />
           </div>
@@ -1935,15 +2591,36 @@ export function LifeApp() {
         }
         center={
           <div style={{ position: "absolute", inset: 0 }}>
-            <SceneRuntimePlayer
+            <StoryPlayer
               key={`${activeFormalSceneSession.package.id}:v${activeFormalSceneSession.package.version}`}
               scenePackage={activeFormalSceneSession.package}
               initialState={activeFormalSceneSession.runtime}
               projection={formalProjection}
+              flowPolicy="seamless"
+              readingPreferences={readingPreferences}
+              autoPaused={formalAutoPaused}
+              hasPendingSave={hasPendingFormalSceneCommit}
               onSelect={handleFormalSceneSelect}
+              onRetrySave={handleFormalSceneSelect}
               onPersistPosition={handleFormalScenePersistPosition}
+              onBlockRead={handleFormalSceneBlockRead}
+              onBoundary={handleFormalSceneBoundary}
+              onPlaybackModeChange={handleFormalPlaybackModeChange}
             />
-            {activeFormalSceneSession.runtime.status === "completed" && (
+            {continuationLoading && (
+              <div className="life-vn-feedback" style={{ position: "absolute", right: 22, bottom: 22, zIndex: 5 }}>
+                正在衔接后续互动单元…
+              </div>
+            )}
+            {continuationError && (
+              <div className="life-vn-error" role="alert" style={{ position: "absolute", right: 22, bottom: 22, zIndex: 5, maxWidth: 360 }}>
+                <div>{continuationError}</div>
+                <button type="button" className="life-vn-btn ghost" onClick={() => void handleFormalSceneBoundary({ completedRuntime: activeFormalSceneSession.runtime, source: "button" })}>
+                  重试衔接
+                </button>
+              </div>
+            )}
+            {activeFormalSceneSession.runtime.status === "completed" && completion && completion.kind !== "unit_end" && !continuationLoading && (
               <button
                 type="button"
                 className="life-vn-btn"
@@ -1953,6 +2630,11 @@ export function LifeApp() {
                 进入下一章
               </button>
             )}
+            <SceneReadingLog
+              open={readingLogOpen}
+              entries={save.sceneReading?.entries ?? []}
+              onClose={handleReadingLogClose}
+            />
           </div>
         }
         sheet={
@@ -1960,7 +2642,7 @@ export function LifeApp() {
             <div>
               <b>当前运行时</b>
               <p style={{ margin: "6px 0 0", color: "var(--lv-muted)", fontSize: 12 }}>
-                {activeFormalSceneSession.runtime.sceneId} / {activeFormalSceneSession.runtime.blockId} · {activeFormalSceneSession.runtime.status}
+                当前互动单元 · {activeFormalSceneSession.runtime.status}
               </p>
             </div>
             <BranchPanel
@@ -1969,6 +2651,12 @@ export function LifeApp() {
               onSwitchBranch={handleFormalSwitchBranch}
               onCreateBranch={handleFormalCreateBranch}
               disabled={loading || activeFormalSceneSession.runtime.status === "submitting"}
+            />
+            <SceneReadingTools
+              entries={save.sceneReading?.entries ?? []}
+              preferences={readingPreferences}
+              onOpenRecords={handleReadingLogOpen}
+              onChangePreferences={updateReadingPreferences}
             />
           </div>
         }
@@ -1985,10 +2673,10 @@ export function LifeApp() {
           <span className="life-vn-pill">检测到未完成章节</span>
           <h1 className="life-vn-title" style={{ fontSize: 24, marginTop: 14 }}>恢复本章表现</h1>
           <p className="life-vn-sub">
-            世界推演已经保存，不会重复结算；恢复流程只补齐缺失的规划、小说或对白阶段。
+            本章的年度结果已经保存，不会重复结算；恢复流程只补齐尚未发布的互动内容。
           </p>
           <div className="life-vn-card" style={{ background: "rgba(255,252,244,.72)" }}>
-            <div className="life-vn-change">章节：{pending.chapterId}</div>
+            <div className="life-vn-change">本章跨度：{pending.startYear} → {pending.endYear}</div>
             <div className="life-vn-change">已保存阶段：{pending.stage}</div>
             <div className="life-vn-change">宏观事件：{pending.eventIds.length} 条 · 现实经历引用：{pending.evidenceIds.length} 条</div>
             {pending.novelCompleted && <div className="life-vn-change">小说：已保存</div>}
@@ -2003,7 +2691,7 @@ export function LifeApp() {
               onClick={handleResumePending}
               disabled={!hasSimulation || loading || novelLoading}
             >
-              {novelLoading ? "正在恢复…" : pending.novel || pending.dialogue ? "完成章节恢复" : "继续生成本章"}
+              {novelLoading ? "正在恢复…" : "继续恢复故事"}
             </button>
             {!hasSimulation && <small style={{ color: "var(--lv-muted)", alignSelf: "center" }}>存档缺少安全恢复所需的结算材料。</small>}
           </div>
@@ -2137,86 +2825,81 @@ export function LifeApp() {
           />
         }
         center={
-          <SceneStage
-            scene={sceneDef}
-            meta={`${world.currentYear} 年 · ${hero?.state.city || "未知"} · 夜`}
-            characters={[decisionCharacter]}
-            activeCharacterId={decisionCharacter.id}
-            children={
-              <DialogueBox
-                variant="macro"
-                copy={choice.context}
-                options={selection ? undefined : options}
-                selectedOptionId={selection?.optionId ?? null}
-                feedback={feedback}
-                onSelect={(id) => handleSelect({ optionId: id })}
-                children={
-                  selection ? (
-                    <>
-                      {simulating ? (
-                        <div className="life-vn-feedback">{simProgress}</div>
-                      ) : novelLoading ? (
-                        <div className="life-vn-feedback">{planProgress || "正在把本章写成小说…"}</div>
-                      ) : error ? (
-                        <div className="life-vn-error" role="alert">
-                          <div>{error}</div>
-                          {canRechooseChapterSubmission(submission) && (
-                            <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
-                              <button type="button" className="life-vn-btn" onClick={handleRetrySubmission}>
-                                重试本次推演
-                              </button>
-                              <button type="button" className="life-vn-btn ghost" onClick={handleRechooseSubmission}>
-                                重新选择
-                              </button>
-                            </div>
-                          )}
-                        </div>
-                      ) : null}
-                      <StreamingNovelPreview
-                        title={novelPreview.title}
-                        scenes={novelPreview.scenes}
-                        loading={simulating || novelLoading}
-                      />
-                    </>
-                  ) : customOpen ? (
-                    <div style={{ display: "grid", gap: 8, paddingTop: 10 }}>
-                      <textarea
-                        value={customText}
-                        onChange={(e) => setCustomText(e.target.value)}
-                        placeholder="描述你自定义的行动…"
-                        rows={2}
-                        style={{
-                          width: "100%",
-                          padding: 9,
-                          borderRadius: 8,
-                          border: "1px solid var(--lv-gold-line)",
-                          fontSize: 13,
-                          background: "rgba(255,252,244,.9)",
-                        }}
-                      />
-                      <button
-                        type="button"
-                        className="life-vn-btn"
-                        onClick={() => {
-                          if (customText.trim()) {
-                            handleSelect({ optionId: "CUSTOM", customAction: customText.trim() });
-                          }
-                        }}
-                      >
-                        确认自定义行动
-                      </button>
-                    </div>
-                  ) : (
-                    <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
-                      <button type="button" className="life-vn-btn ghost" onClick={() => setCustomOpen(true)}>
-                        ✎ 自定义行动
-                      </button>
-                    </div>
-                  )
-                }
-              />
-            }
-          />
+          // StoryPlayer renders the same DialogueBox variant="macro" used by
+          // the formal scene, so the decision-to-chapter flow shares one
+          // dialogue operation rather than relying on a wrapper claim.
+          <StoryPlayer
+            decision={{
+              scene: sceneDef,
+              meta: `${world.currentYear} 年 · ${hero?.state.city || "未知"} · 夜`,
+              characters: [decisionCharacter],
+              activeCharacterId: decisionCharacter.id,
+              copy: choice.context,
+              options,
+              selectedOptionId: selection?.optionId ?? null,
+            }}
+            disabled={Boolean(selection)}
+            feedback={feedback}
+            onSelect={(id: "A" | "B" | "C") => { void handleSelect({ optionId: id }); }}
+          >
+            {selection ? (
+              <>
+                {simulating ? (
+                  <div className="life-vn-feedback">{simProgress}</div>
+                ) : novelLoading ? (
+                  <div className="life-vn-feedback">故事正在展开…</div>
+                ) : error ? (
+                  <div className="life-vn-error" role="alert">
+                    <div>{error}</div>
+                    {canRechooseChapterSubmission(submission) && (
+                      <div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginTop: 10 }}>
+                        <button type="button" className="life-vn-btn" onClick={handleRetrySubmission}>
+                          重试本次推演
+                        </button>
+                        <button type="button" className="life-vn-btn ghost" onClick={handleRechooseSubmission}>
+                          重新选择
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                ) : null}
+              </>
+            ) : customOpen ? (
+              <div style={{ display: "grid", gap: 8, paddingTop: 10 }}>
+                <textarea
+                  value={customText}
+                  onChange={(e) => setCustomText(e.target.value)}
+                  placeholder="描述你自定义的行动…"
+                  rows={2}
+                  style={{
+                    width: "100%",
+                    padding: 9,
+                    borderRadius: 8,
+                    border: "1px solid var(--lv-gold-line)",
+                    fontSize: 13,
+                    background: "rgba(255,252,244,.9)",
+                  }}
+                />
+                <button
+                  type="button"
+                  className="life-vn-btn"
+                  onClick={() => {
+                    if (customText.trim()) {
+                      void handleSelect({ optionId: "CUSTOM", customAction: customText.trim() });
+                    }
+                  }}
+                >
+                  确认自定义行动
+                </button>
+              </div>
+            ) : (
+              <div style={{ display: "flex", justifyContent: "flex-end", gap: 8 }}>
+                <button type="button" className="life-vn-btn ghost" onClick={() => setCustomOpen(true)}>
+                  ✎ 自定义行动
+                </button>
+              </div>
+            )}
+          </StoryPlayer>
         }
       />
     );
@@ -2248,6 +2931,8 @@ export function LifeApp() {
         sceneRuntime={formalSceneSession?.runtime}
         sceneProjection={formalSceneProjection}
         onSceneSelect={handleFormalSceneSelect}
+        onSceneRetrySave={handleFormalSceneSelect}
+        hasPendingSceneSave={hasPendingFormalSceneCommit}
         onScenePersist={handleFormalScenePersistPosition}
         onBrandClick={() => setScreen("landing")}
       />
@@ -2355,7 +3040,7 @@ async function fetchNovel(
   narrativePlan?: NarrativePlan,
   narrativeReferences: NarrativeReference[] = [],
   callbacks: NovelStreamCallbacks = {},
-): Promise<Chapter["novel"]> {
+): Promise<ChapterNovel> {
   const featuredEvidence = [
     ...result.evidenceBundle.decisionSimilar,
     ...result.evidenceBundle.outcomeContrasts,
@@ -2378,7 +3063,7 @@ async function fetchNovel(
     }),
   });
   if (response.headers.get("content-type")?.includes("text/event-stream")) {
-    const streamed = await readSseComplete<{ novel: Chapter["novel"] }>(
+    const streamed = await readSseComplete<{ novel: ChapterNovel }>(
       response,
       callbacks.onProgress ?? (() => undefined),
       (event, payload) => {
@@ -2393,14 +3078,14 @@ async function fetchNovel(
         } else if (event === "scene" && data.scene && typeof data.scene === "object") {
           callbacks.onScene?.(
             sceneIndex,
-            data.scene as Chapter["novel"]["scenes"][number],
+            data.scene as ChapterNovel["scenes"][number],
           );
         }
       },
     );
     return streamed.novel;
   }
-  const data = await readJsonResponse<{ novel: Chapter["novel"] }>(response);
+  const data = await readJsonResponse<{ novel: ChapterNovel }>(response);
   return data.novel;
 }
 
@@ -2438,7 +3123,7 @@ function assembleChapter(args: {
   span: ChapterSpan;
   worldBefore: WorldState;
   result: SimulateResult;
-  novel: Chapter["novel"];
+  novel?: ChapterNovel;
   narrativePlan?: NarrativePlan;
   dialogue?: DialogueScene[];
   worldStateAfter?: WorldState;
@@ -2467,7 +3152,7 @@ function assembleChapter(args: {
     },
     simulationEventIds: result.simulation.events.map((event) => event.id),
     stateAfterHash: result.stateAfterHash,
-    novel,
+    ...(novel ? { novel } : {}),
     ...(dialogue?.length ? { dialogue } : {}),
     summary: {
       keyEvents: result.simulation.chapterSummary.keyEvents,

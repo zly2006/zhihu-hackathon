@@ -130,7 +130,7 @@ export function resolveSceneChoice(input: ResolveSceneChoiceInput): ResolvedScen
     actualRelationshipDelta: relationship.actual,
     ...(relationship.relationshipId ? { relationshipId: relationship.relationshipId } : {}),
     flagsAfter,
-    feedback: rule.feedback,
+    feedback: `你选择“${choice.label}”。${rule.feedback}`,
     event,
   };
 }

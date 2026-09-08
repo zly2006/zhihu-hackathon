@@ -2,6 +2,8 @@ import fs from "node:fs";
 import path from "node:path";
 import { randomUUID } from "node:crypto";
 import type { ModelConversationMessage } from "./types";
+import type { GenerationFailureCategory } from "./game/generation-error";
+import { ExecutionBudgetError, type ExecutionBudget } from "./game/execution-budget";
 
 const DEFAULT_ENDPOINT = "https://opencode.ai/zen/go/v1/chat/completions";
 const DEFAULT_MODEL = "deepseek-v4-flash";
@@ -39,7 +41,39 @@ export type CallOptions = {
   /** Demo writers use metadata-only audit logs so prompts and model output never persist. */
   logMode?: "metadata" | "full";
   auditMetadata?: Record<string, string | number | boolean | null | undefined>;
+  /** Absolute deadline inherited from the user action. */
+  deadlineAt?: number;
+  /** Optional shared budget. Reserving here counts this invocation as a real request. */
+  budget?: ExecutionBudget;
+  budgetPhase?: string;
+  requestId?: string;
+  executionId?: string;
+  /** New chains use a first-token deadline; they never use average-speed aborts. */
+  firstTokenTimeoutMs?: number;
+  stallPolicy?: "legacy" | "bounded";
 };
+
+export class ModelCallError extends Error {
+  readonly code: string;
+  readonly category: GenerationFailureCategory;
+  readonly retryable: boolean;
+  readonly committed: boolean;
+
+  constructor(
+    code: string,
+    message: string,
+    category: GenerationFailureCategory,
+    retryable: boolean,
+    committed = false,
+  ) {
+    super(message);
+    this.name = "ModelCallError";
+    this.code = code;
+    this.category = category;
+    this.retryable = retryable;
+    this.committed = committed;
+  }
+}
 function environment(name: string) {
   return process.env[name];
 }
@@ -151,8 +185,16 @@ export async function callGameModel<T>(
   const controller = new AbortController();
   const abortFromCaller = () => controller.abort();
   options.signal?.addEventListener("abort", abortFromCaller, { once: true });
-  const timeout = setTimeout(() => controller.abort(), options.timeoutMs ?? 180_000);
+  options.budget?.signal.addEventListener("abort", abortFromCaller, { once: true });
+  const deadlineAt = options.deadlineAt
+    ?? options.budget?.phaseDeadlineAt(options.budgetPhase ?? "default")
+    ?? options.budget?.deadlineAt;
+  const requestedTimeoutMs = options.timeoutMs ?? 180_000;
+  const deadlineRemainingMs = deadlineAt === undefined ? requestedTimeoutMs : Math.max(0, deadlineAt - Date.now());
+  const callTimeoutMs = Math.min(requestedTimeoutMs, deadlineRemainingMs);
+  const timeout = setTimeout(() => controller.abort(), Math.max(1, callTimeoutMs));
   const retryAttempt = options.slowRetryAttempt || 0;
+  let reservation: { requestId: string; executionId: string; phase: string; attempt: number } | undefined;
   let httpStatus: number | null = null;
   let rawHttpResponse = "";
   let modelContent = "";
@@ -164,6 +206,7 @@ export async function callGameModel<T>(
   let tokensPerSecond = 0;
   let lastProgressAt = 0;
   let slowStreamDetected = false;
+  let firstTokenTimeoutDetected = false;
   let promptCacheHitTokens = 0;
   let promptCacheMissTokens = 0;
   const messages = [
@@ -195,8 +238,9 @@ export async function callGameModel<T>(
     });
   };
 
+  const boundedStallPolicy = options.stallPolicy === "bounded" || options.maxTransportRetries === 0 || Boolean(options.budget);
   const slowStreamMonitor = setInterval(() => {
-    if (provider.provider !== "deepseek" || slowStreamDetected) return;
+    if (boundedStallPolicy || provider.provider !== "deepseek" || slowStreamDetected) return;
     const elapsedMs = performance.now() - startedClock;
     if (elapsedMs <= 10_000) return;
     const measuredTokens = completionTokens || estimatedTokens(modelContent);
@@ -205,6 +249,16 @@ export async function callGameModel<T>(
     tokensPerSecond = Number(currentTokensPerSecond.toFixed(1));
     if (currentTokensPerSecond < 10) {
       slowStreamDetected = true;
+      controller.abort();
+    }
+  }, 250);
+  const firstTokenTimeoutMs = options.firstTokenTimeoutMs === undefined
+    ? (boundedStallPolicy ? Math.min(15_000, callTimeoutMs) : undefined)
+    : Math.min(options.firstTokenTimeoutMs, callTimeoutMs);
+  const firstTokenMonitor = firstTokenTimeoutMs === undefined ? undefined : setInterval(() => {
+    if (firstTokenMs !== null || firstTokenTimeoutDetected) return;
+    if (performance.now() - startedClock >= firstTokenTimeoutMs) {
+      firstTokenTimeoutDetected = true;
       controller.abort();
     }
   }, 250);
@@ -222,6 +276,13 @@ export async function callGameModel<T>(
       throw new Error(
         `未配置 ${apiKeyName}，无法调用大模型`,
       );
+    }
+    if (callTimeoutMs <= 0) {
+      throw new ModelCallError("DEADLINE_EXCEEDED", "大模型请求在 deadline 前没有剩余时间", "deadline", false);
+    }
+    if (options.budget) {
+      const request = options.budget.reserve(purpose, options.budgetPhase ?? "default");
+      reservation = request;
     }
     const providerOptions =
       provider.provider === "deepseek"
@@ -264,6 +325,19 @@ export async function callGameModel<T>(
     const decoder = new TextDecoder();
     let buffer = "";
     let activityContent = "";
+    const tryParseCompleteJson = (): T | null => {
+      if (options.responseFormat === "text") return null;
+      const trimmed = modelContent.trim();
+      const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+      const candidate = fenceMatch ? fenceMatch[1].trim() : trimmed;
+      if (!candidate.startsWith("{") || !candidate.endsWith("}")) return null;
+      try {
+        const parsed = JSON.parse(candidate) as T;
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? parsed : null;
+      } catch {
+        return null;
+      }
+    };
     const consumeLine = (line: string) => {
       const trimmed = line.trim();
       if (!trimmed.startsWith("data:")) return;
@@ -312,10 +386,36 @@ export async function callGameModel<T>(
       buffer += chunk;
       const lines = buffer.split("\n");
       buffer = lines.pop() || "";
-      for (const line of lines) consumeLine(line);
+      for (const line of lines) {
+        consumeLine(line);
+        const completeJson = tryParseCompleteJson();
+        if (completeJson) {
+          const trimmed = modelContent.trim();
+          const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+          modelContent = fenceMatch ? fenceMatch[1].trim() : trimmed;
+          parsedResponse = completeJson;
+          progress("complete", true);
+          options.onCompletedMessage?.(modelContent);
+          await reader.cancel();
+          return parsedResponse;
+        }
+      }
     }
     buffer += decoder.decode();
-    if (buffer.trim()) consumeLine(buffer);
+    if (buffer.trim()) {
+      consumeLine(buffer);
+      const completeJson = tryParseCompleteJson();
+      if (completeJson) {
+        const trimmed = modelContent.trim();
+        const fenceMatch = trimmed.match(/^```(?:json)?\s*([\s\S]*?)\s*```$/i);
+        modelContent = fenceMatch ? fenceMatch[1].trim() : trimmed;
+        parsedResponse = completeJson;
+        progress("complete", true);
+        options.onCompletedMessage?.(modelContent);
+        await reader.cancel();
+        return parsedResponse;
+      }
+    }
     modelContent = modelContent.trim();
     progress("complete", true);
     if (options.responseFormat === "text") {
@@ -336,23 +436,62 @@ export async function callGameModel<T>(
     options.onCompletedMessage?.(modelContent);
     return parsedResponse;
   } catch (error) {
+    if (error instanceof ExecutionBudgetError) {
+      terminalError = error.message;
+      throw new ModelCallError(error.code, error.message, error.code === "CANCELLED" ? "cancelled" : "deadline", false);
+    }
+    if (error instanceof ModelCallError) {
+      terminalError = error.message;
+      throw error;
+    }
     // 瞬时传输错误（网关丢流 / 连接重置等）的识别：opencode-go 等代理网关长调用偶发
     const transientStreamError =
       error instanceof Error &&
       /terminated|fetch failed|ECONNRESET|socket hang up|UND_ERR_|EPIPE/i.test(error.message || "");
+    const serverError = httpStatus !== null && httpStatus >= 500;
     // 限流（HTTP 429）：立即重试只会加剧限流，采用退避重试
     const isRateLimit =
       error instanceof Error && /429|Too Many Requests|rate ?limit/i.test(error.message || "");
     // 用量上限（GoUsageLimitError 等，响应体可见）：窗口内重试无用，直接给准确提示
     const isUsageLimit = isRateLimit && /UsageLimit|usage limit|balance/i.test(rawHttpResponse);
     const usageResetHint = rawHttpResponse.match(/Resets? in ([^."\]]+)/i)?.[1];
-    const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+    const sleep = (ms: number) => new Promise<"elapsed" | "cancelled" | "deadline">((resolve) => {
+      let settled = false;
+      let timer: ReturnType<typeof setTimeout> | undefined;
+      const signals = [options.signal, options.budget?.signal].filter((signal): signal is AbortSignal => Boolean(signal));
+      const finish = (result: "elapsed" | "cancelled" | "deadline") => {
+        if (settled) return;
+        settled = true;
+        if (timer) clearTimeout(timer);
+        for (const signal of signals) signal.removeEventListener("abort", onAbort);
+        resolve(result);
+      };
+      const onAbort = () => finish("cancelled");
+      for (const signal of signals) {
+        if (signal.aborted) {
+          finish("cancelled");
+          return;
+        }
+        signal.addEventListener("abort", onAbort, { once: true });
+      }
+      const remainingMs = deadlineAt === undefined ? ms : Math.min(ms, Math.max(0, deadlineAt - Date.now()));
+      if (remainingMs <= 0) {
+        finish("deadline");
+        return;
+      }
+      timer = setTimeout(() => finish(deadlineAt !== undefined && remainingMs < ms ? "deadline" : "elapsed"), remainingMs);
+    });
+    const callerCancelled = Boolean(options.signal?.aborted || options.budget?.signal.aborted);
     const retryAllowed = (defaultLimit: number) =>
-      !options.signal?.aborted &&
+      !callerCancelled &&
       (options.maxTransportRetries === undefined
-        ? retryAttempt < defaultLimit
-        : retryAttempt < options.maxTransportRetries);
-    if (error instanceof Error && error.name === "AbortError" && slowStreamDetected) {
+        ? !options.budget && retryAttempt < defaultLimit
+        : retryAttempt < options.maxTransportRetries) &&
+      (deadlineAt === undefined || deadlineAt - Date.now() > 100);
+    if (error instanceof Error && error.name === "AbortError" && firstTokenTimeoutDetected) {
+      terminalError = "模型首 token 超过 deadline";
+      throw new ModelCallError("FIRST_TOKEN_TIMEOUT", terminalError, "deadline", false);
+    } else if (error instanceof Error && error.name === "AbortError" && slowStreamDetected) {
       terminalError = "DeepSeek API 持续超过 10 秒且速度低于 10 token/s";
       if (retryAllowed(1)) {
         options.onProgress?.({
@@ -372,9 +511,11 @@ export async function callGameModel<T>(
           slowRetryAttempt: retryAttempt + 1,
         });
       }
+      throw new ModelCallError("SLOW_STREAM_ABORTED", terminalError, "deadline", false);
     } else if (error instanceof Error && error.name === "AbortError") {
-      terminalError = options.signal?.aborted ? "大模型请求已取消" : "大模型请求超时";
-    } else if (transientStreamError && retryAllowed(1)) {
+      terminalError = callerCancelled ? "大模型请求已取消" : "大模型请求超时";
+      throw new ModelCallError(callerCancelled ? "MODEL_CANCELLED" : "DEADLINE_EXCEEDED", terminalError, callerCancelled ? "cancelled" : "deadline", false);
+    } else if ((transientStreamError || serverError) && retryAllowed(1)) {
       // 网关中断：整次调用重试一次（不携带"修正"语义，避免与校验重试混淆）
       terminalError = "模型服务连接中断，正在自动重试";
       options.onProgress?.({
@@ -398,6 +539,7 @@ export async function callGameModel<T>(
       terminalError = usageResetHint
         ? `模型用量已达上限，约 ${usageResetHint} 后重置；如需立即继续请到 opencode.ai 工作区启用余额`
         : "模型用量已达上限，请稍后再试或到 opencode.ai 工作区启用余额";
+      throw new ModelCallError("QUOTA_EXHAUSTED", terminalError, "quota", false);
     } else if (isRateLimit && retryAllowed(2)) {
       // 限流退避：首次等 8s、二次等 25s，然后再整次调用
       const waitMs = retryAttempt === 0 ? 8000 : 25_000;
@@ -414,7 +556,13 @@ export async function callGameModel<T>(
         promptCacheHitTokens,
         promptCacheMissTokens,
       });
-      await sleep(waitMs);
+      const waitResult = await sleep(waitMs);
+      if (waitResult === "cancelled") {
+        throw new ModelCallError("MODEL_CANCELLED", "大模型请求已取消", "cancelled", false);
+      }
+      if (waitResult === "deadline") {
+        throw new ModelCallError("DEADLINE_EXCEEDED", "大模型请求在重试退避期间超过 deadline", "deadline", false);
+      }
       return callGameModel<T>(purpose, system, prompt, {
         ...options,
         slowRetryAttempt: retryAttempt + 1,
@@ -427,12 +575,20 @@ export async function callGameModel<T>(
           : error instanceof Error
             ? error.message
             : "大模型请求失败";
+      const authError = /未配置|HTTP 401|HTTP 403|credential|api.?key|权限/i.test(terminalError);
+      const category = isRateLimit ? "rate_limit" : authError ? "auth" : (transientStreamError || serverError) ? "transport" : "schema";
+      const code = isRateLimit ? "RATE_LIMIT" : authError ? "AUTH_REQUIRED" : (transientStreamError || serverError) ? "MODEL_TRANSPORT_ERROR" : "MODEL_OUTPUT_INVALID";
+      // Schema failure is retryable by the bounded outer validator. It is not
+      // a transport retry: the caller decides whether one concrete correction
+      // is still within its request/deadline budget.
+      throw new ModelCallError(code, terminalError, category, category === "rate_limit" || category === "transport" || category === "schema");
     }
-    throw new Error(terminalError);
   } finally {
     clearTimeout(timeout);
     clearInterval(slowStreamMonitor);
+    if (firstTokenMonitor) clearInterval(firstTokenMonitor);
     options.signal?.removeEventListener("abort", abortFromCaller);
+    options.budget?.signal.removeEventListener("abort", abortFromCaller);
     const endedAt = new Date();
     const audit = [
       "LLM CALL AUDIT",
@@ -441,6 +597,10 @@ export async function callGameModel<T>(
       `model: ${model}`,
       `reasoning_effort: ${provider.provider === "deepseek" ? "thinking-disabled" : effort}`,
       `retry_attempt: ${retryAttempt}`,
+      `request_id: ${reservation?.requestId ?? options.requestId ?? "n/a"}`,
+      `execution_id: ${reservation?.executionId ?? options.executionId ?? options.budget?.executionId ?? "n/a"}`,
+      `budget_phase: ${reservation?.phase ?? options.budgetPhase ?? "n/a"}`,
+      `budget_attempt: ${reservation?.attempt ?? "n/a"}`,
       `endpoint: ${endpoint}`,
       `started_at: ${startedAt.toISOString()}`,
       `ended_at: ${endedAt.toISOString()}`,

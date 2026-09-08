@@ -17,7 +17,7 @@ import { Timeline, type TimelineChapter } from "@/components/life-vn/Timeline";
 import { StatusHUD } from "@/components/life-vn/StatusHUD";
 import { ChapterResult } from "@/components/life-vn/ChapterResult";
 import { NovelReader } from "./NovelReader";
-import { SceneRuntimePlayer } from "@/components/life-vn/SceneRuntimePlayer";
+import { StoryPlayer } from "@/components/life-vn/StoryPlayer";
 
 function pad(value: number): string {
   return String(value).padStart(2, "0");
@@ -56,6 +56,8 @@ export function ChapterSummary({
   sceneRuntime,
   sceneProjection,
   onSceneSelect,
+  onSceneRetrySave,
+  hasPendingSceneSave = false,
   onScenePersist,
   onBrandClick,
 }: {
@@ -81,6 +83,13 @@ export function ChapterSummary({
     expectedRevision: number;
     choiceId: "A" | "B" | "C";
   }) => Promise<SceneChoiceResponse>;
+  onSceneRetrySave?: (input: {
+    requestId: string;
+    issuedAt: string;
+    expectedRevision: number;
+    choiceId: "A" | "B" | "C";
+  }) => Promise<SceneChoiceResponse>;
+  hasPendingSceneSave?: boolean;
   onScenePersist?: (state: SceneRuntimeState) => void;
   onBrandClick?: () => void;
 }) {
@@ -89,12 +98,12 @@ export function ChapterSummary({
   const [blockIndex, setBlockIndex] = useState(0);
 
   const scenes = useMemo(
-    () => (chapter.dialogue?.length ? chapter.dialogue : fallbackDialogueScenes(chapter.novel.scenes)),
-    [chapter.dialogue, chapter.novel.scenes],
+    () => (chapter.dialogue?.length ? chapter.dialogue : fallbackDialogueScenes(chapter.novel?.scenes ?? [])),
+    [chapter.dialogue, chapter.novel],
   );
   const activeDialogueScene = scenes[sceneIndex] ?? scenes[0];
   const activeBlock = activeDialogueScene?.blocks[blockIndex];
-  const fallbackNovelScene = chapter.novel.scenes[sceneIndex];
+  const fallbackNovelScene = chapter.novel?.scenes[sceneIndex];
   const sceneDef = activeDialogueScene
     ? findScene(activeDialogueScene.background) ?? pickSceneForNovelScene(fallbackNovelScene ?? {})
     : pickSceneForNovelScene(fallbackNovelScene ?? {});
@@ -134,13 +143,13 @@ export function ChapterSummary({
             .map((past) => ({
               id: past.id,
               label: `第 ${pad(past.index + 1)} 章 · ${past.startYear}—${past.endYear}`,
-              title: past.novel.title,
+              title: past.novel?.title ?? "互动人生",
               summary: past.summary.keyEvents.slice(0, 2).join("；"),
             })),
           {
             id: chapter.id,
             label: `第 ${pad(chapter.index + 1)} 章 · ${chapter.startYear}—${chapter.endYear}`,
-            title: chapter.novel.title,
+            title: chapter.novel?.title ?? "互动人生",
             summary: "本章 · 正在结算",
             active: true,
           },
@@ -218,12 +227,14 @@ export function ChapterSummary({
 
   const liveSceneCenter = hasLivePackage && scenePackage ? (
     <div style={{ position: "absolute", inset: 0 }}>
-      <SceneRuntimePlayer
+      <StoryPlayer
         scenePackage={scenePackage}
         initialState={sceneRuntime}
         projection={sceneProjection}
         readOnly={!onSceneSelect}
         onSelect={onSceneSelect ?? (async () => { throw new Error("当前场景为只读回放"); })}
+        onRetrySave={onSceneRetrySave}
+        hasPendingSave={hasPendingSceneSave}
         onPersistPosition={onScenePersist}
       />
       {liveCompleted && (
@@ -264,7 +275,7 @@ export function ChapterSummary({
     </div>
   );
 
-  const novelCenter = (
+  const novelCenter = chapter.novel ? (
     <div style={{ position: "absolute", inset: 0, overflow: "auto", padding: 18 }}>
       <NovelReader
         novel={chapter.novel}
@@ -295,6 +306,8 @@ export function ChapterSummary({
         />
       </div>
     </div>
+  ) : (
+    resultCenter
   );
 
   const center =
@@ -309,7 +322,7 @@ export function ChapterSummary({
   return (
     <LifeShell
       chapterLabel={`Chapter ${pad(chapter.index + 1)}`}
-      title={chapter.novel.title}
+      title={chapter.novel?.title ?? "互动人生"}
       yearRange={`${chapter.startYear} → ${chapter.endYear}`}
       brandLabel={presentationMode === "novel" ? "知乎 · 人生小说" : "知乎 · 互动人生小说"}
       left={timelineContent}

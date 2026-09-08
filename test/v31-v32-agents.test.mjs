@@ -207,12 +207,14 @@ test("V3.1: NPC Agent 最多选择 3 个、排序可重现且公开 trace 不泄
 test("V3.1: World Simulator 与章节路由消费 NPC Agent，但不建立后台常驻循环", () => {
   const simulator = readFileSync(join(root, "lib", "game", "world-simulator.ts"), "utf8");
   const simulateRoute = readFileSync(join(root, "app", "api", "chapter", "simulate", "route.ts"), "utf8");
+  const simulationService = readFileSync(join(root, "lib", "game", "chapter-simulation-service.ts"), "utf8");
   const simulationDomain = readFileSync(join(root, "lib", "domain", "simulation.ts"), "utf8");
   assert.match(simulationDomain, /npcAgentDirectives\?:/);
   assert.match(simulator, /NPC Agent/);
   assert.match(simulator, /非后台|本章一次/);
-  assert.match(simulateRoute, /planNpcAgentDirectives/);
-  assert.match(simulateRoute, /npcAgentDirectives/);
+  assert.match(simulateRoute, /runChapterSimulation/);
+  assert.match(simulationService, /planNpcAgentDirectives/);
+  assert.match(simulationService, /npcAgentDirectives/);
   assert.doesNotMatch(simulateRoute, /setInterval|setTimeout.*npc/i);
 });
 
