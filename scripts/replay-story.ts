@@ -1,4 +1,4 @@
-import { randomInt } from 'node:crypto';
+import { randomInt, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import { initial, choose } from '../lib/story';
@@ -13,7 +13,7 @@ const profiles: CharacterProfile[] = [
 ];
 
 const outputDir = path.join(process.cwd(), '.data', 'reviews');
-const stamp = new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-');
+const stamp = `${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}-${randomUUID().slice(0, 8)}`;
 const transcript: { stage: number; events: GameEvent[]; choice?: { index: number; text: string; target: string | null } }[] = [];
 
 function pickChoice(state: State) {
