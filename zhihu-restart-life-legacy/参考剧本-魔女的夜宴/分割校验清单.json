@@ -1,0 +1,994 @@
+{
+  "source_sha256": "9e2110641cc5e3ba581b6563fab57d3ae86cf0795cde047e9832c280df74d6ec",
+  "original_directory": "故事选集_25篇",
+  "output_stories": 36,
+  "validation": {
+    "original_bodies_reconstructed_byte_for_byte": 25,
+    "missing_lines": 0,
+    "duplicated_lines": 0,
+    "body_unchanged": true
+  },
+  "stories": [
+    {
+      "number": 1,
+      "file": "01_加入社团，期待新的开始.txt",
+      "title": "加入社团，期待新的开始",
+      "stage": "相识",
+      "original_file": "01_加入社团，期待新的开始.txt",
+      "original_file_sha256": "f9fa15aa55fed905eb04f25445f2ddd0a221ca7de9a5289cc87608513e87ef74",
+      "original_file_lines": {
+        "start": 9,
+        "end": 89
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "柊史已经得知与母亲及心之碎片有关的事情，决定继续与宁宁合作。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 1784,
+          "end": 1864,
+          "chapter": "004.共通－今後もよろしく"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 81,
+      "body_sha256": "b51ccd5227307f3dc96ff1f3b8962a45d2c83cd9f8cb674c923eff9531623844",
+      "file_sha256": "56756663ecc76edebfbc0c8087c6f7e653e42b826dcdd19b1695846095243cbf"
+    },
+    {
+      "number": 2,
+      "file": "02_从游戏话题到自然相处.txt",
+      "title": "从游戏话题到自然相处",
+      "stage": "熟悉",
+      "original_file": "02_从游戏话题到自然相处.txt",
+      "original_file_sha256": "e59d97ff428817378560efadb95e7a5470dad78ff1931006a9c24c22f695adff",
+      "original_file_lines": {
+        "start": 9,
+        "end": 253
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "爱瑠曾向社团咨询人际交往问题，现在柊史继续关心她的进展。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 3044,
+          "end": 3288,
+          "chapter": "007.共通－めぐるのその後"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 245,
+      "body_sha256": "bbd803bc13bfa54c01bc10c5f572c138b23e528f7b35b5072f7b22c44f25d8be",
+      "file_sha256": "a428b9e810b4727fc4b921fda45f1faad6938b370154177a685f820a588cbebf"
+    },
+    {
+      "number": 3,
+      "file": "03_一起筹备别人的约会.txt",
+      "title": "一起筹备别人的约会",
+      "stage": "共同经历",
+      "original_file": "03_一起筹备别人的约会.txt",
+      "original_file_sha256": "fa2c4a0c0af6f07011e7751622a5be19b560aac8ad80fa94abe4ba978f753719",
+      "original_file_lines": {
+        "start": 9,
+        "end": 381
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "社团接到了约会方面的咨询，几人讨论如何帮助委托人。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 3291,
+          "end": 3663,
+          "chapter": "008.共通－デート依頼"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 373,
+      "body_sha256": "7863d0bd6bd1849e958be227addb5955fd4afe468e529ebae643926665c17329",
+      "file_sha256": "ba2af1261bb9998a8e6d888a2d4a5f72f80dcc31f5fe5ee73ab274af96ed1b2d"
+    },
+    {
+      "number": 4,
+      "file": "04_演出后的鼓励与点心约定.txt",
+      "title": "演出后的鼓励与点心约定",
+      "stage": "好感萌芽·爱瑠",
+      "original_file": "04_演出后的鼓励与点心约定.txt",
+      "original_file_sha256": "b78f0ce2217af9cbefaabf7ddc446f31b40531acbcdb1d91eeaa1413b94c9d65",
+      "original_file_lines": {
+        "start": 9,
+        "end": 120
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "万圣节演出刚刚结束，爱瑠觉得自己没有帮上足够的忙。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 9077,
+          "end": 9188,
+          "chapter": "020.共通－パーティーめぐる"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 112,
+      "body_sha256": "c0a8042f43d04b0bd96b73e8535057aa1a923d14dbe5371bea174e9454b2ffd6",
+      "file_sha256": "6608158948f6b505f6ba71012482d53e3c227f1607f631080b82d44721a27b0c"
+    },
+    {
+      "number": 5,
+      "file": "05_为她画上小恶魔的装扮.txt",
+      "title": "为她画上小恶魔的装扮",
+      "stage": "好感萌芽·紬",
+      "original_file": "05_为她画上小恶魔的装扮.txt",
+      "original_file_sha256": "4ca2a830e38bf0e58e7eb111fe36c9be1ffbe5797dcb5d4780b3129ba14582ed",
+      "original_file_lines": {
+        "start": 9,
+        "end": 138
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "万圣节演出结束后，柊史和紬在派对上交谈。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 9191,
+          "end": 9320,
+          "chapter": "020.共通－パーティー紬"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 130,
+      "body_sha256": "07b84b27bc4cb95c45c54b582313fcee154e48322fa2242da60ccebe79e05bf1",
+      "file_sha256": "930645ab24fa72cd4e05bd709541aea872c498128ea1b3cbe90e1beb0e04514e"
+    },
+    {
+      "number": 6,
+      "file": "06_派对中的并肩休息.txt",
+      "title": "派对中的并肩休息",
+      "stage": "好感萌芽·宁宁",
+      "original_file": "06_派对中的并肩休息.txt",
+      "original_file_sha256": "e1e048c0182301c8a981b06527f50e126cd62feb2841cbfb5048026e07935309",
+      "original_file_lines": {
+        "start": 9,
+        "end": 203
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "两人完成了乐队演出，在派对间隙休息；心之碎片是此前的共同任务。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 9323,
+          "end": 9517,
+          "chapter": "020.共通－パーティ寧々"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 195,
+      "body_sha256": "9bc91612cd74b33d5452801d5404ef9e3610c7db73c3d0cddc6c4118573518bf",
+      "file_sha256": "ff259ad9e8f328b8d8ca4b2ee4a12b9ae8905c60b216337ecb21ef20c8d03d29"
+    },
+    {
+      "number": 7,
+      "file": "07_演出奖励与她的秘密.txt",
+      "title": "演出奖励与她的秘密",
+      "stage": "好奇·憧子",
+      "original_file": "07_演出奖励与她的秘密.txt",
+      "original_file_sha256": "d8bd6ff13388ebad322572720dabfba44c3fb084edd5211dd344b2b0c11a7531",
+      "original_file_lines": {
+        "start": 9,
+        "end": 115
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "演出结束，憧子向柊史谈起奖励；柊史能够通过感官察觉他人的情绪。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 9520,
+          "end": 9626,
+          "chapter": "020.共通－パーティ憧子"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 107,
+      "body_sha256": "2a4666ef0218ab327d676088c544f02f348bcf3384625837ff89c49f76c1b378",
+      "file_sha256": "79e957af3cd96d149741e3949f56c3b771b66688ffec5b219dc59d9e13529f9d"
+    },
+    {
+      "number": 8,
+      "file": "08_留下一张共同的纪念照.txt",
+      "title": "留下一张共同的纪念照",
+      "stage": "亲近·爱瑠",
+      "original_file": "08_留下一张共同的纪念照.txt",
+      "original_file_sha256": "5bb24ce9d47610a2ae3ad72f66b2a3399cd6d218ca4cc3d5b6d9ae3eec7525de",
+      "original_file_lines": {
+        "start": 9,
+        "end": 253
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "这是爱瑠分支的派对后续，与其他角色分支分开阅读。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 22268,
+          "end": 22512,
+          "chapter": "201.めぐる－記念撮影"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 245,
+      "body_sha256": "25810ac8f495596edfcfe234494a94c56e10484c497e829641f532aedc579752",
+      "file_sha256": "b4616e29e8ce7d35e749b2fe506606ecc9d14ec67992ae3b14b70f782fb0c966"
+    },
+    {
+      "number": 9,
+      "file": "09_替朋友搭桥，也想和你说话.txt",
+      "title": "替朋友搭桥，也想和你说话",
+      "stage": "日常靠近·爱瑠",
+      "original_file": "09_替朋友搭桥，也想和你说话.txt",
+      "original_file_sha256": "a873ecfb22aeee10fb409604349527a0f6ee4eb0a18bffd09b07a3ad920c1f54",
+      "original_file_lines": {
+        "start": 9,
+        "end": 402
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "爱瑠想与宁宁更自然地交谈，柊史正在帮助她；接续该章前一天的尝试。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 23143,
+          "end": 23536,
+          "chapter": "203.めぐる－仲良し"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 394,
+      "body_sha256": "8b57aed3ba367f0d43c307e27d133e6b8d0db9346bad216bf2e3021901c56e0d",
+      "file_sha256": "1dad19866ed6a5d980f18fa94a9de2d2d71e268cdc76512174dcadbbd3aaf15e"
+    },
+    {
+      "number": 10,
+      "file": "10_梦里是她，醒来后去探望她.txt",
+      "title": "梦里是她，醒来后去探望她",
+      "stage": "在意与关心·宁宁",
+      "original_file": "10_梦见她，也担心她生病.txt",
+      "original_file_sha256": "b263cf77389f19a2ffffdc70fe879220613a40b94b43d277dba5084ace62635e",
+      "original_file_lines": {
+        "start": 9,
+        "end": 537
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "此前柊史和宁宁一起吃了拉面，他开始反复想起她。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 10174,
+          "end": 10702,
+          "chapter": "102.寧々－お見舞い"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 529,
+      "body_sha256": "941291b3fdfb1c0e1a6fdc689bf2a5a02ffd136a619ad51b33e34e0315a6b260",
+      "file_sha256": "b34003a39bf88c695939bad6a3c9662570336d2c7cec4904c2d481a4f23084a1"
+    },
+    {
+      "number": 11,
+      "file": "11_病愈后，一起走向学校.txt",
+      "title": "病愈后，一起走向学校",
+      "stage": "病愈重逢·宁宁",
+      "original_file": "11_探望她之后，开始正视心意.txt",
+      "original_file_sha256": "a12d5b1db01e4fce5ab2a913deedbd0ef276f8f4b8194955b791bcdd710cb1ed",
+      "original_file_lines": {
+        "start": 9,
+        "end": 125
+      },
+      "part": 1,
+      "parts": 4,
+      "context": "柊史此前到宁宁家探病。宁宁已经恢复，两人在上学路上碰面，想起探病时的互动而害羞。",
+      "split_reason": "从病愈重逢到同伴调侃，止于话题转向教室里的传闻之前。",
+      "full_text_ranges": [
+        {
+          "start": 10705,
+          "end": 10821,
+          "chapter": "103.寧々－告白"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 117,
+      "body_sha256": "ba7155c282ae35f79493010d75ebbc5ccf2d1a46dbf0fd149be9b12a427ac02f",
+      "file_sha256": "6300d7a47da0d73f9fbd252b9cfd76cc464e8b3b1e1bb5c985099a119141499b"
+    },
+    {
+      "number": 12,
+      "file": "12_为朋友调查老师的恋爱观.txt",
+      "title": "为朋友调查老师的恋爱观",
+      "stage": "恋爱咨询·秀明",
+      "original_file": "11_探望她之后，开始正视心意.txt",
+      "original_file_sha256": "a12d5b1db01e4fce5ab2a913deedbd0ef276f8f4b8194955b791bcdd710cb1ed",
+      "original_file_lines": {
+        "start": 126,
+        "end": 678
+      },
+      "part": 2,
+      "parts": 4,
+      "context": "柊史和宁宁一起到校，发现同学们都在议论久岛老师。秀明对老师抱有感情，柊史和社团伙伴随后帮助他了解老师的恋爱观。",
+      "split_reason": "传闻引出咨询，问卷调查完成并交付结果，构成一次完整的帮忙事件。",
+      "full_text_ranges": [
+        {
+          "start": 10822,
+          "end": 11374,
+          "chapter": "103.寧々－告白"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 553,
+      "body_sha256": "f2c9d76b135b258edd0c726d89f6edc8f3dbe276a82e3192b9e1f884199b275b",
+      "file_sha256": "22a6eec75f3335ae35d14cd7b74f72d554da9f773678933d04dc1ac63e146283"
+    },
+    {
+      "number": 13,
+      "file": "13_原来，我已经喜欢上她了.txt",
+      "title": "原来，我已经喜欢上她了",
+      "stage": "心意觉察·宁宁",
+      "original_file": "11_探望她之后，开始正视心意.txt",
+      "original_file_sha256": "a12d5b1db01e4fce5ab2a913deedbd0ef276f8f4b8194955b791bcdd710cb1ed",
+      "original_file_lines": {
+        "start": 679,
+        "end": 724
+      },
+      "part": 3,
+      "parts": 4,
+      "context": "柊史刚把老师的恋爱调查结果交给秀明，接着向他询问喜欢一个人究竟是什么感觉。此前与宁宁相处的细节成为他对照自己心意的依据。",
+      "split_reason": "谈话目标从帮助秀明转向认识自己的感情，以承认初恋收束。",
+      "full_text_ranges": [
+        {
+          "start": 11375,
+          "end": 11420,
+          "chapter": "103.寧々－告白"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 46,
+      "body_sha256": "dd22b221ebc66888f647e9e83607ce8eb10be223be41e0ca2fe58ed3cda64f39",
+      "file_sha256": "6800d7d12b15d5f5d1917fe7e7778edc60283fa4902fd5290336d04b4982ab08"
+    },
+    {
+      "number": 14,
+      "file": "14_老师的忠告与秀明的沉默.txt",
+      "title": "老师的忠告与秀明的沉默",
+      "stage": "忠告与动摇·秀明",
+      "original_file": "11_探望她之后，开始正视心意.txt",
+      "original_file_sha256": "a12d5b1db01e4fce5ab2a913deedbd0ef276f8f4b8194955b791bcdd710cb1ed",
+      "original_file_lines": {
+        "start": 725,
+        "end": 809
+      },
+      "part": 4,
+      "parts": 4,
+      "context": "午休时柊史和秀明在活动室谈过恋爱。秀明希望借还钥匙的机会和喜欢的久岛老师搭话；柊史也刚承认自己喜欢宁宁。",
+      "split_reason": "还钥匙引出老师的忠告，随后秀明态度改变；此段有后续悬念，原选文未给出答案。",
+      "full_text_ranges": [
+        {
+          "start": 11421,
+          "end": 11505,
+          "chapter": "103.寧々－告白"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 85,
+      "body_sha256": "56fcd9df4524acbcb1c0822da113025e76fbb9b2d19e7e61d47270b3dc2056b8",
+      "file_sha256": "48d6a9a29e7f18b91c471d7cd2a7a96f95585d2faf367897baefa328c3528f43"
+    },
+    {
+      "number": 15,
+      "file": "15_第一次邀约前的紧张准备.txt",
+      "title": "第一次邀约前的紧张准备",
+      "stage": "邀约准备·憧子",
+      "original_file": "12_第一次邀约前的紧张准备.txt",
+      "original_file_sha256": "e8a3413dc83864e7379f61b0c6767aff30fb6de7729dad20df9b4b07a0347388",
+      "original_file_lines": {
+        "start": 9,
+        "end": 355
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "万圣节活动之后，柊史和憧子的距离拉近，他向朋友请教约会准备。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 39588,
+          "end": 39934,
+          "chapter": "401.憧子－初デート"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 347,
+      "body_sha256": "0a06163c28047b475307cd1301c6164268f94bf0553a40807b15c6bb1d5122b9",
+      "file_sha256": "d0f976aeef225fb9f4118deabc3f0438a84673b16b1f0e1b3a693c0955f2b042"
+    },
+    {
+      "number": 16,
+      "file": "16_练习间隙，想问她喜欢谁.txt",
+      "title": "练习间隙，想问她喜欢谁",
+      "stage": "朦胧心动·和奏",
+      "original_file": "13_练习间隙，想问她喜欢谁.txt",
+      "original_file_sha256": "812198247ebd3bb8a182dc7c375fcd9188317b06ebb662f2fa8ae46becf08b39",
+      "original_file_lines": {
+        "start": 9,
+        "end": 234
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "此前的一次意外让两人开始在意对方；这里从随后连续练习的日常开始。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 48599,
+          "end": 48824,
+          "chapter": "502.和奏－意識する日々"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 226,
+      "body_sha256": "42a79c2434a4c9d45d514e67ad2863d35692cdcc663b8c780e1cd48e73ca9a45",
+      "file_sha256": "d6f95840eace54a83f5628fea8fd5935cd6780789c1262c6a263388e173e7bad"
+    },
+    {
+      "number": 17,
+      "file": "17_牵着她的手，终于提出邀约.txt",
+      "title": "牵着她的手，终于提出邀约",
+      "stage": "牵手与邀约·紬",
+      "original_file": "14_牵手邀约与迟来的答复.txt",
+      "original_file_sha256": "90a7641e15c61db2633c2d16ee4cba436f816d114cea49bc33027f23ab72610d",
+      "original_file_lines": {
+        "start": 10,
+        "end": 490
+      },
+      "part": 1,
+      "parts": 2,
+      "context": "紬正帮助柊史填补心之穴。之前的亲近让柊史意识到喜欢她，也使他变得紧张；本篇写到提出游乐园邀约，答复在下一篇展开。",
+      "split_reason": "牵手和邀约为一个连续事件；结尾原有悬念保留，章间空行归本篇。",
+      "full_text_ranges": [
+        {
+          "start": 33253,
+          "end": 33732,
+          "chapter": "305.紬－手を繋いで歩こう"
+        }
+      ],
+      "original_separator_body_lines": [
+        481
+      ],
+      "body_lines": 481,
+      "body_sha256": "a2476b4894b50e55c12a0467ff55eb1e98d0fa186a1bee800d96f5c94b45c750",
+      "file_sha256": "6fa3f9fe103dc3df9f40221971aa12663355ba94315a8ab4e06c7f6af53d3de9"
+    },
+    {
+      "number": 18,
+      "file": "18_病中来访，听见她拒绝的理由.txt",
+      "title": "病中来访，听见她拒绝的理由",
+      "stage": "探病与释疑·紬",
+      "original_file": "14_牵手邀约与迟来的答复.txt",
+      "original_file_sha256": "90a7641e15c61db2633c2d16ee4cba436f816d114cea49bc33027f23ab72610d",
+      "original_file_lines": {
+        "start": 491,
+        "end": 840
+      },
+      "part": 2,
+      "parts": 2,
+      "context": "接续上一篇的邀约。紬当时道歉后跑开，柊史误以为自己被讨厌，随后身体不适；她前来照顾，并解释自己在意首次约会时的打扮。",
+      "split_reason": "新事件从病倒开始，经照顾和解释推进；末尾赤城的交易提议属于后续伏笔。",
+      "full_text_ranges": [
+        {
+          "start": 33735,
+          "end": 34084,
+          "chapter": "306.紬－caught a cold"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 350,
+      "body_sha256": "2a17a242c93fe1f08684cbd832206148f5fbf9833b2f81256a07f77887589f5e",
+      "file_sha256": "c89e0e42106810e651932514c76106440e88e503be2c2c7f9ad06aa0dc344c56"
+    },
+    {
+      "number": 19,
+      "file": "19_越想靠近，越容易手忙脚乱.txt",
+      "title": "越想靠近，越容易手忙脚乱",
+      "stage": "暧昧中的不安·紬",
+      "original_file": "15_越想靠近，越容易手忙脚乱.txt",
+      "original_file_sha256": "1c8e4a78c7a888170aee95b0fc922083947fec81a58fb3280933761df0b5ac97",
+      "original_file_lines": {
+        "start": 9,
+        "end": 258
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "此前柊史已表达只想与紬约会，关系正处于等待进一步确认的阶段。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 34413,
+          "end": 34662,
+          "chapter": "308.紬－空回り"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 250,
+      "body_sha256": "c3f48b0d84afbd0cabb135af3d1be948159e796a4f780b5ab81cd6fb6caf03b9",
+      "file_sha256": "36f23b8a57116388e8fdb8677904223305556632e6dc84da4f35b9031f836eff"
+    },
+    {
+      "number": 20,
+      "file": "20_原来这种心情叫吃醋.txt",
+      "title": "原来这种心情叫吃醋",
+      "stage": "嫉妒与自觉·爱瑠",
+      "original_file": "16_原来这种心情叫吃醋.txt",
+      "original_file_sha256": "d51486556cf2c0556f294a0c23fd0d20503624400b829ef4365c23ed9b6a05e4",
+      "original_file_lines": {
+        "start": 9,
+        "end": 265
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "爱瑠与挚友的心结得到缓解，但心之碎片尚未按预期回收。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 25057,
+          "end": 25313,
+          "chapter": "207.めぐる－嫉妬"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 257,
+      "body_sha256": "2bff489100d036247aaca9379f6a3687979e431c34a8d28ee7d4264538ca11b2",
+      "file_sha256": "15fc4b0041585a3ab48c6607f66a65576e6c922d5d529a1bf1fba8d1d7d1cfb0"
+    },
+    {
+      "number": 21,
+      "file": "21_坦白秘密后得到的拥抱.txt",
+      "title": "坦白秘密后得到的拥抱",
+      "stage": "信任与袒露·爱瑠",
+      "original_file": "17_坦白秘密后得到的拥抱.txt",
+      "original_file_sha256": "ad3da97ae1d34abab9131181f56b99fcc2b70d5ca3bf3c850c9f15cb9555e8f6",
+      "original_file_lines": {
+        "start": 9,
+        "end": 266
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "围绕两人的流言正在扩散，柊史担心自己的特殊能力会让爱瑠疏远。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 25316,
+          "end": 25573,
+          "chapter": "208.めぐる－抱擁"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 258,
+      "body_sha256": "922461c5243f33ff0578419ea1a2263d283f35fa652df89eef8526be9c39beb3",
+      "file_sha256": "e25c1862051288e990b0e8e856bab08caff134ed55ce735804550ac4020cf660"
+    },
+    {
+      "number": 22,
+      "file": "22_两个人的秘密：成对的马克杯.txt",
+      "title": "两个人的秘密：成对的马克杯",
+      "stage": "购物与赠礼·紬",
+      "original_file": "18_成对的马克杯与告白.txt",
+      "original_file_sha256": "1d7e46435028691dc7ec93dd703c2363bc003a5c69418f954cbf2e86dc2b36df",
+      "original_file_lines": {
+        "start": 9,
+        "end": 203
+      },
+      "part": 1,
+      "parts": 3,
+      "context": "紬此前答应与柊史约会。柊史想回报她的照顾，借买东西的名义带她逛商业街，希望让她开心。",
+      "split_reason": "逛街、得知愿望、互赠杯子到离开商店街，礼物事件完成。",
+      "full_text_ranges": [
+        {
+          "start": 34665,
+          "end": 34859,
+          "chapter": "309.紬－告白の決意"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 195,
+      "body_sha256": "9b9777d6d9138a0eeb41e48bf04fb3798599ca71d15b6b2cf553344572652da1",
+      "file_sha256": "1933d299fed809383fa6f50e61ef3c2d0a1f765b3fdd26d9249ac5a230d18e47"
+    },
+    {
+      "number": 23,
+      "file": "23_为寒冬里的小狗寻找一个家.txt",
+      "title": "为寒冬里的小狗寻找一个家",
+      "stage": "救助与陪伴·厚真",
+      "original_file": "18_成对的马克杯与告白.txt",
+      "original_file_sha256": "1d7e46435028691dc7ec93dd703c2363bc003a5c69418f954cbf2e86dc2b36df",
+      "original_file_lines": {
+        "start": 204,
+        "end": 303
+      },
+      "part": 2,
+      "parts": 3,
+      "context": "柊史和紬逛街后走在回家路上。社团此前接待过因爱犬去世而失落的厚真；两人在路边发现了一只需要照顾的小狗。",
+      "split_reason": "发现小狗、联系照顾者、克服顾虑、由厚真抱走，具有独立起因与阶段性结局。",
+      "full_text_ranges": [
+        {
+          "start": 34860,
+          "end": 34959,
+          "chapter": "309.紬－告白の決意"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 100,
+      "body_sha256": "301e412cda9766d8bddfcde7fbf22c7237a0e344da832232142c25163adea128",
+      "file_sha256": "6de8ce5d1bc53e211dc8833481db00e11a5f016214f2b2db5f5cb3fd71ab92d2"
+    },
+    {
+      "number": 24,
+      "file": "24_牵手绕远路，约好说出真心.txt",
+      "title": "牵手绕远路，约好说出真心",
+      "stage": "告白前的约定·紬",
+      "original_file": "18_成对的马克杯与告白.txt",
+      "original_file_sha256": "1d7e46435028691dc7ec93dd703c2363bc003a5c69418f954cbf2e86dc2b36df",
+      "original_file_lines": {
+        "start": 304,
+        "end": 358
+      },
+      "part": 3,
+      "parts": 3,
+      "context": "两人刚帮助厚真暂时收留小狗，柊史继续送紬回家。他们当天互赠了成对的马克杯，但还不是正式恋人。",
+      "split_reason": "重新回到两人的关系，解释约会心意并约定之后说出真心；没有把它命名为已经完成的告白。",
+      "full_text_ranges": [
+        {
+          "start": 34960,
+          "end": 35014,
+          "chapter": "309.紬－告白の決意"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 55,
+      "body_sha256": "78fc64732f7d93eb493e1d24f03a3ad9cba2788cfd1a49bcb4c803844e485852",
+      "file_sha256": "851d39d77d8de63135a1b5848229cad30a94bffd2a77169c407e3251cf73b2c0"
+    },
+    {
+      "number": 25,
+      "file": "25_想起她的笑容，也在意他的心意.txt",
+      "title": "想起她的笑容，也在意他的心意",
+      "stage": "双向心动·憧子",
+      "original_file": "19_回应误会，说出喜欢.txt",
+      "original_file_sha256": "a71a26312876cf0b8e76b76cf61b29e9691b1943d0e83cc6ddd39283e3669881",
+      "original_file_lines": {
+        "start": 9,
+        "end": 239
+      },
+      "part": 1,
+      "parts": 4,
+      "context": "此前憧子在分别时说过一句令柊史在意的话。两人已有约会及一起做料理等经历，本篇分别呈现他们意识到心意的过程。",
+      "split_reason": "双方视角都围绕心意觉察，以憧子决定主动努力收束；咖啡店咨询另起一篇。",
+      "full_text_ranges": [
+        {
+          "start": 41567,
+          "end": 41797,
+          "chapter": "404.憧子－告白"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 231,
+      "body_sha256": "7bb1ff284e1e904c61b4202744f6be5dd2c0e9ab92453323f909e0d7c8c2656e",
+      "file_sha256": "ec42348d168ec4b18c451e6a263c52378a02cf672e30bafe02ef4e483b6dec37"
+    },
+    {
+      "number": 26,
+      "file": "26_咖啡店里，听懂恋爱的建议.txt",
+      "title": "咖啡店里，听懂恋爱的建议",
+      "stage": "恋爱咨询·憧子线",
+      "original_file": "19_回应误会，说出喜欢.txt",
+      "original_file_sha256": "a71a26312876cf0b8e76b76cf61b29e9691b1943d0e83cc6ddd39283e3669881",
+      "original_file_lines": {
+        "start": 240,
+        "end": 378
+      },
+      "part": 2,
+      "parts": 4,
+      "context": "柊史意识到喜欢憧子，却无法像对其他人那样感知她的情绪。他向社团请假后独自来到相马经营的咖啡店，想听听建议。",
+      "split_reason": "围绕如何理解感情和面对恋爱的一次咨询；相马的简短身世回忆留在谈话中。",
+      "full_text_ranges": [
+        {
+          "start": 41798,
+          "end": 41936,
+          "chapter": "404.憧子－告白"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 139,
+      "body_sha256": "7f49b1f963502cceb8f27a6f2929074b8a4686c9f420eef03a7a88fecddee7d7",
+      "file_sha256": "dd3e1cf420c9f0a17c7908d7d3aa0fa4213df1395889e323cb6faf73724c902c"
+    },
+    {
+      "number": 27,
+      "file": "27_向朋友坦白：我也喜欢她.txt",
+      "title": "向朋友坦白：我也喜欢她",
+      "stage": "坦白与理解·越路",
+      "original_file": "19_回应误会，说出喜欢.txt",
+      "original_file_sha256": "a71a26312876cf0b8e76b76cf61b29e9691b1943d0e83cc6ddd39283e3669881",
+      "original_file_lines": {
+        "start": 379,
+        "end": 474
+      },
+      "part": 3,
+      "parts": 4,
+      "context": "越路曾喜欢憧子，柊史还帮助过她告白，但她被拒绝了。如今柊史也喜欢上憧子；在咖啡店遇见越路后，他希望坦白而不留下误会。",
+      "split_reason": "偶遇、坦白、解释、理解与鼓励构成单独的友人谈话。",
+      "full_text_ranges": [
+        {
+          "start": 41937,
+          "end": 42032,
+          "chapter": "404.憧子－告白"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 96,
+      "body_sha256": "673ea4e09b1b1a60b795d2f3d5445373a39fdf25f8ed4b4a3eb84d6b9ede3ad0",
+      "file_sha256": "755b91f3c16637dda91b79b13db38bc42576228098d2ed2fd99a4047b6987824"
+    },
+    {
+      "number": 28,
+      "file": "28_带着亲手做的便当向她告白.txt",
+      "title": "带着亲手做的便当向她告白",
+      "stage": "告白与相恋·憧子",
+      "original_file": "19_回应误会，说出喜欢.txt",
+      "original_file_sha256": "a71a26312876cf0b8e76b76cf61b29e9691b1943d0e83cc6ddd39283e3669881",
+      "original_file_lines": {
+        "start": 475,
+        "end": 868
+      },
+      "part": 4,
+      "parts": 4,
+      "context": "柊史已经向越路坦白喜欢憧子，并得到理解。他决定为憧子做便当，寻找机会亲口告白；憧子也已意识到自己对他的感情。",
+      "split_reason": "决定行动、准备便当、反复错过见面、终于告白成功；憧子的余韵保留为结尾。",
+      "full_text_ranges": [
+        {
+          "start": 42033,
+          "end": 42426,
+          "chapter": "404.憧子－告白"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 394,
+      "body_sha256": "1c3a1fe17f13cfebd520a369d1edd1efa53df9556fde5c8e46bcb1311b7d9cf6",
+      "file_sha256": "f145bb1aa3e11c1e0bfc1ca788e27bc3a488c8b66f1d25ae33ea42a2112bc430"
+    },
+    {
+      "number": 29,
+      "file": "29_陪伴朋友走过失恋.txt",
+      "title": "陪伴朋友走过失恋",
+      "stage": "失落与支持",
+      "original_file": "20_陪伴朋友走过失恋.txt",
+      "original_file_sha256": "f9e9767f440ffcbbee337819b863c40dbd9202ed0dce39789b3cb499715ab702",
+      "original_file_lines": {
+        "start": 10,
+        "end": 325
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "柊史正在协助越路处理对憧子的感情，并答应替她保密。这里选择向宁宁坦言有保密约定的分支。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 6268,
+          "end": 6327,
+          "chapter": "014.共通－失恋"
+        },
+        {
+          "start": 6336,
+          "end": 6590,
+          "chapter": "014.共通－失恋"
+        }
+      ],
+      "original_separator_body_lines": [
+        61
+      ],
+      "body_lines": 316,
+      "body_sha256": "3b782fc0b3fee01d276e775036f09f315db5a733c7f96628c94ca482c7003ca8",
+      "file_sha256": "6b35d99815f1382760ba25030e650c8253ea1db792bb3200b246434ea1080c04"
+    },
+    {
+      "number": 30,
+      "file": "30_疏远之后重新拥抱.txt",
+      "title": "疏远之后重新拥抱",
+      "stage": "冲突与和解·宁宁",
+      "original_file": "21_疏远之后重新拥抱.txt",
+      "original_file_sha256": "16d7471afeb94ac690df3b04fbea9fc66eafa039121c31f4e5072be6726baac2",
+      "original_file_lines": {
+        "start": 9,
+        "end": 377
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "两人此前交往后出现隔阂，近几天疏远了彼此。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 14784,
+          "end": 15152,
+          "chapter": "107.寧々－元鞘"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 369,
+      "body_sha256": "358745c8eb672780678fdfcb6b3bd8c99f702c61b5fd5e3aa7e12c3dedefcf74",
+      "file_sha256": "90ca7cf0753d10d6e0d3552ec0b7edf5f2f36148352a5bc87c35e85574bd5be0"
+    },
+    {
+      "number": 31,
+      "file": "31_最后一次约会，与她告别.txt",
+      "title": "最后一次约会，与她告别",
+      "stage": "约会与告别·宁宁",
+      "original_file": "22_告别约会与继续向前.txt",
+      "original_file_sha256": "63b579a9448a1b75a6987f29f6d0028dce862adae4a10be7447c8277fa704ccb",
+      "original_file_lines": {
+        "start": 9,
+        "end": 340
+      },
+      "part": 1,
+      "parts": 2,
+      "context": "宁宁为了保护柊史，决定回到过去。两人把离别前的时间用于约会；她离开后，关于她的痕迹和他人的记忆会逐渐改变。",
+      "split_reason": "完整保留约会、离别和当晚悲伤，止于下一段学校日常开始前。",
+      "full_text_ranges": [
+        {
+          "start": 15789,
+          "end": 16120,
+          "chapter": "109_β.寧々－お別れデート"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 332,
+      "body_sha256": "761023920edc672d098933643d43caa5a2d0f4a6abd9d615766d09c54ad1cadb",
+      "file_sha256": "80992e43ecb2d139207ebbddf0e809d668eee70f5d7e0a5fff1cbc30baf04d03"
+    },
+    {
+      "number": 32,
+      "file": "32_忘记了她，却留下了前行的勇气.txt",
+      "title": "忘记了她，却留下了前行的勇气",
+      "stage": "遗忘后的日常·宁宁线",
+      "original_file": "22_告别约会与继续向前.txt",
+      "original_file_sha256": "63b579a9448a1b75a6987f29f6d0028dce862adae4a10be7447c8277fa704ccb",
+      "original_file_lines": {
+        "start": 341,
+        "end": 522
+      },
+      "part": 2,
+      "parts": 2,
+      "context": "接续宁宁离开后的故事。柊史逐渐忘记她，却仍因空座位、单人大头贴等事物感到难以解释的失落，也保留了交往中获得的改变。",
+      "split_reason": "新的学校日常围绕遗忘留下的痕迹展开，以继续向前的选择收束。",
+      "full_text_ranges": [
+        {
+          "start": 16121,
+          "end": 16302,
+          "chapter": "109_β.寧々－お別れデート"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 182,
+      "body_sha256": "6d88162d7e6a498da8f831a15e220de57ec1d0deeebcd680c57a3a4bae32029b",
+      "file_sha256": "56e492bdbf669789d0176e08ecb383e8ec112c25205dceca72f6b880f25d3caa"
+    },
+    {
+      "number": 33,
+      "file": "33_为了重要的人共同努力.txt",
+      "title": "为了重要的人共同努力",
+      "stage": "共同面对困难·紬",
+      "original_file": "23_为了重要的人共同努力.txt",
+      "original_file_sha256": "9f209ed05750a61be217eaa31d56ca66bdaa0fc7f5428782bc5b22c2a787957b",
+      "original_file_lines": {
+        "start": 9,
+        "end": 442
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "柊史受影响会在人形和小狗玩偶形态之间变化。伙伴们打算以他为诱饵，引出袭击人类、夺取心之碎片的失控小狗；赤城也参与了行动。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 38551,
+          "end": 38984,
+          "chapter": "319.紬－君は大切な友達"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 434,
+      "body_sha256": "a945f5cefbb99ff50307889f52a19a92e046f17fa5727322ceae3c0429506f4a",
+      "file_sha256": "de27891858b9371d00439294ce5ce0722ffb8e0fac3e29c940cc4021dc2e2d95"
+    },
+    {
+      "number": 34,
+      "file": "34_圣诞前夜，与旧日的朋友重逢.txt",
+      "title": "圣诞前夜，与旧日的朋友重逢",
+      "stage": "旧约与重逢·赤城",
+      "original_file": "24_圣诞时节，融入彼此的生活.txt",
+      "original_file_sha256": "4aa0bd9e19496a1ac9ef44534ad73f2e43a4980591a0a40a515b5b2a35ed575c",
+      "original_file_lines": {
+        "start": 9,
+        "end": 60
+      },
+      "part": 1,
+      "parts": 2,
+      "context": "赤城曾与一名住院的小女孩约定再见，此后一直记挂着她。如今赤城失去人形化能力；圣诞前夜，它遇到的老婆婆正是紬的外婆，也是昔日的朋友。",
+      "split_reason": "从遇见老人到听见旧约解释，再被邀请一起赴宴，完成旧友重逢事件。",
+      "full_text_ranges": [
+        {
+          "start": 38987,
+          "end": 39038,
+          "chapter": "320.紬－紬エピローグ"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 52,
+      "body_sha256": "4ee658bdcf86db112fbdfa38873fe4adca660ec70e107d16fe583a75e5464a53",
+      "file_sha256": "25b9182a6b8d21707fe6ab749d1bf1d2500087c4e776bcf1634c2f4125184c91"
+    },
+    {
+      "number": 35,
+      "file": "35_留下来吧，你也是我们的朋友.txt",
+      "title": "留下来吧，你也是我们的朋友",
+      "stage": "圣诞与新约·赤城",
+      "original_file": "24_圣诞时节，融入彼此的生活.txt",
+      "original_file_sha256": "4aa0bd9e19496a1ac9ef44534ad73f2e43a4980591a0a40a515b5b2a35ed575c",
+      "original_file_lines": {
+        "start": 61,
+        "end": 130
+      },
+      "part": 2,
+      "parts": 2,
+      "context": "柊史与紬的两家人一起庆祝圣诞。赤城已经与旧友重逢，却因仍是乌鸦而觉得难以融入，准备离开；紬和柊史为它准备了特别的礼物。",
+      "split_reason": "家庭聚会引出赤城的离去念头，再由新约与挽留收束，中心是友情。",
+      "full_text_ranges": [
+        {
+          "start": 39039,
+          "end": 39108,
+          "chapter": "320.紬－紬エピローグ"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 70,
+      "body_sha256": "e6bda507efa4de8957b78aba3ef99be7878b657a5887271e23b88afaa89d6584",
+      "file_sha256": "7140cb7f366d68c50d03ba500ef82eab2ed58a4ca9240cf1fce807c94267ed2b"
+    },
+    {
+      "number": 36,
+      "file": "36_陪她面对父母，一起走向未来.txt",
+      "title": "陪她面对父母，一起走向未来",
+      "stage": "重逢与长久相伴·宁宁",
+      "original_file": "25_从重新相遇走向共同未来.txt",
+      "original_file_sha256": "4361e9c37014f18c66a9645d1b59da082a2f7fac86f04959df3998567bf91908",
+      "original_file_lines": {
+        "start": 9,
+        "end": 216
+      },
+      "part": 1,
+      "parts": 1,
+      "context": "这是宁宁路线经历告别与重新开始之后的尾声，与第22篇之间仍有未入选的主线剧情。",
+      "split_reason": "保留原篇；转场、回忆或短尾声属于同一核心事件的因果链。",
+      "full_text_ranges": [
+        {
+          "start": 21462,
+          "end": 21669,
+          "chapter": "116.寧々－エピローグ"
+        }
+      ],
+      "original_separator_body_lines": [],
+      "body_lines": 208,
+      "body_sha256": "7e37ddf6712804928b8d6a0a2abcf940876bff93036ade5e84aa8b7147746de8",
+      "file_sha256": "d681f73ae4bcbb189e152fc5752aab7ef8611c1e8cb60a6c66679b17a18f5119"
+    }
+  ]
+}

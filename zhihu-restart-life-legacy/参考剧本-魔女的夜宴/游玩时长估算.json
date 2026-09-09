@@ -1,0 +1,897 @@
+{
+  "method": "text-based estimate, not measured gameplay or audio",
+  "quick_read_characters_per_minute": [
+    500,
+    750
+  ],
+  "normal_silent_characters_per_minute": [
+    350,
+    550
+  ],
+  "normal_assumed_voiced_characters_per_minute": [
+    180,
+    260
+  ],
+  "quick_transition_seconds_per_entry": [
+    0.15,
+    0.35
+  ],
+  "normal_transition_seconds_per_entry": [
+    0.5,
+    1.0
+  ],
+  "total_normal_minutes": [
+    446.7044289044289,
+    702.7555555555556
+  ],
+  "total_quick_minutes": [
+    206.108,
+    326.97866666666664
+  ],
+  "stories": [
+    {
+      "number": 1,
+      "title": "加入社团，期待新的开始",
+      "file": "01_加入社团，期待新的开始.txt",
+      "text_characters": 1376,
+      "estimated_voiced_characters": 333,
+      "text_entries": 81,
+      "quick_minutes_unrounded": [
+        2.037166666666667,
+        3.2245
+      ],
+      "normal_minutes_unrounded": [
+        3.852132867132867,
+        6.18
+      ],
+      "quick_minutes": [
+        2,
+        4
+      ],
+      "normal_minutes": [
+        3,
+        7
+      ]
+    },
+    {
+      "number": 2,
+      "title": "从游戏话题到自然相处",
+      "file": "02_从游戏话题到自然相处.txt",
+      "text_characters": 3670,
+      "estimated_voiced_characters": 1774,
+      "text_entries": 245,
+      "quick_minutes_unrounded": [
+        5.505833333333333,
+        8.769166666666667
+      ],
+      "normal_minutes_unrounded": [
+        12.312016317016317,
+        19.356031746031746
+      ],
+      "quick_minutes": [
+        5,
+        9
+      ],
+      "normal_minutes": [
+        12,
+        20
+      ]
+    },
+    {
+      "number": 3,
+      "title": "一起筹备别人的约会",
+      "file": "03_一起筹备别人的约会.txt",
+      "text_characters": 6966,
+      "estimated_voiced_characters": 4192,
+      "text_entries": 373,
+      "quick_minutes_unrounded": [
+        10.2205,
+        16.107833333333332
+      ],
+      "normal_minutes_unrounded": [
+        24.27504662004662,
+        37.43126984126984
+      ],
+      "quick_minutes": [
+        10,
+        17
+      ],
+      "normal_minutes": [
+        24,
+        38
+      ]
+    },
+    {
+      "number": 4,
+      "title": "演出后的鼓励与点心约定",
+      "file": "04_演出后的鼓励与点心约定.txt",
+      "text_characters": 1861,
+      "estimated_voiced_characters": 867,
+      "text_entries": 112,
+      "quick_minutes_unrounded": [
+        2.761333333333333,
+        4.375333333333333
+      ],
+      "normal_minutes_unrounded": [
+        6.0752214452214455,
+        9.523333333333333
+      ],
+      "quick_minutes": [
+        2,
+        5
+      ],
+      "normal_minutes": [
+        6,
+        10
+      ]
+    },
+    {
+      "number": 5,
+      "title": "为她画上小恶魔的装扮",
+      "file": "05_为她画上小恶魔的装扮.txt",
+      "text_characters": 1924,
+      "estimated_voiced_characters": 550,
+      "text_entries": 130,
+      "quick_minutes_unrounded": [
+        2.8903333333333334,
+        4.606333333333334
+      ],
+      "normal_minutes_unrounded": [
+        5.696899766899766,
+        9.147936507936507
+      ],
+      "quick_minutes": [
+        2,
+        5
+      ],
+      "normal_minutes": [
+        5,
+        10
+      ]
+    },
+    {
+      "number": 6,
+      "title": "派对中的并肩休息",
+      "file": "06_派对中的并肩休息.txt",
+      "text_characters": 3693,
+      "estimated_voiced_characters": 1182,
+      "text_entries": 195,
+      "quick_minutes_unrounded": [
+        5.4115,
+        8.5235
+      ],
+      "normal_minutes_unrounded": [
+        10.736608391608392,
+        16.99095238095238
+      ],
+      "quick_minutes": [
+        5,
+        9
+      ],
+      "normal_minutes": [
+        10,
+        17
+      ]
+    },
+    {
+      "number": 7,
+      "title": "演出奖励与她的秘密",
+      "file": "07_演出奖励与她的秘密.txt",
+      "text_characters": 1978,
+      "estimated_voiced_characters": 941,
+      "text_entries": 107,
+      "quick_minutes_unrounded": [
+        2.9048333333333334,
+        4.580166666666667
+      ],
+      "normal_minutes_unrounded": [
+        6.396351981351981,
+        9.973968253968254
+      ],
+      "quick_minutes": [
+        2,
+        5
+      ],
+      "normal_minutes": [
+        6,
+        10
+      ]
+    },
+    {
+      "number": 8,
+      "title": "留下一张共同的纪念照",
+      "file": "08_留下一张共同的纪念照.txt",
+      "text_characters": 3943,
+      "estimated_voiced_characters": 1768,
+      "text_entries": 245,
+      "quick_minutes_unrounded": [
+        5.869833333333333,
+        9.315166666666666
+      ],
+      "normal_minutes_unrounded": [
+        12.79621212121212,
+        20.11984126984127
+      ],
+      "quick_minutes": [
+        5,
+        10
+      ],
+      "normal_minutes": [
+        12,
+        21
+      ]
+    },
+    {
+      "number": 9,
+      "title": "替朋友搭桥，也想和你说话",
+      "file": "09_替朋友搭桥，也想和你说话.txt",
+      "text_characters": 6079,
+      "estimated_voiced_characters": 2809,
+      "text_entries": 394,
+      "quick_minutes_unrounded": [
+        9.090333333333334,
+        14.456333333333333
+      ],
+      "normal_minutes_unrounded": [
+        20.03263403263403,
+        31.515079365079366
+      ],
+      "quick_minutes": [
+        9,
+        15
+      ],
+      "normal_minutes": [
+        20,
+        32
+      ]
+    },
+    {
+      "number": 10,
+      "title": "梦里是她，醒来后去探望她",
+      "file": "10_梦里是她，醒来后去探望她.txt",
+      "text_characters": 8383,
+      "estimated_voiced_characters": 2998,
+      "text_entries": 529,
+      "quick_minutes_unrounded": [
+        12.499833333333333,
+        19.85183333333333
+      ],
+      "normal_minutes_unrounded": [
+        25.73001165501165,
+        40.8579365079365
+      ],
+      "quick_minutes": [
+        12,
+        20
+      ],
+      "normal_minutes": [
+        25,
+        41
+      ]
+    },
+    {
+      "number": 11,
+      "title": "病愈后，一起走向学校",
+      "file": "11_病愈后，一起走向学校.txt",
+      "text_characters": 1711,
+      "estimated_voiced_characters": 710,
+      "text_entries": 117,
+      "quick_minutes_unrounded": [
+        2.5738333333333334,
+        4.1045
+      ],
+      "normal_minutes_unrounded": [
+        5.525769230769231,
+        8.754444444444443
+      ],
+      "quick_minutes": [
+        2,
+        5
+      ],
+      "normal_minutes": [
+        5,
+        9
+      ]
+    },
+    {
+      "number": 12,
+      "title": "为朋友调查老师的恋爱观",
+      "file": "12_为朋友调查老师的恋爱观.txt",
+      "text_characters": 8925,
+      "estimated_voiced_characters": 5095,
+      "text_entries": 553,
+      "quick_minutes_unrounded": [
+        13.2825,
+        21.075833333333335
+      ],
+      "normal_minutes_unrounded": [
+        31.168123543123546,
+        48.46507936507937
+      ],
+      "quick_minutes": [
+        13,
+        22
+      ],
+      "normal_minutes": [
+        31,
+        49
+      ]
+    },
+    {
+      "number": 13,
+      "title": "原来，我已经喜欢上她了",
+      "file": "13_原来，我已经喜欢上她了.txt",
+      "text_characters": 924,
+      "estimated_voiced_characters": 383,
+      "text_entries": 46,
+      "quick_minutes_unrounded": [
+        1.347,
+        2.1163333333333334
+      ],
+      "normal_minutes_unrounded": [
+        2.84004662004662,
+        4.44015873015873
+      ],
+      "quick_minutes": [
+        1,
+        3
+      ],
+      "normal_minutes": [
+        2,
+        5
+      ]
+    },
+    {
+      "number": 14,
+      "title": "老师的忠告与秀明的沉默",
+      "file": "14_老师的忠告与秀明的沉默.txt",
+      "text_characters": 1450,
+      "estimated_voiced_characters": 779,
+      "text_entries": 85,
+      "quick_minutes_unrounded": [
+        2.1458333333333335,
+        3.395833333333333
+      ],
+      "normal_minutes_unrounded": [
+        4.924487179487179,
+        7.661587301587302
+      ],
+      "quick_minutes": [
+        2,
+        4
+      ],
+      "normal_minutes": [
+        4,
+        8
+      ]
+    },
+    {
+      "number": 15,
+      "title": "第一次邀约前的紧张准备",
+      "file": "15_第一次邀约前的紧张准备.txt",
+      "text_characters": 6759,
+      "estimated_voiced_characters": 3258,
+      "text_entries": 347,
+      "quick_minutes_unrounded": [
+        9.8795,
+        15.542166666666667
+      ],
+      "normal_minutes_unrounded": [
+        21.787890442890443,
+        33.88619047619048
+      ],
+      "quick_minutes": [
+        9,
+        16
+      ],
+      "normal_minutes": [
+        21,
+        34
+      ]
+    },
+    {
+      "number": 16,
+      "title": "练习间隙，想问她喜欢谁",
+      "file": "16_练习间隙，想问她喜欢谁.txt",
+      "text_characters": 3901,
+      "estimated_voiced_characters": 1509,
+      "text_entries": 226,
+      "quick_minutes_unrounded": [
+        5.766333333333334,
+        9.120333333333333
+      ],
+      "normal_minutes_unrounded": [
+        12.036270396270396,
+        18.984285714285715
+      ],
+      "quick_minutes": [
+        5,
+        10
+      ],
+      "normal_minutes": [
+        12,
+        19
+      ]
+    },
+    {
+      "number": 17,
+      "title": "牵着她的手，终于提出邀约",
+      "file": "17_牵着她的手，终于提出邀约.txt",
+      "text_characters": 7372,
+      "estimated_voiced_characters": 2666,
+      "text_entries": 480,
+      "quick_minutes_unrounded": [
+        11.029333333333332,
+        17.544
+      ],
+      "normal_minutes_unrounded": [
+        22.81020979020979,
+        36.2568253968254
+      ],
+      "quick_minutes": [
+        11,
+        18
+      ],
+      "normal_minutes": [
+        22,
+        37
+      ]
+    },
+    {
+      "number": 18,
+      "title": "病中来访，听见她拒绝的理由",
+      "file": "18_病中来访，听见她拒绝的理由.txt",
+      "text_characters": 5087,
+      "estimated_voiced_characters": 2394,
+      "text_entries": 350,
+      "quick_minutes_unrounded": [
+        7.657666666666667,
+        12.215666666666666
+      ],
+      "normal_minutes_unrounded": [
+        17.02072261072261,
+        26.82761904761905
+      ],
+      "quick_minutes": [
+        7,
+        13
+      ],
+      "normal_minutes": [
+        17,
+        27
+      ]
+    },
+    {
+      "number": 19,
+      "title": "越想靠近，越容易手忙脚乱",
+      "file": "19_越想靠近，越容易手忙脚乱.txt",
+      "text_characters": 3692,
+      "estimated_voiced_characters": 1383,
+      "text_entries": 250,
+      "quick_minutes_unrounded": [
+        5.547666666666666,
+        8.842333333333334
+      ],
+      "normal_minutes_unrounded": [
+        11.60074592074592,
+        18.447142857142858
+      ],
+      "quick_minutes": [
+        5,
+        9
+      ],
+      "normal_minutes": [
+        11,
+        19
+      ]
+    },
+    {
+      "number": 20,
+      "title": "原来这种心情叫吃醋",
+      "file": "20_原来这种心情叫吃醋.txt",
+      "text_characters": 3416,
+      "estimated_voiced_characters": 1604,
+      "text_entries": 257,
+      "quick_minutes_unrounded": [
+        5.197166666666667,
+        8.331166666666666
+      ],
+      "normal_minutes_unrounded": [
+        11.605442890442891,
+        18.371587301587304
+      ],
+      "quick_minutes": [
+        5,
+        9
+      ],
+      "normal_minutes": [
+        11,
+        19
+      ]
+    },
+    {
+      "number": 21,
+      "title": "坦白秘密后得到的拥抱",
+      "file": "21_坦白秘密后得到的拥抱.txt",
+      "text_characters": 4150,
+      "estimated_voiced_characters": 1706,
+      "text_entries": 258,
+      "quick_minutes_unrounded": [
+        6.178333333333333,
+        9.805
+      ],
+      "normal_minutes_unrounded": [
+        13.155174825174825,
+        20.76063492063492
+      ],
+      "quick_minutes": [
+        6,
+        10
+      ],
+      "normal_minutes": [
+        13,
+        21
+      ]
+    },
+    {
+      "number": 22,
+      "title": "两个人的秘密：成对的马克杯",
+      "file": "22_两个人的秘密：成对的马克杯.txt",
+      "text_characters": 3208,
+      "estimated_voiced_characters": 1478,
+      "text_entries": 195,
+      "quick_minutes_unrounded": [
+        4.764833333333333,
+        7.5535000000000005
+      ],
+      "normal_minutes_unrounded": [
+        10.45506993006993,
+        16.40396825396825
+      ],
+      "quick_minutes": [
+        4,
+        8
+      ],
+      "normal_minutes": [
+        10,
+        17
+      ]
+    },
+    {
+      "number": 23,
+      "title": "为寒冬里的小狗寻找一个家",
+      "file": "23_为寒冬里的小狗寻找一个家.txt",
+      "text_characters": 1471,
+      "estimated_voiced_characters": 501,
+      "text_entries": 100,
+      "quick_minutes_unrounded": [
+        2.211333333333333,
+        3.5253333333333337
+      ],
+      "normal_minutes_unrounded": [
+        4.523892773892774,
+        7.2214285714285715
+      ],
+      "quick_minutes": [
+        2,
+        4
+      ],
+      "normal_minutes": [
+        4,
+        8
+      ]
+    },
+    {
+      "number": 24,
+      "title": "牵手绕远路，约好说出真心",
+      "file": "24_牵手绕远路，约好说出真心.txt",
+      "text_characters": 704,
+      "estimated_voiced_characters": 264,
+      "text_entries": 55,
+      "quick_minutes_unrounded": [
+        1.0761666666666667,
+        1.7288333333333332
+      ],
+      "normal_minutes_unrounded": [
+        2.2737179487179486,
+        3.6404761904761904
+      ],
+      "quick_minutes": [
+        1,
+        2
+      ],
+      "normal_minutes": [
+        2,
+        4
+      ]
+    },
+    {
+      "number": 25,
+      "title": "想起她的笑容，也在意他的心意",
+      "file": "25_想起她的笑容，也在意他的心意.txt",
+      "text_characters": 3864,
+      "estimated_voiced_characters": 2158,
+      "text_entries": 231,
+      "quick_minutes_unrounded": [
+        5.7295,
+        9.0755
+      ],
+      "normal_minutes_unrounded": [
+        13.326818181818183,
+        20.713174603174604
+      ],
+      "quick_minutes": [
+        5,
+        10
+      ],
+      "normal_minutes": [
+        13,
+        21
+      ]
+    },
+    {
+      "number": 26,
+      "title": "咖啡店里，听懂恋爱的建议",
+      "file": "26_咖啡店里，听懂恋爱的建议.txt",
+      "text_characters": 2773,
+      "estimated_voiced_characters": 1771,
+      "text_entries": 139,
+      "quick_minutes_unrounded": [
+        4.044833333333333,
+        6.356833333333333
+      ],
+      "normal_minutes_unrounded": [
+        9.791689976689977,
+        15.018412698412698
+      ],
+      "quick_minutes": [
+        4,
+        7
+      ],
+      "normal_minutes": [
+        9,
+        16
+      ]
+    },
+    {
+      "number": 27,
+      "title": "向朋友坦白：我也喜欢她",
+      "file": "27_向朋友坦白：我也喜欢她.txt",
+      "text_characters": 1863,
+      "estimated_voiced_characters": 1145,
+      "text_entries": 96,
+      "quick_minutes_unrounded": [
+        2.7239999999999998,
+        4.286
+      ],
+      "normal_minutes_unrounded": [
+        6.5093006993007,
+        10.012539682539682
+      ],
+      "quick_minutes": [
+        2,
+        5
+      ],
+      "normal_minutes": [
+        6,
+        11
+      ]
+    },
+    {
+      "number": 28,
+      "title": "带着亲手做的便当向她告白",
+      "file": "28_带着亲手做的便当向她告白.txt",
+      "text_characters": 6706,
+      "estimated_voiced_characters": 2719,
+      "text_entries": 394,
+      "quick_minutes_unrounded": [
+        9.926333333333332,
+        15.710333333333335
+      ],
+      "normal_minutes_unrounded": [
+        20.990116550116547,
+        33.063650793650794
+      ],
+      "quick_minutes": [
+        9,
+        16
+      ],
+      "normal_minutes": [
+        20,
+        34
+      ]
+    },
+    {
+      "number": 29,
+      "title": "陪伴朋友走过失恋",
+      "file": "29_陪伴朋友走过失恋.txt",
+      "text_characters": 4894,
+      "estimated_voiced_characters": 2622,
+      "text_entries": 315,
+      "quick_minutes_unrounded": [
+        7.312833333333333,
+        11.6255
+      ],
+      "normal_minutes_unrounded": [
+        16.840524475524475,
+        26.308095238095238
+      ],
+      "quick_minutes": [
+        7,
+        12
+      ],
+      "normal_minutes": [
+        16,
+        27
+      ]
+    },
+    {
+      "number": 30,
+      "title": "疏远之后重新拥抱",
+      "file": "30_疏远之后重新拥抱.txt",
+      "text_characters": 5765,
+      "estimated_voiced_characters": 2072,
+      "text_entries": 369,
+      "quick_minutes_unrounded": [
+        8.609166666666667,
+        13.6825
+      ],
+      "normal_minutes_unrounded": [
+        17.758776223776223,
+        28.212539682539685
+      ],
+      "quick_minutes": [
+        8,
+        14
+      ],
+      "normal_minutes": [
+        17,
+        29
+      ]
+    },
+    {
+      "number": 31,
+      "title": "最后一次约会，与她告别",
+      "file": "31_最后一次约会，与她告别.txt",
+      "text_characters": 5033,
+      "estimated_voiced_characters": 1717,
+      "text_entries": 332,
+      "quick_minutes_unrounded": [
+        7.540666666666667,
+        12.002666666666666
+      ],
+      "normal_minutes_unrounded": [
+        15.39960372960373,
+        24.546507936507936
+      ],
+      "quick_minutes": [
+        7,
+        13
+      ],
+      "normal_minutes": [
+        15,
+        25
+      ]
+    },
+    {
+      "number": 32,
+      "title": "忘记了她，却留下了前行的勇气",
+      "file": "32_忘记了她，却留下了前行的勇气.txt",
+      "text_characters": 2779,
+      "estimated_voiced_characters": 1154,
+      "text_entries": 182,
+      "quick_minutes_unrounded": [
+        4.160333333333333,
+        6.619666666666666
+      ],
+      "normal_minutes_unrounded": [
+        8.909673659673661,
+        14.087301587301587
+      ],
+      "quick_minutes": [
+        4,
+        7
+      ],
+      "normal_minutes": [
+        8,
+        15
+      ]
+    },
+    {
+      "number": 33,
+      "title": "为了重要的人共同努力",
+      "file": "33_为了重要的人共同努力.txt",
+      "text_characters": 6591,
+      "estimated_voiced_characters": 2181,
+      "text_entries": 434,
+      "quick_minutes_unrounded": [
+        9.873000000000001,
+        15.713666666666667
+      ],
+      "normal_minutes_unrounded": [
+        20.023310023310025,
+        31.950000000000003
+      ],
+      "quick_minutes": [
+        9,
+        16
+      ],
+      "normal_minutes": [
+        20,
+        32
+      ]
+    },
+    {
+      "number": 34,
+      "title": "圣诞前夜，与旧日的朋友重逢",
+      "file": "34_圣诞前夜，与旧日的朋友重逢.txt",
+      "text_characters": 888,
+      "estimated_voiced_characters": 588,
+      "text_entries": 52,
+      "quick_minutes_unrounded": [
+        1.314,
+        2.0793333333333335
+      ],
+      "normal_minutes_unrounded": [
+        3.24032634032634,
+        4.9904761904761905
+      ],
+      "quick_minutes": [
+        1,
+        3
+      ],
+      "normal_minutes": [
+        3,
+        5
+      ]
+    },
+    {
+      "number": 35,
+      "title": "留下来吧，你也是我们的朋友",
+      "file": "35_留下来吧，你也是我们的朋友.txt",
+      "text_characters": 1040,
+      "estimated_voiced_characters": 663,
+      "text_entries": 70,
+      "quick_minutes_unrounded": [
+        1.5616666666666668,
+        2.4883333333333333
+      ],
+      "normal_minutes_unrounded": [
+        3.818787878787879,
+        5.927142857142857
+      ],
+      "quick_minutes": [
+        1,
+        3
+      ],
+      "normal_minutes": [
+        3,
+        6
+      ]
+    },
+    {
+      "number": 36,
+      "title": "陪她面对父母，一起走向未来",
+      "file": "36_陪她面对父母，一起走向未来.txt",
+      "text_characters": 3707,
+      "estimated_voiced_characters": 982,
+      "text_entries": 208,
+      "quick_minutes_unrounded": [
+        5.462666666666667,
+        8.627333333333333
+      ],
+      "normal_minutes_unrounded": [
+        10.464801864801863,
+        16.70793650793651
+      ],
+      "quick_minutes": [
+        5,
+        9
+      ],
+      "normal_minutes": [
+        10,
+        17
+      ]
+    }
+  ]
+}
