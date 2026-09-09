@@ -10,10 +10,11 @@ export default function Home(){
  const node=partial||state?.nodes.at(-1)||null;
  const currentLine=node?.lines[line];const atEnd=!!node&&line>=node.lines.length-1;
  const waiting=!!partial||!!state?.pending;
- async function restore(){const res=await fetch('/api/story');if(!res.ok)throw new Error('暂时无法读取存档。');const data=await res.json();setState(data.state);setPartial(data.state?.partial||null);setReady(true);return data.state as PublicState|null;}
+ async function restore(){const res=await fetch(`/api/story${localStorage.getItem('lamplight_story_id')?`?storyId=${localStorage.getItem('lamplight_story_id')}`:''}`);if(!res.ok)throw new Error('暂时无法读取存档。');const data=await res.json();setState(data.state);setPartial(data.state?.partial||null);setReady(true);return data.state as PublicState|null;}
  useEffect(()=>{restore().catch(e=>{setError(e.message);setReady(true);});},[]);
  async function act(action:string,choice?:number){if(busyRef.current)return;busyRef.current=true;setBusy(true);setError('');setStatus('正在打开这一页…');if(action==='start'||action==='restart'){setPartial(null);setLine(0);}try{
-  const response=await fetch('/api/story',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({action,...(choice!==undefined?{choice,expected:state?.nodes.length}: {})})});
+  const response=await fetch('/api/story',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:localStorage.getItem('lamplight_story_id')||undefined,action,...(choice!==undefined?{choice,expected:state?.nodes.length}: {})})});
+  const responseStoryId=response.headers.get('X-Story-Id');if(responseStoryId)localStorage.setItem('lamplight_story_id',responseStoryId);
   if(!response.ok){const data=await response.json();throw new Error(data.error||'暂时无法继续。');}
   if(!response.headers.get('content-type')?.includes('text/event-stream')){const data=await response.json();setState(data.state);setPartial(data.state?.partial||null);return;}
   const reader=response.body!.getReader(),decoder=new TextDecoder();let buffer='',finished=false;
