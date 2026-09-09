@@ -15,3 +15,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## 模板阶段边界
 
 协议层不得复制当前模板的段落编号来判断共同篇或个人线；阶段边界必须读取 `lib/story-config.json` 的 `BEATS` 定义，避免模板调整后生成协议失配。
+
+## 流式状态必须单一化
+
+生成协议的流式 partial、最终 finishPartial 和持久化状态必须使用同一份规范化记录；不能只在中间事件上修正字段，却让最终校验重新读取模型原始值。任何字段修正都应在进入 partial 前完成，并由最终校验复用。

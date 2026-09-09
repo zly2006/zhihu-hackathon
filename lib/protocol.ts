@@ -40,4 +40,9 @@ export function acceptRecord(raw:string,state:State):{event?:GameEvent;ended?:bo
  }
  state.partial=p;return {event};
 }
-export function finishPartial(state:State):StoryNode{return validate(state.partial,state);}
+export function finishPartial(state:State):StoryNode {
+ const partial=structuredClone(state.partial);
+ if(partial?.choices && !isCommonStage(state.nodes.length)) partial.choices=partial.choices.map(item=>({...item,target:null}));
+ state.partial=partial;
+ return validate(partial,state);
+}

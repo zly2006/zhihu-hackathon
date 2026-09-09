@@ -36,7 +36,8 @@ export function choose(state:State, index:number, expected:number) {
  state.pending=true;
 }
 export function validate(raw:unknown,state:State):StoryNode {
- const node=nodeSchema.parse(raw);
+ const parsed=nodeSchema.parse(raw);
+ const node=!isCommonStage(state.nodes.length)&&parsed.choices.length?{...parsed,choices:parsed.choices.map(choice=>({...choice,target:null}))}:parsed;
  for (const line of node.lines) {
   if(line.speaker==='我') line.speaker=config.WORLD.player.name;
   if(!['旁白',config.WORLD.player.name,...cast.map(c=>c.name)].includes(line.speaker)) throw new Error('speaker必须使用设定姓名或旁白');
