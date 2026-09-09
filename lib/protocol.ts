@@ -1,5 +1,5 @@
 import {z} from 'zod';
-import {cast,count,ids,total,validate,type State,type StoryNode,type GameEvent} from './story';
+import {cast,count,ids,total,isCommonStage,validate,type State,type StoryNode,type GameEvent} from './story';
 const line=z.object({type:z.literal('line'),speaker:z.string(),text:z.string().min(1).max(150)}).strict();
 const schema=z.discriminatedUnion('type',[
  z.object({type:z.literal('scene'),title:z.string().min(1).max(25)}).strict(),line,
@@ -30,7 +30,7 @@ export function acceptRecord(raw:string,state:State):{event?:GameEvent;ended?:bo
  } else if(record.type==='choices') {
   if(p.choices)throw new Error('选项已发送，不得重复');
   // Full body and route checks run before exposing selectable actions.
-  const normalizedItems=state.nodes.length>=3?record.items.map(item=>({...item,target:null})):record.items;
+  const normalizedItems=!isCommonStage(state.nodes.length)?record.items.map(item=>({...item,target:null})):record.items;
   const draft={title:p.title,lines:p.lines,choices:normalizedItems,memory:{summary:'',facts:[]}};
   validate(draft,state);p.choices=normalizedItems;event={type:'choices',items:normalizedItems.map(c=>({text:c.text}))};
  } else if(record.type==='memory') {

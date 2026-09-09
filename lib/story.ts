@@ -4,6 +4,7 @@ import examples from './story-examples.json';
 export const ids = ['lin', 'tao', 'shen'] as const;
 export type Route = typeof ids[number];
 export const total = config.BEATS.length;
+export const isCommonStage=(stage:number)=>String(config.BEATS[stage]||'').startsWith('共同篇');
 export const cast = config.WORLD.cast.map(({ id, name, identity }) => ({ id, name, identity }));
 export const count = (text: string) => [...text].filter(c => /[\p{L}\p{N}]/u.test(c)).length;
 export const nodeSchema = z.object({
@@ -40,8 +41,8 @@ export function validate(raw:unknown,state:State):StoryNode {
  const stage=state.nodes.length;
  if(stage===total-1 ? node.choices.length!==0 : node.choices.length<2) throw new Error('非结局需2—3个选项，结局无选项');
  if(new Set(node.choices.map(c=>c.text)).size!==node.choices.length) throw new Error('选项不能重复');
- if(stage<3 && (node.choices.length!==3 || ids.some(id=>!node.choices.some(c=>c.target===id)))) throw new Error('共同篇选项必须分别对应三位人物');
- if(stage>=3 && node.choices.some(c=>c.target!==null)) throw new Error('个人线target必须为null');
+ if(isCommonStage(stage) && (node.choices.length!==3 || ids.some(id=>!node.choices.some(c=>c.target===id)))) throw new Error('共同篇选项必须分别对应三位人物');
+ if(!isCommonStage(stage) && node.choices.some(c=>c.target!==null)) throw new Error('个人线target必须为null');
  if(stage===0 && cast.some(c=>!node.lines.some(l=>l.speaker===c.name))) throw new Error('开场三人必须各有台词');
  return node;
 }
