@@ -37,12 +37,16 @@ export function choose(state:State, index:number, expected:number) {
 }
 export function validate(raw:unknown,state:State):StoryNode {
  const parsed=nodeSchema.parse(raw);
- const node=!isCommonStage(state.nodes.length)&&parsed.choices.length?{...parsed,choices:parsed.choices.map(choice=>({...choice,target:null}))}:parsed;
+ let normalizedChoices=!isCommonStage(state.nodes.length)?parsed.choices.map(choice=>({...choice,target:null})):parsed.choices;
+ if(state.nodes.length===total-1) normalizedChoices=[];
+ if(state.nodes.length<total-1 && normalizedChoices.length<2) normalizedChoices=isCommonStage(state.nodes.length)?ids.map((id,index)=>({text:['继续观察并回应','主动帮忙推进','先照顾现场细节'][index],target:id})): [{text:'继续当前行动',target:null},{text:'放慢一步再回应',target:null}];
+ const node={...parsed,choices:normalizedChoices};
  for (const line of node.lines) {
   if(line.speaker==='我') line.speaker=config.WORLD.player.name;
   if(!['旁白',config.WORLD.player.name,...cast.map(c=>c.name)].includes(line.speaker)) throw new Error('speaker必须使用设定姓名或旁白');
  }
  const length=node.lines.reduce((n,l)=>n+count(l.text),0);
+ if(state.nodes.length && node.lines.map(l=>l.text).join('\n')===state.nodes.at(-1)!.lines.map(l=>l.text).join('\n')) throw new Error('本段正文与上一段完全重复，必须推进上一选择及当前事件');
  if(length<225||length>300) throw new Error(`正文${length}字，要求225—300字，请修改至255字左右`);
  const stage=state.nodes.length;
  if(stage===total-1 ? node.choices.length!==0 : node.choices.length<2) throw new Error('非结局需2—3个选项，结局无选项');
@@ -56,7 +60,7 @@ export function validate(raw:unknown,state:State):StoryNode {
 function selectExamples(stage:number) {
  const groups=Object.entries(examples.categories);
  const start=Math.min(stage*3,Math.max(0,groups.length-3));
- return groups.slice(start,start+3).flatMap(([category,items])=>items.slice(0,3).map(item=>({category,source:item.source,text:item.text})));
+ return groups.slice(start,start+3).flatMap(([category,items])=>items.slice(0,1).map(item=>({category,source:item.source,text:item.text})));
 }
 
 export function messages(state:State) {
@@ -66,7 +70,7 @@ export function messages(state:State) {
  return [{role:'system',content:config.SYSTEM}, {role:'user',content:JSON.stringify({
  must_execute_first:latest?`玩家刚选【${latest.text}】；前3条先执行并给具体结果，询问必须回答。`:'开场未选择。',
  world:{...world,cast:cards},stage:state.nodes.length+1,total_stages:total,task:config.BEATS[state.nodes.length],story_title_instruction:state.nodes.length===0?'本段title同时作为整部故事标题：请根据模板世界观、角色和你自行判断的基调生成，不要使用固定标题。后续保持标题与基调一致。':'沿用已生成的故事标题与基调，不要改写。',
- locked_route:state.route,world_state:state.worldState,budget:'只写当前一段225—300有效字，目标255字，约45—60秒；不写下一段。',
+ locked_route:state.route,advance_required:state.nodes.length?`必须先兑现上一选择：${latest?.text||'上一段行动'}；不得重复上一段对白或场景。`: '必须建立开场事件。',world_state:state.worldState,budget:'只写当前一段225—300有效字，目标255字，约45—60秒；不写下一段。',
  allowed_speakers:['旁白',world.player.name,...cast.map(c=>c.name)],choice_targets:state.route?'所有target为JSON null':'分别lin/tao/shen',
  past_choices:state.selections,conversation_history:state.nodes.map((node,index)=>({stage:index+1,title:node.title,lines:node.lines,choices:node.choices,memory:node.memory})),reference_examples:selectExamples(state.nodes.length),previous_text_tail:state.nodes.at(-1)?.lines.map(l=>l.text).join('\n').slice(-240)||'',memory:state.memory
  })}];

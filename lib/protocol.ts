@@ -12,7 +12,9 @@ export class JsonlDecoder {
  push(chunk:string,final=false):string[] {this.buffer+=chunk;if(this.buffer.length>20000)throw new Error('JSONL记录过长');const lines=this.buffer.split('\n');this.buffer=lines.pop()||'';if(final&&this.buffer.trim()){lines.push(this.buffer);this.buffer='';}return lines.map(l=>l.trim()).filter(Boolean);}
 }
 export function acceptRecord(raw:string,state:State):{event?:GameEvent;ended?:boolean} {
- const record=schema.parse(JSON.parse(raw));
+ const parsed=JSON.parse(raw);
+ if(parsed && typeof parsed==='object' && typeof parsed.text==='string' && typeof parsed.speaker!=='string' && typeof parsed.type==='string' && !['scene','line','choices','memory','end'].includes(parsed.type)) { parsed.speaker=parsed.type; parsed.type='line'; }
+ const record=schema.parse(parsed);
  const p=structuredClone(state.partial||{lines:[]});
  const length=(p.lines||[]).reduce((n,l)=>n+count(l.text),0);
  let event:GameEvent|undefined;
@@ -30,7 +32,11 @@ export function acceptRecord(raw:string,state:State):{event?:GameEvent;ended?:bo
  } else if(record.type==='choices') {
   if(p.choices)throw new Error('选项已发送，不得重复');
   // Full body and route checks run before exposing selectable actions.
-  const normalizedItems=!isCommonStage(state.nodes.length)?record.items.map(item=>({...item,target:null})):record.items;
+  let normalizedItems=state.nodes.length===total-1?[]:(!isCommonStage(state.nodes.length)?record.items.map(item=>({...item,target:null})):record.items);
+  if(state.nodes.length<total-1 && normalizedItems.length<2) {
+   const fallback=isCommonStage(state.nodes.length)?ids.map((id,index)=>({text:['继续观察并回应','主动帮忙推进','先照顾现场细节'][index],target:id})): [{text:'继续当前行动',target:null},{text:'放慢一步再回应',target:null}];
+   normalizedItems=[...normalizedItems,...fallback].slice(0,isCommonStage(state.nodes.length)?3:2);
+  }
   const draft={title:p.title,lines:p.lines,choices:normalizedItems,memory:{summary:'',facts:[]}};
   validate(draft,state);p.choices=normalizedItems;event={type:'choices',items:normalizedItems.map(c=>({text:c.text}))};
  } else if(record.type==='memory') {

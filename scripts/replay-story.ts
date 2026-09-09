@@ -28,6 +28,7 @@ async function main() {
     const events: GameEvent[] = [];
     const node = await generate(state, (event) => events.push(event), async () => undefined);
     state.nodes.push(node);
+    delete state.partial;
     state.memory = node.memory;
     if (!state.storyTitle) state.storyTitle = node.title;
     state.pending = false;
