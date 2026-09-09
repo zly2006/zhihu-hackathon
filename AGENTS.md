@@ -11,3 +11,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## Galgame UI 控制经验
 
 视觉小说应以对话框为主交互：点击对话区域推进，选项只在片段结束后出现，右键打开菜单；不要把“继续阅读”做成持续占位的普通按钮，也不要用快进式测试动作代替玩家点击。模型生成期间应保留对话区等待状态，给生成留出时间。
+
+## 模板阶段边界
+
+协议层不得复制当前模板的段落编号来判断共同篇或个人线；阶段边界必须读取 `lib/story-config.json` 的 `BEATS` 定义，避免模板调整后生成协议失配。
