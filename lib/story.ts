@@ -47,7 +47,7 @@ export function validate(raw:unknown,state:State):StoryNode {
  }
  const length=node.lines.reduce((n,l)=>n+count(l.text),0);
  if(state.nodes.length && node.lines.map(l=>l.text).join('\n')===state.nodes.at(-1)!.lines.map(l=>l.text).join('\n')) throw new Error('本段正文与上一段完全重复，必须推进上一选择及当前事件');
- if(length<225||length>300) throw new Error(`正文${length}字，要求225—300字，请修改至255字左右`);
+ if(length<200||length>300) throw new Error(`正文${length}字，要求200—300字，建议255字左右`);
  const stage=state.nodes.length;
  if(stage===total-1 ? node.choices.length!==0 : node.choices.length<2) throw new Error('非结局需2—3个选项，结局无选项');
  if(new Set(node.choices.map(c=>c.text)).size!==node.choices.length) throw new Error('选项不能重复');

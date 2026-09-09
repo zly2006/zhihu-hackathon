@@ -16,7 +16,7 @@ const format=`你必须输出固定标签文本协议，每行一条记录，禁
 [SCENE] 本段短标题
 [NPC:旁白] 一条叙述
 [NPC:角色名] 一句对白
-重复NPC，整段正文225—300有效字，目标255字、8—9条。
+重复NPC，整段正文200—300有效字，目标255字、8—9条。
 [CHOICES] {"items":[{"text":"行动","target":"lin"}]}
 [MEMORY] {"summary":"累计事实","facts":["事实"]}
 [END]
@@ -28,7 +28,7 @@ export async function generate(state:State,emit:(e:GameEvent)=>void,persist:()=>
   emit({type:'status',phase:attempt?'repairing':'generating',message:attempt?'正在接着写这一段…':'雨还在下，故事正在继续…'});
   const msg=messages(state);msg[0].content=msg[0].content.split('只输出如下字段：')[0].replace('只输出一个JSON对象，不输出解释或推理。','逐条输出JSONL，不输出解释或推理。').replace('输出本段选项后立刻停止','完成本段JSONL协议后立刻停止')+'\n'+format;
   const written=(state.partial?.lines||[]).reduce((n,l)=>n+count(l.text),0);
-  const next=state.partial?.memory?'只输出end':state.partial?.choices?'只输出memory，然后end':written>=225?'正文已够，直接输出choices，然后memory和end':`正文目前${written}字，还缺至少${225-written}字；必须先补line对白记录达到225字，不能提前输出choices。可再写最多${300-written}字。`;
+  const next=state.partial?.memory?'只输出end':state.partial?.choices?'只输出memory，然后end':written>=225?'正文已够，直接输出choices，然后memory和end':`正文目前${written}字，还缺至少${200-written}字；必须先补line对白记录达到225字，不能提前输出choices。可再写最多${300-written}字。`;
   msg.push({role:'user',content:JSON.stringify({already_sent:state.partial||null,correction:issue||null,do_not_copy_previous_lines:!!state.nodes.length,continuation_nonce:randomUUID(),instruction:`已发送记录不可重写。${next}`})});
   const payload={model,reasoning_effort:'none',temperature:0.9,seed:randomInt(1_000_000_000),messages:msg,max_tokens:2800,stream:true,stream_options:{include_usage:true}};
   const started=Date.now();let raw='',finish='',done=false,ended=false,usage:Record<string,unknown>|null=null;let failure:string|undefined;
