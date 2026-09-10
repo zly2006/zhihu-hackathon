@@ -6,6 +6,7 @@ import storyReference from './story-reference.json';
 import backgroundData from './story-backgrounds.json';
 import routeData from './story-route-templates.json';
 import moduleData from './story-modules.json';
+import { LIFE_EVENT_LIBRARY, renderLifeEvent, type LifeEventTemplate, type LifeStage } from './life-events';
 
 export type Gender = '男' | '女';
 export type StageKind = 'common' | 'route' | 'ending';
@@ -16,12 +17,13 @@ export type CharacterProfile = { id: string; name: string; gender: Gender; backg
 export type CastDetails = { voice: string; desire: string; object: string; route_event: string; payoff: string };
 export type CastMember = PublicCastMember & CastDetails & { background?: string; zhihuHandle?: string };
 export type Route = string;
-export type StoryState = { relationships: Record<string, number>; flags: string[]; timeline: string[] };
+export type StoryState = { relationships: Record<string, number>; flags: string[]; timeline: string[]; usedLifeEventIds?: string[] };
 export type PlayerSelection = { name: string; gender: Gender };
 export type Player = { id: string; name: string; gender: Gender; age: number; identity: string };
 export type LifeChoice = { title: string; question: string; pressure: string; directions: string[] };
 export type StoryBackground = {
   id: string;
+  lifeEventStage?: LifeStage;
   label: string;
   ordinal: string;
   kicker: string;
@@ -194,7 +196,7 @@ export function initial(profiles: CharacterProfile[] = defaultProfiles(), option
     pending: true,
     memory: { summary: '', facts: [] },
     profiles: canonical,
-    worldState: { relationships: emptyRelationships(canonical), flags: [], timeline: [] },
+    worldState: { relationships: emptyRelationships(canonical), flags: [], timeline: [], usedLifeEventIds: [] },
   };
 }
 
@@ -245,7 +247,8 @@ function lockRoute(state: State, target: Route) {
 
 export function choose(state: State, index: number, expected: number) {
   const routeIds = selectedIds(state);
-  state.worldState ??= { relationships: emptyRelationships(canonicalProfiles(state.profiles)), flags: [], timeline: [] };
+  state.worldState ??= { relationships: emptyRelationships(canonicalProfiles(state.profiles)), flags: [], timeline: [], usedLifeEventIds: [] };
+  state.worldState.usedLifeEventIds ??= [];
   for (const id of routeIds) state.worldState.relationships[id] ??= 0;
   if (expected !== state.nodes.length || state.pending || state.nodes.length >= totalForState(state)) throw new Error('剧情进度已变化，请刷新后继续。');
   const choices = state.nodes.at(-1)?.choices;
@@ -257,6 +260,8 @@ export function choose(state: State, index: number, expected: number) {
     if (!routeIds.includes(picked.target)) throw new Error('选项目标不属于当前角色。');
     state.worldState.relationships[picked.target] += 1;
   }
+  const completedLifeEvent = selectedLifeEvent(state, currentBeat);
+  if (completedLifeEvent && !state.worldState.usedLifeEventIds.includes(completedLifeEvent.id)) state.worldState.usedLifeEventIds.push(completedLifeEvent.id);
   state.worldState.timeline.push(`第${state.nodes.length}段选择：${picked.text}`);
 
   if (currentBeat.kind === 'common') {
@@ -387,6 +392,18 @@ export function selectedModule(state: Pick<State, 'backgroundId' | 'seed' | 'rel
   return modules[stableHash(`${state.seed}:${beat.id}:${state.nodes.length}`) % modules.length];
 }
 
+export function selectedLifeEvent(state: Pick<State, 'backgroundId' | 'seed' | 'nodes' | 'worldState'>, beat: Beat): LifeEventTemplate | null {
+  if (beat.kind === 'ending') return null;
+  const lifeEventStage = backgroundFor(state.backgroundId).lifeEventStage;
+  if (!lifeEventStage) return null;
+  const candidates = LIFE_EVENT_LIBRARY.events.filter((event) => event.lifeStages.includes(lifeEventStage));
+  if (!candidates.length) return null;
+  const used = new Set(state.worldState?.usedLifeEventIds || []);
+  const unused = candidates.filter((event) => !used.has(event.id));
+  const pool = unused.length ? unused : candidates;
+  return pool[stableHash(`${state.seed}:${beat.id}:${state.nodes.length}:${lifeEventStage}`) % pool.length];
+}
+
 function stableHash(value: string) {
   let hash = 2166136261;
   for (let index = 0; index < value.length; index += 1) {
@@ -489,6 +506,16 @@ function renderModule(state: State, beat: Beat) {
   ].join('\n');
 }
 
+function renderLifeEventModule(state: State, beat: Beat) {
+  const event = selectedLifeEvent(state, beat);
+  if (!event) return '当前人生背景没有独立事件库条目，以本段剧情模块和核心人生选择推进。';
+  const lifeEventStage = backgroundFor(state.backgroundId).lifeEventStage!;
+  return [
+    renderLifeEvent(event, lifeEventStage),
+    '使用规则：把该事件作为本段现实因果骨架。最终选项数量与target仍严格服从上面的选择规则，不直接照抄A/B/C；把事件中的代价、关系和延迟风险分配给当前角色与行动。',
+  ].join('\n');
+}
+
 export function promptText(state: State) {
   const beat = beatForState(state);
   const selected = selectedCast(state);
@@ -523,6 +550,7 @@ export function promptText(state: State) {
     `【当前角色】\n${castText}`,
     `【关系线模板】\n${renderRoutePlan(state, beat)}`,
     `【本段剧情模块】\n${renderModule(state, beat)}`,
+    `【本段人生事件库】\n${renderLifeEventModule(state, beat)}`,
     `【标题规则】\n${state.nodes.length === 0 ? '本段 title 同时作为整部故事标题；根据当前人生阶段、角色和基调生成，不使用固定标题。' : `沿用已生成标题「${state.storyTitle || '未命名'}」与基调，不改写。`}`,
     `【选择规则】\n${renderChoiceContract(beat, routeIds)}`,
     `【当前状态】\n${renderWorldState(state)}`,

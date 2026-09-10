@@ -22,6 +22,7 @@ import {
   selectReferenceStory,
   selectedCast,
   selectedIds,
+  selectedLifeEvent,
   selectedModule,
   totalForState,
   validate,
@@ -193,6 +194,8 @@ test('prompt messages are plain strings and inject background, life choice, modu
   assert.match(user.content, /人生背景与核心冲突/);
   assert.match(user.content, /专业与毕业去向/);
   assert.match(user.content, /本段剧情模块/);
+  assert.match(user.content, /本段人生事件库/);
+  assert.match(user.content, /具体处境/);
   assert.match(user.content, /恋爱线规则/);
   assert.match(user.content, /友情线规则/);
 
@@ -226,6 +229,25 @@ test('module selection is deterministic for the same story seed and reflects the
   assert.equal(backgroundFor(university.backgroundId).label, '大学');
   assert.equal(backgroundFor(graduate.backgroundId).label, '研究生');
   assert.notEqual(first.id, other.id);
+});
+
+test('the reviewed life-event library enriches supported backgrounds and records used events', () => {
+  const highSchool = initial(profiles, { ...startOptions, backgroundId: 'high-school' });
+  const university = initial(profiles, startOptions);
+  const graduate = initial(profiles, { ...startOptions, backgroundId: 'graduate' });
+  const earlyCareer = initial(profiles, { ...startOptions, backgroundId: 'early-career' });
+  for (const state of [highSchool, university, graduate]) {
+    const event = selectedLifeEvent(state, beatForState(state));
+    assert.ok(event);
+    assert.ok(event.lifeStages.includes(backgroundFor(state.backgroundId).lifeEventStage!));
+    assert.equal(selectedLifeEvent(structuredClone(state), beatForState(state))?.id, event.id);
+  }
+  assert.equal(selectedLifeEvent(earlyCareer, beatForState(earlyCareer)), null);
+
+  chooseTarget(highSchool, 'm1');
+  chooseTarget(highSchool, 'm1');
+  assert.equal(highSchool.worldState.usedLifeEventIds?.length, 2);
+  assert.equal(new Set(highSchool.worldState.usedLifeEventIds).size, 2);
 });
 
 test('a complete tagged-style record stream emits before later bytes and can be validated after end', () => {

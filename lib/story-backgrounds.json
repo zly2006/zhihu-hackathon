@@ -3,6 +3,7 @@
   "backgrounds": [
     {
       "id": "high-school",
+      "lifeEventStage": "high-school",
       "label": "高中",
       "ordinal": "01",
       "kicker": "选择看起来很远，代价却来得很早",
@@ -42,6 +43,7 @@
     },
     {
       "id": "university",
+      "lifeEventStage": "university",
       "label": "大学",
       "ordinal": "02",
       "kicker": "世界突然变大，第一次选择要自己签字",
@@ -81,6 +83,7 @@
     },
     {
       "id": "graduate",
+      "lifeEventStage": "graduate",
       "label": "研究生",
       "ordinal": "03",
       "kicker": "看起来还在读书，生活已经开始结算成本",
