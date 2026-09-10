@@ -23,3 +23,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## 消息 content 必须保持字符串
 
 对外发送 Chat Completions 消息时，业务上下文的 `message.content` 必须是字符串；需要传结构化数据时先序列化成 JSON 文本，再放入 `content`。禁止把对象直接作为 `content`，也不得在文档或提示词示意中把已经序列化的文本画成对象，否则会让人误判真实协议。排查请求时应直接校验每层 `typeof content === 'string'`。
+
+## 图片资源统一使用 WebP
+
+仓库中的产品图片资源必须使用 `.webp`，不得提交或引用 `.png`。新增或替换图片时应使用 `cwebp` 或等价工具压缩到合理体积，并在提交前确认 `rg --files -g '*.png'` 不包含产品资源。
