@@ -1,0 +1,1182 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-10",
+  "events": [
+    {
+      "id": "life-high-school-subject-track",
+      "version": 1,
+      "title": "分科表交回前的一晚",
+      "domain": "education",
+      "secondaryDomains": ["family", "friendship"],
+      "lifeStages": ["high-school"],
+      "ageRange": { "min": 15, "max": 17 },
+      "requiredRelationshipRoles": ["parent", "friend"],
+      "compatibleRelationshipTypes": ["family", "friend", "classmate"],
+      "situation": "分科意向表明早必须交回。你擅长并喜欢的方向与父母认定的“稳妥路线”不同，而最亲近的朋友已经选择另一班。班主任只给了成绩与课程负担数据，没有替你决定。选哪条路都会改变未来两年的学习节奏和每天相处的人。",
+      "dilemma": "你需要区分兴趣、能力、父母的风险判断，以及不愿与朋友分开的情绪。",
+      "stakes": [
+        "两年的学习动力与升学准备",
+        "父母对你判断力的信任",
+        "与好友的日常距离"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "选择擅长的方向",
+          "action": "提交自己擅长的方向，并用成绩、课程和目标向父母说明判断依据。",
+          "strategyTag": "能力主导",
+          "tradeoff": "获得更匹配的学习路径，但要承受父母反对和与朋友分班。",
+          "immediate": {
+            "narrative": "父母没有被一次谈话说服，却答应看你一个学期的执行；好友开始和你约定午休见面。",
+            "statDelta": { "knowledge": 5, "happiness": 2, "connections": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "trust": 2, "conflict": 5 },
+                "reason": "你展示了依据，也第一次拒绝照父母的答案填写。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": -2, "commitment": 3 },
+                "reason": "日常相处减少，但双方主动约定维持关系。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "持续投入会建立更强的学业自我效能，并让父母逐渐相信你的判断。",
+            "risk": "如果成绩下降，你可能把正常挫折理解为选错，也会面对父母的追责。"
+          },
+          "flags": ["chose_strength_track"],
+          "followUpHooks": ["第一次阶段考试", "分班后好友有了新圈子"]
+        },
+        {
+          "id": "B",
+          "label": "接受父母建议",
+          "action": "选择父母认为更稳定的方向，约定一学期后依据真实成绩重新评估。",
+          "strategyTag": "家庭稳妥",
+          "tradeoff": "降低家庭冲突，却可能用兴趣和自主感换取表面安全。",
+          "immediate": {
+            "narrative": "父母替你整理了新资料，好友也恰好在同一班；你却把喜欢方向的书收进了抽屉。",
+            "statDelta": { "knowledge": 2, "happiness": -4, "connections": 3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "closeness": 3, "trust": 1, "commitment": 2 },
+                "reason": "你采纳了父母的风险判断，但真实意愿没有消失。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 4, "conflict": -1 },
+                "reason": "继续同班保留了高频相处。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "熟悉的支持网络让新课程起步更平稳。",
+            "risk": "若学习动力持续下降，你可能迁怒父母或好友，并错过调整窗口。"
+          },
+          "flags": ["followed_parent_track"],
+          "followUpHooks": ["一学期评估承诺", "兴趣方向是否继续自学"]
+        },
+        {
+          "id": "C",
+          "label": "申请试听后决定",
+          "action": "请求班主任安排两周试听，并承担晚交决定和补课的压力。",
+          "strategyTag": "信息试验",
+          "tradeoff": "用时间与额外课业换真实体验，但不能保证学校会完整配合。",
+          "immediate": {
+            "narrative": "班主任同意你旁听部分课程，父母担心你耽误进度，好友答应把两边笔记都借给你。",
+            "statDelta": { "knowledge": 3, "health": -2, "happiness": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "trust": 3, "conflict": 2 },
+                "reason": "你没有逃避决定，但延长了不确定期。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 3, "commitment": 2 },
+                "reason": "好友成为信息支持者，也需要付出整理时间。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "真实课堂体验会减少因想象造成的误判。",
+            "risk": "两边兼顾可能导致疲惫，最终仍需在信息不完整时选择。"
+          },
+          "flags": ["subject_track_trial"],
+          "followUpHooks": ["试听结束后的家庭讨论", "补课压力影响第一次测验"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["高中如何选科", "要不要听父母选专业方向"],
+        "originalityNote": "以分班、友谊与家庭信任重新设计选科情境。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-high-school-competition-team",
+      "version": 1,
+      "title": "竞赛名额只剩一个",
+      "domain": "education",
+      "secondaryDomains": ["friendship", "social"],
+      "lifeStages": ["high-school"],
+      "ageRange": { "min": 15, "max": 18 },
+      "requiredRelationshipRoles": ["friend", "mentor"],
+      "compatibleRelationshipTypes": ["friend", "classmate", "other"],
+      "situation": "竞赛指导老师通知校队只剩一个正式名额，你和一起准备半年的好友成绩接近。好友最近家里有事缺席训练，老师私下暗示只要你把共同整理的题库作为个人成果提交，胜算会更大。报名截止前，你必须决定竞争方式。",
+      "dilemma": "争取机会本身合理，但你要决定成绩、共同劳动与友情边界如何被记录。",
+      "stakes": [
+        "竞赛机会与升学履历",
+        "好友对共同准备的信任",
+        "指导老师对公平和结果的权衡"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "按个人成果竞争",
+          "action": "只提交自己独立完成的部分，请老师按同一标准公开选拔。",
+          "strategyTag": "透明竞选",
+          "tradeoff": "保留公平和友情，但放弃利用共同题库提高胜率。",
+          "immediate": {
+            "narrative": "好友把缺席原因告诉了你，老师则提醒公开选拔会增加他的组织成本。",
+            "statDelta": { "knowledge": 3, "connections": -1, "happiness": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 6, "conflict": 1 },
+                "reason": "你承认共同劳动，也没有退出正常竞争。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 2, "conflict": 3 },
+                "reason": "老师认可你的边界，但不满流程被复杂化。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "无论谁入选，结果都有可解释的标准，合作关系仍可继续。",
+            "risk": "选拔标准仍可能偏向近期出勤，你也可能因坚持程序失去名额。"
+          },
+          "flags": ["requested_fair_team_trial"],
+          "followUpHooks": ["公开选拔结果", "落选者是否继续共同训练"]
+        },
+        {
+          "id": "B",
+          "label": "和好友共同说明",
+          "action": "邀请好友一起向老师说明题库归属，并提出轮换、替补或双人项目方案。",
+          "strategyTag": "共同议价",
+          "tradeoff": "争取扩大机会，但可能被认为不接受稀缺名额规则。",
+          "immediate": {
+            "narrative": "好友愿意一起去办公室，老师听完后没有承诺，只让你们拿出可执行的训练安排。",
+            "statDelta": { "connections": 3, "knowledge": 2, "career": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 5, "commitment": 5 },
+                "reason": "你把好友当作共同解决问题的人，而非竞争障碍。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 3, "conflict": 2 },
+                "reason": "你们提出替代方案，也挑战了老师原有安排。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "可执行方案可能创造替补或团队机会，并建立合作声誉。",
+            "risk": "老师拒绝时，你们会在更短时间内重新面对唯一名额。"
+          },
+          "flags": ["negotiated_competition_slot"],
+          "followUpHooks": ["老师要求的训练考核", "最终仍需决定主力人选"]
+        },
+        {
+          "id": "C",
+          "label": "提交共同题库",
+          "action": "将共同题库包装为个人成果，先拿到正式名额再考虑补偿好友。",
+          "strategyTag": "机会抢占",
+          "tradeoff": "提高入选概率，却用无法撤回的署名行为消耗友情与信誉。",
+          "immediate": {
+            "narrative": "老师收下材料并表示看好你；好友从文件版本记录里看见自己的内容，停止回复训练消息。",
+            "statDelta": { "career": 6, "knowledge": 2, "happiness": -3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": -10, "closeness": -6, "conflict": 8 },
+                "reason": "你把共同成果据为己有，并将补偿推迟到既成事实之后。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 2, "commitment": 2 },
+                "reason": "老师只看见你提交了完整成果，尚不知道归属问题。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "入选会带来训练资源和升学履历。",
+            "risk": "好友公开版本记录时，你可能同时失去名额、老师信任与长期友情。"
+          },
+          "flags": ["claimed_shared_problem_set"],
+          "followUpHooks": ["好友是否公开证据", "老师发现署名问题"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["竞赛名额与朋友竞争", "共同成果署名"],
+        "originalityNote": "围绕稀缺名额、共同劳动和师生权力原创设计。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-high-school-friend-cheating",
+      "version": 1,
+      "title": "好友递来的答案纸",
+      "domain": "friendship",
+      "secondaryDomains": ["education", "family"],
+      "lifeStages": ["high-school"],
+      "ageRange": { "min": 14, "max": 18 },
+      "requiredRelationshipRoles": ["friend", "mentor"],
+      "compatibleRelationshipTypes": ["friend", "classmate", "other"],
+      "situation": "月考前，好友把偷拍到的答案发给你，说这次再考差就会被父母转学。他请求你至少别告诉老师，也暗示真正的朋友应该帮他一次。你知道他最近压力很大，也知道沉默会让作弊进入正式成绩。",
+      "dilemma": "你要在保护朋友、保护考试公平和拒绝成为秘密共犯之间作出行动。",
+      "stakes": [
+        "好友的学业处境与家庭压力",
+        "你们之间的信任边界",
+        "考试公平和老师处理方式"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "劝他主动说明",
+          "action": "拒绝查看答案，陪好友在考试前向老师说明来源和家庭压力。",
+          "strategyTag": "陪伴担责",
+          "tradeoff": "给朋友保留主动承担的机会，但无法保证学校不处罚。",
+          "immediate": {
+            "narrative": "好友先骂你多管闲事，走到办公室门口时却没有离开；老师要求他交出传播记录。",
+            "statDelta": { "happiness": -3, "knowledge": 1, "connections": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 2, "conflict": 7, "commitment": 4 },
+                "reason": "你拒绝共犯关系，但愿意陪他承担后果。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 5, "conflict": 1 },
+                "reason": "你主动提供信息，也要求老师考虑压力背景。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "主动说明可能换来较轻处理，并让好友获得真实的学习或家庭支持。",
+            "risk": "好友若只感受到背叛，关系会在处罚期间迅速疏远。"
+          },
+          "flags": ["friend_self_reported_cheating"],
+          "followUpHooks": ["学校处理结果", "好友父母是否听见真实压力"]
+        },
+        {
+          "id": "B",
+          "label": "私下阻止并补习",
+          "action": "要求好友删除答案，承诺帮他补习，但暂不向老师报告。",
+          "strategyTag": "内部修复",
+          "tradeoff": "保护朋友免受即时处罚，却由你承担监督和补习成本。",
+          "immediate": {
+            "narrative": "好友删掉了对话中的文件，却问你是否真的不会说；你们把周末安排改成了复习。",
+            "statDelta": { "health": -2, "knowledge": 3, "happiness": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 4, "trust": 3, "conflict": 2 },
+                "reason": "你提供实际帮助，也掌握了对方不愿公开的秘密。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": -1 },
+                "reason": "老师无法获知答案传播风险，你承担了本不属于学生的处置责任。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "如果好友停止作弊并建立学习节奏，关系会因共同努力而加深。",
+            "risk": "答案已被其他人保存时，隐瞒会让你在调查中陷入被动。"
+          },
+          "flags": ["handled_cheating_privately"],
+          "followUpHooks": ["周末补习是否坚持", "答案传播引发调查"]
+        },
+        {
+          "id": "C",
+          "label": "保持沉默",
+          "action": "不使用答案，也不阻止好友，把决定完全留给他。",
+          "strategyTag": "切割回避",
+          "tradeoff": "避免直接冲突，但默许风险继续并保留共同秘密。",
+          "immediate": {
+            "narrative": "好友把沉默当成同意，考试后兴奋地说终于能向父母交代；你没有回应。",
+            "statDelta": { "happiness": -4, "connections": 1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 2, "trust": -2, "conflict": -1 },
+                "reason": "表面关系平静，但你不再相信这份亲近建立在诚实上。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": -2 },
+                "reason": "你知道风险却没有采取任何阻止行动。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "如果作弊未被发现，好友短期避开家庭冲突。",
+            "risk": "成功会强化再次作弊，暴露后也可能把你拖入知情不报的责任。"
+          },
+          "flags": ["stayed_silent_on_cheating"],
+          "followUpHooks": ["好友再次索要帮助", "成绩异常触发调查"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["发现朋友作弊怎么办", "同学压力与考试诚信"],
+        "originalityNote": "将作弊设计为友情边界、家庭压力和制度责任的多方事件。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-university-change-major",
+      "version": 1,
+      "title": "转专业窗口只开七天",
+      "domain": "education",
+      "secondaryDomains": ["family", "friendship", "career"],
+      "lifeStages": ["university"],
+      "ageRange": { "min": 18, "max": 22 },
+      "requiredRelationshipRoles": ["parent", "friend"],
+      "compatibleRelationshipTypes": ["family", "friend", "classmate"],
+      "situation": "转专业申请窗口只剩七天。你在当前专业成绩不错，却越来越确定不愿从事对应职业；目标专业需要补修课程，也可能延毕。室友兼好友准备和你一起参加现专业竞赛，父母则认为你现在转向是在浪费已有优势。",
+      "dilemma": "你要决定是利用已有积累、承担转向成本，还是先用小规模试验验证兴趣。",
+      "stakes": [
+        "毕业时间与课程成本",
+        "父母对稳定路径的期待",
+        "与好友的共同计划"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "申请转专业",
+          "action": "提交申请，列出补课与延毕预算，并亲自告诉好友退出竞赛。",
+          "strategyTag": "正式转向",
+          "tradeoff": "获得方向一致性，但放弃当前排名和部分共同经历。",
+          "immediate": {
+            "narrative": "好友说理解，却需要临时找新队员；父母要求你为多出的时间负责。",
+            "statDelta": {
+              "knowledge": 5,
+              "happiness": 3,
+              "cash": -3,
+              "career": -2
+            },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "trust": 1, "conflict": 6 },
+                "reason": "你准备了成本方案，但仍偏离父母认可的路径。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 3, "closeness": -2, "conflict": 2 },
+                "reason": "你及时说明退出，却让好友承担重新组队压力。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "新课程匹配兴趣时，投入和职业探索更持续。",
+            "risk": "补课压力或兴趣落差可能导致延毕，旧专业优势也难以恢复。"
+          },
+          "flags": ["applied_major_change"],
+          "followUpHooks": ["转专业考核", "好友竞赛队重组"]
+        },
+        {
+          "id": "B",
+          "label": "留在原专业重设方向",
+          "action": "保留专业和竞赛，用选修、辅修或项目向目标领域靠近。",
+          "strategyTag": "路径嫁接",
+          "tradeoff": "保留成绩与关系网络，却要同时承担两套学习任务。",
+          "immediate": {
+            "narrative": "好友松了口气并重新分工；父母认可方案，你却发现新课与竞赛时间正面冲突。",
+            "statDelta": { "knowledge": 4, "health": -3, "connections": 3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "trust": 4, "conflict": -2 },
+                "reason": "方案保留原路径，也展示了主动探索。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 3, "commitment": 3 },
+                "reason": "你继续履行竞赛承诺。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "跨专业组合可能形成差异化能力，且不必延毕。",
+            "risk": "长期双线负荷会稀释深度，最终两个方向都停在入门。"
+          },
+          "flags": ["bridged_original_major"],
+          "followUpHooks": ["竞赛与选修撞期", "跨专业项目机会"]
+        },
+        {
+          "id": "C",
+          "label": "先做一学期试验",
+          "action": "放弃本轮申请，旁听核心课并找真实项目验证，约定下一窗口必须复盘。",
+          "strategyTag": "延迟验证",
+          "tradeoff": "降低误转风险，却可能错过最容易转换的时间窗口。",
+          "immediate": {
+            "narrative": "好友接受你继续参赛，但要求你别在关键节点突然退出；父母把这看成暂时回心转意。",
+            "statDelta": { "knowledge": 3, "career": 1, "happiness": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "closeness": 2, "trust": -1 },
+                "reason": "冲突暂缓，但你没有接受父母的最终结论。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 2, "conflict": 1 },
+                "reason": "你保留承诺，也让未来退出仍有不确定性。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "真实课程和项目能检验兴趣是否经得住枯燥部分。",
+            "risk": "下一次名额更少或课程差距扩大时，试验成本会转化为机会损失。"
+          },
+          "flags": ["major_change_trial"],
+          "followUpHooks": ["旁听课程的第一次低分", "下一转专业窗口"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["大学要不要转专业", "喜欢与就业如何选择"],
+        "originalityNote": "把转专业落到补课、竞赛承诺与家庭信任。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-university-club-budget",
+      "version": 1,
+      "title": "社团经费差额",
+      "domain": "social",
+      "secondaryDomains": ["friendship", "finance"],
+      "lifeStages": ["university"],
+      "ageRange": { "min": 18, "max": 23 },
+      "requiredRelationshipRoles": ["friend", "mentor"],
+      "compatibleRelationshipTypes": ["friend", "classmate", "other"],
+      "situation": "校园活动前两天，社团账目出现一笔无法解释的经费差额。负责采购的是与你关系很好的副社长，他说只是票据丢失，希望你作为负责人先垫钱平账。指导老师只关心活动不能出事故，却没有问清钱去了哪里。",
+      "dilemma": "你要保住活动，也要决定友情、组织信誉和财务责任谁先被保护。",
+      "stakes": [
+        "活动是否按期举行",
+        "社团公共经费与成员信任",
+        "好友是否承担经手责任"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "暂停支出并核账",
+          "action": "冻结非必要支出，公开差额并让经手人共同核对票据。",
+          "strategyTag": "公开审计",
+          "tradeoff": "保护公共资金，但活动内容缩水且好友被置于审视中。",
+          "immediate": {
+            "narrative": "部分成员开始追问，好友脸色很难看；老师要求你们今晚给出结果。",
+            "statDelta": { "connections": -2, "cash": 2, "happiness": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": -2, "conflict": 7 },
+                "reason": "你没有私下替好友平账，而是要求公开说明。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 4, "conflict": 2 },
+                "reason": "你承担负责人职责，也让老师必须参与处理。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "查清差额后可建立报销与双人复核制度。",
+            "risk": "即使只是票据问题，公开怀疑也可能损害好友名誉和活动士气。"
+          },
+          "flags": ["club_budget_audited"],
+          "followUpHooks": ["差额真实原因", "成员大会是否追责"]
+        },
+        {
+          "id": "B",
+          "label": "个人垫付后限期补证",
+          "action": "先从个人资金补上差额，要求好友在活动后七天内补齐凭据并签署说明。",
+          "strategyTag": "限期兜底",
+          "tradeoff": "保住活动和好友体面，却让公共风险暂时转到你身上。",
+          "immediate": {
+            "narrative": "活动照常准备，好友不断道谢；老师只提醒你保留转账记录。",
+            "statDelta": { "cash": -6, "connections": 3, "happiness": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 4, "trust": 1, "commitment": 3 },
+                "reason": "你提供了缓冲，也设下补证期限。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 1, "conflict": 1 },
+                "reason": "你解决了眼前问题，但财务流程仍不合规。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "若票据补齐，活动和关系都能平稳收尾。",
+            "risk": "好友无法补证时，你会同时损失现金和负责人信誉。"
+          },
+          "flags": ["covered_club_shortfall"],
+          "followUpHooks": ["七天补证期限", "换届时的账目审查"]
+        },
+        {
+          "id": "C",
+          "label": "删减活动自行消化",
+          "action": "不公开差额，通过取消环节和压低物料成本把账面做平。",
+          "strategyTag": "隐性压缩",
+          "tradeoff": "避免正面冲突，却让普通成员承担不透明问题的后果。",
+          "immediate": {
+            "narrative": "参与成员发现承诺的物料被取消，好友默认了你的处理，老师以为预算本就如此。",
+            "statDelta": { "cash": 1, "connections": -5, "happiness": -3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 2, "trust": -4 },
+                "reason": "你替好友隐瞒，也让双方关系多了不能公开的账。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": -3 },
+                "reason": "老师基于不完整信息判断活动预算。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "活动可以勉强完成，不立即触发财务调查。",
+            "risk": "成员投诉或换届查账时，原本的小差额会变成组织诚信问题。"
+          },
+          "flags": ["hid_club_budget_gap"],
+          "followUpHooks": ["成员投诉物料缩水", "换届审计发现差额"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["大学社团经费问题", "朋友犯错要不要包庇"],
+        "originalityNote": "以校园活动、财务透明和友情责任原创改编。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-university-group-project",
+      "version": 1,
+      "title": "小组展示前的空白页",
+      "domain": "education",
+      "secondaryDomains": ["friendship", "social"],
+      "lifeStages": ["university"],
+      "ageRange": { "min": 18, "max": 24 },
+      "requiredRelationshipRoles": ["friend", "mentor"],
+      "compatibleRelationshipTypes": ["friend", "classmate", "other"],
+      "situation": "课程展示前一天，小组里与你关系最好的同学仍没交负责部分。他最近在准备重要面试，请你先帮忙补完，并保证答辩时会解释。老师要求提交个人贡献记录，但过去几次你们都默认平均署名。",
+      "dilemma": "你要在团队成绩、好友机会与贡献公平之间决定怎样合作。",
+      "stakes": ["小组课程成绩", "好友的面试机会", "其他成员对分工公平的信任"],
+      "options": [
+        {
+          "id": "A",
+          "label": "补救但如实记录",
+          "action": "完成最低限度补救，在贡献表中如实记录，并让好友承担答辩问答。",
+          "strategyTag": "透明补位",
+          "tradeoff": "保住团队交付，却牺牲自己的时间并让好友承担成绩风险。",
+          "immediate": {
+            "narrative": "好友接受问答任务，语气有些僵；老师看到贡献表后要求现场随机提问。",
+            "statDelta": { "health": -3, "knowledge": 3, "happiness": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 3, "conflict": 4, "commitment": 2 },
+                "reason": "你提供补救，但拒绝用平均署名掩盖分工。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 4 },
+                "reason": "贡献记录与实际分工一致。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-scene",
+            "likely": "团队完成展示，好友可通过答辩证明自己是否掌握内容。",
+            "risk": "答辩失败会拉低全组成绩，也可能让好友认为你公开了他的困难。"
+          },
+          "flags": ["group_project_transparent_rescue"],
+          "followUpHooks": ["随机问答结果", "下次组队是否继续合作"]
+        },
+        {
+          "id": "B",
+          "label": "重新分配全组任务",
+          "action": "召集全组缩减范围、重新分工，让每个人接手一小部分空缺。",
+          "strategyTag": "团队重组",
+          "tradeoff": "分摊风险较公平，但所有人都要临时加班且成品深度下降。",
+          "immediate": {
+            "narrative": "其他成员同意救场，却要求以后不再默认平均署名；好友面试结束后连夜加入。",
+            "statDelta": { "health": -2, "connections": 4, "knowledge": 1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 1, "trust": 2, "conflict": 3 },
+                "reason": "好友没有被单独抛下，也看见全组为他的缺口付出。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 2, "conflict": 1 },
+                "reason": "团队主动调整，但最终范围低于原计划。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "新的分工规则可减少未来搭便车，并增强团队协作能力。",
+            "risk": "成员可能把所有缩水归咎于好友，关系在成绩公布后恶化。"
+          },
+          "flags": ["group_project_reallocated"],
+          "followUpHooks": ["成绩公布后的归因", "建立下一次组队规则"]
+        },
+        {
+          "id": "C",
+          "label": "替好友全部完成",
+          "action": "独自补完并继续平均署名，不向老师或其他成员说明。",
+          "strategyTag": "隐性代劳",
+          "tradeoff": "最大化眼前完成度，却牺牲健康、公平和未来边界。",
+          "immediate": {
+            "narrative": "展示材料终于完整，好友说欠你一次；其他成员不知道你为什么一夜没睡。",
+            "statDelta": { "health": -7, "knowledge": 4, "happiness": -3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 4, "trust": -2, "commitment": -1 },
+                "reason": "好友获得帮助，但代劳削弱了对责任与能力的相互信任。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": -2 },
+                "reason": "个人贡献记录失真，老师无法公平评价。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "本次展示可能取得较好成绩。",
+            "risk": "好友以后会把紧急代劳视为关系默认项，你也可能积累无法表达的怨气。"
+          },
+          "flags": ["covered_friend_group_work"],
+          "followUpHooks": ["好友再次临时缺席", "其他成员发现版本记录"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["大学小组作业有人不做", "要不要替朋友完成作业"],
+        "originalityNote": "以贡献记录和好友面试冲突构造可结算的小组合作事件。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-university-scholarship-rivalry",
+      "version": 1,
+      "title": "奖学金材料里的那次缺席",
+      "domain": "finance",
+      "secondaryDomains": ["education", "friendship"],
+      "lifeStages": ["university"],
+      "ageRange": { "min": 18, "max": 24 },
+      "requiredRelationshipRoles": ["friend", "mentor"],
+      "compatibleRelationshipTypes": ["friend", "classmate", "rival", "other"],
+      "situation": "你和好友同时竞争一项会显著减轻学费压力的奖学金。评审材料里，好友把一次因照顾家人而缺席的活动写成了全程参与，辅导员没有核实。你拥有当天签到记录，也知道好友家庭确实比你困难。",
+      "dilemma": "你要在程序公平、现实处境与友情之间决定是否、以及如何指出问题。",
+      "stakes": [
+        "双方学费与生活压力",
+        "奖学金评审可信度",
+        "好友是否相信你会尊重其脆弱处境"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "先请好友自行更正",
+          "action": "私下展示记录，请好友更正材料并补充真实照护情况。",
+          "strategyTag": "私下纠错",
+          "tradeoff": "保留对方体面和解释机会，但可能被拖延到评审结束。",
+          "immediate": {
+            "narrative": "好友承认填写失实，却问为什么评审不能看见照护本身也是付出。",
+            "statDelta": { "happiness": -2, "connections": 1, "cash": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 3, "conflict": 6 },
+                "reason": "你先给对方修正机会，也明确拒绝虚假材料。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 1 },
+                "reason": "尚未公开上报，但你推动材料回到真实状态。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-scene",
+            "likely": "更正后辅导员可能把照护困境作为补充背景考虑。",
+            "risk": "好友拒绝或逾期时，你仍需决定是否正式举报。"
+          },
+          "flags": ["asked_scholarship_correction"],
+          "followUpHooks": ["材料更正截止时间", "照护经历能否被正式说明"]
+        },
+        {
+          "id": "B",
+          "label": "提交事实并建议补充机制",
+          "action": "向辅导员提交记录，同时建议允许申请人说明照护和经济困难。",
+          "strategyTag": "程序修正",
+          "tradeoff": "维护评审真实性，却可能直接损害好友资格与关系。",
+          "immediate": {
+            "narrative": "辅导员暂停了两人的评审并要求补充说明；好友从通知中猜到是你提供了记录。",
+            "statDelta": { "connections": -2, "cash": -2, "happiness": -4 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": -6, "closeness": -4, "conflict": 8 },
+                "reason": "你绕过私人沟通，使好友直接进入正式审查。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 5, "conflict": 2 },
+                "reason": "你提供事实，也指出现行评审忽略照护困境。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "评审规则可能更透明，困难背景获得正式说明入口。",
+            "risk": "规则不改变时，好友只承担处罚，你则被同学视为只会按程序竞争。"
+          },
+          "flags": ["reported_scholarship_record"],
+          "followUpHooks": ["补充评审结果", "好友是否愿意听你的制度理由"]
+        },
+        {
+          "id": "C",
+          "label": "不指出材料问题",
+          "action": "保持沉默，只完善自己的材料并接受评审结果。",
+          "strategyTag": "同情退让",
+          "tradeoff": "避免主动伤害好友，却接受不真实信息参与有限资源分配。",
+          "immediate": {
+            "narrative": "好友继续提交材料并感谢你最近的照顾；你删掉了准备发给辅导员的邮件草稿。",
+            "statDelta": { "cash": -4, "happiness": -2, "connections": 2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 3, "trust": -2 },
+                "reason": "友情表面稳定，但你隐瞒了对其做法的不认同。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": -2 },
+                "reason": "评审者无法获得影响公平判断的事实。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "好友若获奖，家庭压力会真实缓解。",
+            "risk": "你落选后可能产生怨恨，事实日后暴露也会牵连知情者。"
+          },
+          "flags": ["stayed_silent_scholarship"],
+          "followUpHooks": ["奖学金结果公布", "下一次评审再次遇到材料失实"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["奖学金评选不公平", "朋友材料造假怎么办"],
+        "originalityNote": "将经济困难、照护劳动和材料真实性置于同一校园决策。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-graduate-paper-authorship",
+      "version": 1,
+      "title": "投稿前新增的第一作者",
+      "domain": "education",
+      "secondaryDomains": ["career", "friendship"],
+      "lifeStages": ["graduate"],
+      "ageRange": { "min": 21, "max": 30 },
+      "requiredRelationshipRoles": ["mentor", "friend"],
+      "compatibleRelationshipTypes": [
+        "other",
+        "coworker",
+        "friend",
+        "classmate"
+      ],
+      "situation": "论文投稿前，导师要求把一位几乎没参与研究的高年级同门列为共同第一作者，理由是对方即将毕业。与你一起完成实验的好友排在后面，他希望你拒绝；导师则暗示投稿和毕业进度取决于团队安排。",
+      "dilemma": "你要在毕业节奏、贡献公平和实验室权力关系之间选择可承担的对抗方式。",
+      "stakes": [
+        "论文署名与毕业进度",
+        "共同研究好友的信任",
+        "导师掌握的投稿资源"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "用贡献表协商",
+          "action": "整理贡献记录，与好友共同提出按贡献排序和具体补做任务。",
+          "strategyTag": "证据协商",
+          "tradeoff": "保留投稿机会，但必须直面导师并接受延迟。",
+          "immediate": {
+            "narrative": "好友签下贡献表，导师没有当场拒绝，却把投稿会议推迟到下周。",
+            "statDelta": { "career": -2, "knowledge": 3, "happiness": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 6, "commitment": 4 },
+                "reason": "你把共同贡献转为可核对证据并一起承担协商风险。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 1, "conflict": 6 },
+                "reason": "你没有直接否定安排，但挑战了导师单方面分配署名。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "贡献机制清晰后，本篇和后续项目的署名更可预测。",
+            "risk": "导师可能拖延投稿或用其他资源施压。"
+          },
+          "flags": ["authorship_contribution_negotiation"],
+          "followUpHooks": ["下周投稿会议", "高年级同门是否补做贡献"]
+        },
+        {
+          "id": "B",
+          "label": "接受署名换按期投稿",
+          "action": "接受共同一作安排，要求导师书面确认投稿时间和你在后续项目中的主导权。",
+          "strategyTag": "交换妥协",
+          "tradeoff": "保护毕业进度，却让实际贡献者承担不公平。",
+          "immediate": {
+            "narrative": "导师很快确认投稿，好友只说自己需要重新考虑下一篇是否继续合作。",
+            "statDelta": { "career": 4, "happiness": -4, "connections": 2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": -6, "closeness": -4, "conflict": 5 },
+                "reason": "你用共同贡献换取了自己的确定性。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 3, "commitment": 2 },
+                "reason": "你接受团队安排，也要求了有限的书面交换。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "论文按期投稿，毕业节点更稳定。",
+            "risk": "后续主导权未兑现时，你已失去好友合作和本次谈判筹码。"
+          },
+          "flags": ["accepted_authorship_trade"],
+          "followUpHooks": ["投稿是否按期", "下一项目主导权兑现"]
+        },
+        {
+          "id": "C",
+          "label": "拒绝投稿并寻求复核",
+          "action": "暂停提交，向学院或期刊署名规范渠道请求复核。",
+          "strategyTag": "正式申诉",
+          "tradeoff": "最强力维护贡献规则，也承担延期毕业和实验室关系破裂。",
+          "immediate": {
+            "narrative": "好友愿意提供记录，导师停止回复投稿消息，并让你考虑清楚后果。",
+            "statDelta": { "career": -6, "connections": -3, "happiness": -3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 7, "commitment": 5 },
+                "reason": "你愿意为共同贡献承担正式风险。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": -5, "conflict": 10, "commitment": -4 },
+                "reason": "争议从实验室内部升级到正式规范程序。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "复核若支持你，署名可纠正并留下制度记录。",
+            "risk": "处理周期可能超过毕业节点，你需要寻找新的指导和推荐来源。"
+          },
+          "flags": ["formally_contested_authorship"],
+          "followUpHooks": ["学院复核结果", "更换导师或延期毕业"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["论文署名不公平", "导师强加共同一作"],
+        "originalityNote": "围绕贡献记录、毕业期限和同门关系原创设计。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-graduate-data-anomaly",
+      "version": 1,
+      "title": "复现实验没有出现结果",
+      "domain": "education",
+      "secondaryDomains": ["career", "friendship"],
+      "lifeStages": ["graduate"],
+      "ageRange": { "min": 21, "max": 31 },
+      "requiredRelationshipRoles": ["mentor", "friend"],
+      "compatibleRelationshipTypes": [
+        "other",
+        "coworker",
+        "friend",
+        "classmate"
+      ],
+      "situation": "项目结题前，你发现关键实验无法复现。负责原始数据的同门好友承认曾删除‘明显异常’样本，但认为不影响结论；导师要求先按原计划汇报，之后再补实验。资金和两个人的毕业都与这次结题相关。",
+      "dilemma": "你要在研究可信度、团队生存和对好友的保护之间决定事实何时被说出。",
+      "stakes": [
+        "研究结果的可信度",
+        "项目结题与毕业资源",
+        "好友是否承担数据处理责任"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "暂停结论并补实验",
+          "action": "保留全部样本，提交异常说明和复现实验计划，请求延期结题。",
+          "strategyTag": "可信度优先",
+          "tradeoff": "保护研究底线，但直接威胁进度、资金和导师评价。",
+          "immediate": {
+            "narrative": "导师认为你把技术问题上升得过快，好友却把原始记录完整交给了你。",
+            "statDelta": { "career": -5, "knowledge": 6, "happiness": -3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 4, "conflict": 6 },
+                "reason": "你没有替好友隐瞒，也给了他共同修复的机会。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": -2, "conflict": 8 },
+                "reason": "你拒绝按原计划汇报，挑战了项目进度优先级。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "补实验能澄清真实效应，并避免错误结论进入后续研究。",
+            "risk": "延期可能影响经费和毕业，团队也可能把损失归咎于你。"
+          },
+          "flags": ["paused_for_replication"],
+          "followUpHooks": ["复现实验结果", "结题延期责任归属"]
+        },
+        {
+          "id": "B",
+          "label": "按原计划但公开限制",
+          "action": "继续汇报，在材料中明确删除规则、复现失败和结论限制。",
+          "strategyTag": "限定披露",
+          "tradeoff": "保留结题机会，却可能让评审认为结果不足且暴露团队流程问题。",
+          "immediate": {
+            "narrative": "导师同意加一页限制说明，好友担心评审会追问是谁处理的数据。",
+            "statDelta": { "career": 1, "knowledge": 3, "connections": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 2, "conflict": 4 },
+                "reason": "你没有隐瞒问题，但好友仍可能在追问中承担责任。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 3, "conflict": 3 },
+                "reason": "你保留项目节奏，也迫使导师接受不确定结论。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "评审若接受限制，项目可结题并获得补实验时间。",
+            "risk": "评审可能要求撤回核心结论，且质疑团队数据管理。"
+          },
+          "flags": ["disclosed_data_limitations"],
+          "followUpHooks": ["评审追问数据处理", "补实验是否获得资源"]
+        },
+        {
+          "id": "C",
+          "label": "沿用原结论",
+          "action": "按导师要求汇报，不主动提复现失败，计划结题后再修正。",
+          "strategyTag": "进度掩盖",
+          "tradeoff": "最大化短期结题概率，却把研究诚信和未来追责推迟。",
+          "immediate": {
+            "narrative": "导师恢复了汇报安排，好友松了一口气；你把复现记录放进了没有共享的文件夹。",
+            "statDelta": { "career": 5, "happiness": -5, "knowledge": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 3, "trust": -5, "commitment": -2 },
+                "reason": "你保护了好友的眼前处境，也让双方共享了不可公开的风险。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 2, "commitment": 2 },
+                "reason": "你遵从了进度安排，但导师不知道你保留了完整异议。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "结题和毕业节点短期保持不变。",
+            "risk": "他人无法复现或原始数据被审查时，所有知情者都会面临更严重的信誉后果。"
+          },
+          "flags": ["concealed_replication_failure"],
+          "followUpHooks": ["外部团队请求数据", "好友再次处理异常样本"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["实验结果无法复现", "科研数据异常如何处理"],
+        "originalityNote": "将研究诚信置于导师、同门和毕业资源的现实压力中。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-graduate-internship-thesis",
+      "version": 1,
+      "title": "实习转正与论文中期撞期",
+      "domain": "career",
+      "secondaryDomains": ["education", "romance", "health"],
+      "lifeStages": ["graduate"],
+      "ageRange": { "min": 21, "max": 30 },
+      "requiredRelationshipRoles": ["mentor", "partner"],
+      "compatibleRelationshipTypes": ["other", "coworker", "partner", "spouse"],
+      "situation": "实习团队给了你参与核心上线并争取转正的机会，但时间与论文中期检查完全重叠。导师认为实习无助于课题，伴侣已经连续几个周末替你处理生活琐事，并明确说不能无限支持‘两边都要’。",
+      "dilemma": "你必须放弃一部分机会，或用透明协商承担两边都可能不满意的结果。",
+      "stakes": [
+        "论文进度与毕业风险",
+        "转正机会和职业入口",
+        "伴侣承担的生活与情绪劳动"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "暂停实习保论文",
+          "action": "退出核心上线，完成中期检查，并与实习团队约定之后可重新申请的条件。",
+          "strategyTag": "毕业优先",
+          "tradeoff": "降低延期风险，却可能失去稀缺的转正窗口。",
+          "immediate": {
+            "narrative": "导师给出更具体的检查标准；伴侣终于有了一个不用等你加班的周末。",
+            "statDelta": { "knowledge": 5, "career": -6, "health": 3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 4, "conflict": -2 },
+                "reason": "你把论文责任放回优先位置。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "closeness": 4, "trust": 5, "conflict": -3 },
+                "reason": "你停止让伴侣为双重承诺持续兜底。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "中期通过后毕业路径稳定，可用完整作品重新求职。",
+            "risk": "实习团队可能迅速补位，未来没有同等转正机会。"
+          },
+          "flags": ["paused_internship_for_thesis"],
+          "followUpHooks": ["中期检查结果", "实习团队是否保留机会"]
+        },
+        {
+          "id": "B",
+          "label": "申请联合排期",
+          "action": "向导师和实习主管分别提交六周排期，删掉非核心任务并设置失败退出点。",
+          "strategyTag": "双边协商",
+          "tradeoff": "保留两条路径，但健康和信用取决于严格执行边界。",
+          "immediate": {
+            "narrative": "双方都要求你给出每周可验证交付；伴侣同意观察两周，但不再替你处理所有生活事务。",
+            "statDelta": { "career": 3, "knowledge": 3, "health": -4 },
+            "relationshipEffects": [
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 3, "conflict": 3 },
+                "reason": "计划具体，但导师仍认为注意力被分散。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 3, "conflict": 2, "commitment": 1 },
+                "reason": "你承认伴侣的边界，却仍选择高负荷试验。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "若关键交付都完成，你能同时保留毕业和转正可能。",
+            "risk": "任何一边临时加码都会击穿排期，并使双方都认为你失信。"
+          },
+          "flags": ["thesis_internship_joint_schedule"],
+          "followUpHooks": ["两周负荷复盘", "一方临时增加任务"]
+        },
+        {
+          "id": "C",
+          "label": "全力争取转正",
+          "action": "推迟中期检查，把主要时间投入上线，并接受可能延期毕业。",
+          "strategyTag": "职业窗口押注",
+          "tradeoff": "抓住当前职业入口，却让学业风险和生活负担集中爆发。",
+          "immediate": {
+            "narrative": "实习主管把你加入核心会议，导师停止主动指导；伴侣问延期毕业是否也需要由两个人一起承担。",
+            "statDelta": {
+              "career": 7,
+              "knowledge": -3,
+              "health": -5,
+              "cash": 2
+            },
+            "relationshipEffects": [
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": -6, "conflict": 8, "commitment": -3 },
+                "reason": "你主动推迟学业节点并改变了双方合作基础。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": -3, "conflict": 6, "closeness": -2 },
+                "reason": "重大时间和财务后果在未充分协商时进入共同生活。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "上线成功并转正后，职业和现金安全度显著改善。",
+            "risk": "转正落空时，你可能同时失去实习机会、导师支持和按期毕业资格。"
+          },
+          "flags": ["prioritized_conversion_over_thesis"],
+          "followUpHooks": ["上线结果与转正决定", "延期毕业后的关系谈判"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["研究生实习影响毕业", "实习转正和论文冲突"],
+        "originalityNote": "以双边承诺、伴侣劳动和可退出排期重新设计。",
+        "reviewStatus": "reviewed"
+      }
+    }
+  ]
+}

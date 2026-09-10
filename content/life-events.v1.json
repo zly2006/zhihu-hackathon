@@ -1,0 +1,1304 @@
+{
+  "schemaVersion": 1,
+  "updatedAt": "2026-09-10",
+  "events": [
+    {
+      "id": "life-grad-school-or-offer",
+      "version": 1,
+      "title": "录取通知与入职期限",
+      "domain": "education",
+      "secondaryDomains": ["career", "romance", "family"],
+      "lifeStages": ["university"],
+      "ageRange": { "min": 20, "max": 27 },
+      "requiredRelationshipRoles": ["partner", "parent"],
+      "compatibleRelationshipTypes": ["partner", "family"],
+      "situation": "研究生拟录取通知在周一早上到达，而你签过意向书的公司要求周三前确认入职。伴侣已经按你留在本地工作安排了明年的生活，父母却把继续读书看作一次不能错过的上升机会。两边都不是一句‘支持你’就能消失的成本。",
+      "dilemma": "你必须在继续积累学历、尽快获得收入，以及重新设计一条兼顾关系的路径之间作出承诺。",
+      "stakes": [
+        "未来三年的收入与职业起点",
+        "伴侣对共同计划的信任",
+        "父母对风险和教育回报的期待"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "接受录取",
+          "action": "拒绝 offer，入学前与伴侣和父母分别谈清生活安排、预算与见面频率。",
+          "strategyTag": "学历投资",
+          "tradeoff": "用短期收入和相处时间换长期训练，但不承诺学历必然带来更好工作。",
+          "immediate": {
+            "narrative": "父母明显松了口气；伴侣没有反对，却要求你们把异地、费用和毕业城市写成可检查的计划。",
+            "statDelta": { "cash": -5, "knowledge": 6, "career": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 2, "conflict": 3, "commitment": 2 },
+                "reason": "你坦白了代价并邀请对方共同规划，但改变了原先约定。"
+              },
+              {
+                "targetRole": "parent",
+                "delta": { "closeness": 2, "conflict": -2 },
+                "reason": "选择符合父母期待，也让他们愿意提供有限支持。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "专业训练和同学网络增加，若持续投入可打开新的职业入口。",
+            "risk": "经济压力或研究方向不合适时，你可能同时失去原 offer，并把焦虑转嫁给伴侣。"
+          },
+          "flags": ["chose_grad_school", "relationship_plan_required"],
+          "followUpHooks": ["第一次异地计划复盘", "导师方向与个人期待冲突"]
+        },
+        {
+          "id": "B",
+          "label": "按期入职",
+          "action": "放弃录取，接受 offer，同时为一年后的学习或转岗保留明确复盘节点。",
+          "strategyTag": "现金优先",
+          "tradeoff": "获得稳定现金流和共同生活，却提前承担岗位路径依赖。",
+          "immediate": {
+            "narrative": "伴侣开始和你讨论租房；父母沉默了一会儿，问你是否真的了解这份工作的成长空间。",
+            "statDelta": { "cash": 7, "career": 4, "knowledge": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "partner",
+                "delta": { "closeness": 4, "commitment": 3 },
+                "reason": "你兑现了留在本地共同生活的计划。"
+              },
+              {
+                "targetRole": "parent",
+                "delta": { "trust": -1, "conflict": 3 },
+                "reason": "父母担心你为眼前收入放弃长期机会。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "工作经验与现金安全度提升，你更早知道自己是否适合行业。",
+            "risk": "高强度工作可能吞掉复盘时间，‘以后再学’逐渐变成没有期限的拖延。"
+          },
+          "flags": ["chose_first_offer", "education_revisit_due"],
+          "followUpHooks": ["入职半年后的成长复盘", "父母再次提起深造"]
+        },
+        {
+          "id": "C",
+          "label": "申请延期",
+          "action": "分别联系学校和公司，提出延期入学或推迟入职，并接受两边都可能拒绝。",
+          "strategyTag": "协商换窗",
+          "tradeoff": "用不确定性换取更多信息和协调空间，也暴露自己尚未作出承诺。",
+          "immediate": {
+            "narrative": "伴侣愿意陪你列问题清单，但提醒你不能把决定无限交给别人；父母担心你两头落空。",
+            "statDelta": { "connections": 3, "happiness": -2, "career": 1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 2, "conflict": 1 },
+                "reason": "你让对方参与信息收集，但仍延长了共同计划的不确定期。"
+              },
+              {
+                "targetRole": "parent",
+                "delta": { "trust": -1, "conflict": 2 },
+                "reason": "父母认可你主动沟通，却无法接受机会可能同时失去。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "若一方同意，你能用真实体验而非想象做决定。",
+            "risk": "双方都拒绝时，你必须承担空档期以及亲近者对你决断力的怀疑。"
+          },
+          "flags": ["negotiated_deadlines"],
+          "followUpHooks": ["学校与公司的正式回复", "空档期的共同预算谈判"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["考研还是工作", "应届生 offer 选择"],
+        "originalityNote": "基于常见议题重新设计人物、时限与后果，不复制具体问答。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-advisor-boundary",
+      "version": 1,
+      "title": "深夜发来的额外任务",
+      "domain": "education",
+      "secondaryDomains": ["career", "health", "friendship"],
+      "lifeStages": ["graduate"],
+      "ageRange": { "min": 21, "max": 31 },
+      "requiredRelationshipRoles": ["mentor", "friend"],
+      "compatibleRelationshipTypes": [
+        "other",
+        "coworker",
+        "friend",
+        "classmate"
+      ],
+      "situation": "导师连续第三周在周五深夜发来与论文关系不大的项目任务，并暗示是否配合会影响推荐信。同组好友已经替你分担过两次，自己的实验也因此延期。下周一是你论文中期检查，继续硬扛、直接拒绝或寻求正式协调都会留下关系后果。",
+      "dilemma": "你要保护毕业进度，也要决定是否继续让不透明的权力关系和朋友的善意替你承担代价。",
+      "stakes": [
+        "论文进度和健康",
+        "导师推荐与评价权",
+        "同组朋友的公平感和信任"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "书面确认边界",
+          "action": "列出现有论文节点和可承担工时，请导师书面确认任务优先级，并停止让朋友代做。",
+          "strategyTag": "透明协商",
+          "tradeoff": "短期制造直接摩擦，换取职责和证据清晰。",
+          "immediate": {
+            "narrative": "好友第一次听见你明确说‘这部分不该由你替我做’；导师回复很短，让你周一当面谈。",
+            "statDelta": { "health": 2, "career": -1, "knowledge": 2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 5, "conflict": -2 },
+                "reason": "你停止消耗朋友的时间，并承认此前分工不公平。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "trust": 1, "conflict": 5 },
+                "reason": "边界变清晰，但导师感到权威被挑战。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "任务优先级被记录后，你更容易保护论文时间或获得明确补偿。",
+            "risk": "导师可能减少非正式机会，并在不易证明的评价环节变得冷淡。"
+          },
+          "flags": ["documented_mentor_boundary"],
+          "followUpHooks": ["周一的边界谈判", "推荐信内容是否缩水"]
+        },
+        {
+          "id": "B",
+          "label": "再扛这一周",
+          "action": "接受任务但独自完成，不再让好友分担，并把中期检查风险留给自己。",
+          "strategyTag": "短期服从",
+          "tradeoff": "保住表面关系，却用健康和论文质量支付隐性成本。",
+          "immediate": {
+            "narrative": "导师很快回了一个‘辛苦’，好友却没有像以前一样留下来陪你熬夜。",
+            "statDelta": { "health": -7, "career": 3, "happiness": -4 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": -2, "trust": 1, "conflict": 1 },
+                "reason": "你不再要求朋友代做，但也拒绝讨论长期解决办法。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "closeness": 1, "trust": 2 },
+                "reason": "你按时交付，延续了导师对你随叫随到的预期。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "短期评价保持稳定，项目经历可能成为履历材料。",
+            "risk": "额外任务变成默认职责，健康下降和论文延期在下一节点集中爆发。"
+          },
+          "flags": ["accepted_unbounded_work"],
+          "followUpHooks": ["中期检查准备不足", "下一次深夜任务是否再次到来"]
+        },
+        {
+          "id": "C",
+          "label": "请求正式协调",
+          "action": "整理任务记录，与好友共同向项目负责人或学院协调机制说明职责冲突。",
+          "strategyTag": "制度求助",
+          "tradeoff": "用公开升级换取第三方介入，同时让所有人承担关系公开化的压力。",
+          "immediate": {
+            "narrative": "好友同意提供记录，但要求你在会议上自己说明诉求；导师得知协调申请后取消了当晚任务。",
+            "statDelta": { "connections": 2, "health": 3, "career": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 4, "commitment": 2 },
+                "reason": "你邀请朋友作证但没有要求其替你冲在前面。"
+              },
+              {
+                "targetRole": "mentor",
+                "delta": { "conflict": 8, "trust": -3 },
+                "reason": "你把私人权力关系带入正式程序。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "职责可能重新分配，其他学生也获得更清晰的工作边界。",
+            "risk": "协调失败会让实验室关系持续紧张，你需要准备更换指导或推荐来源。"
+          },
+          "flags": ["escalated_advisor_issue"],
+          "followUpHooks": ["学院协调结果", "是否寻找第二导师"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["被导师压榨怎么办", "研究生如何设立边界"],
+        "originalityNote": "综合常见校园权力困境，以程序性选择和同伴关系重新创作。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-long-distance-decision",
+      "version": 1,
+      "title": "两座城市的期限",
+      "domain": "romance",
+      "secondaryDomains": ["career", "relocation"],
+      "lifeStages": ["university", "graduate"],
+      "ageRange": { "min": 21, "max": 38 },
+      "requiredRelationshipRoles": ["partner"],
+      "compatibleRelationshipTypes": ["partner", "spouse"],
+      "situation": "伴侣拿到外地两年项目，你的工作刚进入关键晋升期。过去三个月，你们每次讨论未来都停在‘到时候再说’，如今对方需要在四十八小时内回复。真正的问题不是是否相爱，而是谁迁移、如何维持，以及两年后是否仍有共同城市。",
+      "dilemma": "你们需要把感情从口头承诺变成可以执行、也允许失败的安排。",
+      "stakes": [
+        "双方职业连续性",
+        "关系中的公平与承诺",
+        "迁移成本和共同生活期限"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "共同制定异地契约",
+          "action": "支持对方赴任，约定见面预算、沟通频率、冲突处理和六个月复盘。",
+          "strategyTag": "结构化异地",
+          "tradeoff": "保留双方职业，但把金钱、时间和孤独变成持续成本。",
+          "immediate": {
+            "narrative": "你们第一次把车票、假期和最坏情况摊开讨论。浪漫少了一点，可信度多了一点。",
+            "statDelta": { "cash": -3, "career": 3, "happiness": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 5, "commitment": 4, "conflict": 2 },
+                "reason": "共同规则提升了承诺感，也暴露了双方对联系频率的差异。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "双方保住职业积累，并能用复盘判断关系是否真实可持续。",
+            "risk": "高压期错过约定后，规则可能从安全感变成互相审查。"
+          },
+          "flags": ["long_distance_contract"],
+          "followUpHooks": ["第一次失约后的修复", "六个月共同城市复盘"]
+        },
+        {
+          "id": "B",
+          "label": "随对方迁移",
+          "action": "放弃当前晋升窗口，跟随伴侣迁移，并先确认自己的工作与社交重建计划。",
+          "strategyTag": "关系优先迁移",
+          "tradeoff": "换取共同生活，但职业损失不能要求伴侣日后偿还。",
+          "immediate": {
+            "narrative": "伴侣感动之后立刻问：如果新城市不顺，你会不会把怨气算在这次选择上。",
+            "statDelta": { "career": -6, "connections": -4, "happiness": 4 },
+            "relationshipEffects": [
+              {
+                "targetRole": "partner",
+                "delta": { "closeness": 7, "commitment": 6, "conflict": 2 },
+                "reason": "共同生活增强连接，但牺牲的不对称成为潜在议题。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "共同日常加深理解，你有机会在新城市重建方向。",
+            "risk": "求职不顺时，经济依赖和‘我为你牺牲’会侵蚀关系平等。"
+          },
+          "flags": ["moved_for_partner"],
+          "followUpHooks": ["新城市求职受挫", "伴侣如何回应你的牺牲感"]
+        },
+        {
+          "id": "C",
+          "label": "约定关系暂停",
+          "action": "承认双方目前无法承担异地或迁移，设定清晰期限暂停排他承诺，并保留复谈条件。",
+          "strategyTag": "诚实止损",
+          "tradeoff": "减少长期拉扯，却主动承受失去关系的现实可能。",
+          "immediate": {
+            "narrative": "对方很难过，但没有要求你说一句自己不相信的保证。你们约好离开前再见一次。",
+            "statDelta": { "happiness": -8, "career": 4 },
+            "relationshipEffects": [
+              {
+                "targetRole": "partner",
+                "delta": {
+                  "closeness": -6,
+                  "trust": 3,
+                  "commitment": -8,
+                  "conflict": 1
+                },
+                "reason": "关系承诺下降，但诚实避免了用模糊希望拖住对方。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "双方能够独立选择城市和职业，不再用等待惩罚彼此。",
+            "risk": "距离带来的新生活可能让复谈失去意义，关系转为前任或结束。"
+          },
+          "flags": ["relationship_paused"],
+          "followUpHooks": ["离开前最后一次见面", "约定期限后的复谈或告别"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["要不要异地恋", "为伴侣换城市值得吗"],
+        "originalityNote": "不预设爱情优先，以双方职业和承诺可执行性重新创作。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-roommate-common-space",
+      "version": 1,
+      "title": "公共区域的最后一根稻草",
+      "domain": "friendship",
+      "secondaryDomains": ["housing", "health"],
+      "lifeStages": ["university", "graduate"],
+      "ageRange": { "min": 18, "max": 32 },
+      "requiredRelationshipRoles": ["roommate", "friend"],
+      "compatibleRelationshipTypes": ["classmate", "friend", "other"],
+      "situation": "你连续两周替室友清理公共区域，今晚回家又发现水槽堵住。好友正好来访，看见后劝你直接搬走；室友却刚经历失业，白天几乎不出门。继续忍耐、制定规则或结束合住，都会改变你们作为朋友与合住者的关系。",
+      "dilemma": "你要处理卫生与边界，也要避免把对方的困难当成无限免责理由。",
+      "stakes": ["居住健康和精力", "室友情谊与尊严", "搬家现金成本"],
+      "options": [
+        {
+          "id": "A",
+          "label": "开一次合住会议",
+          "action": "用具体记录说明问题，共同制定轮值、最低卫生线和连续失约后的处理办法。",
+          "strategyTag": "规则共治",
+          "tradeoff": "承担尴尬谈话，换取可检查的共同规则。",
+          "immediate": {
+            "narrative": "室友先是防御，看到你只谈具体事项后承认最近状态很差；好友不再替你做决定。",
+            "statDelta": { "health": 3, "happiness": 1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "roommate",
+                "delta": { "trust": 4, "conflict": 4, "commitment": 2 },
+                "reason": "问题被直接说出，冲突上升但双方获得修复机会。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 1 },
+                "reason": "你听取建议后自行承担决定。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "规则执行后居住压力下降，室友也更容易开口说明困难。",
+            "risk": "若对方持续失约，你仍要执行搬离后果，不能让会议变成一次情绪安抚。"
+          },
+          "flags": ["roommate_rules_set"],
+          "followUpHooks": ["第一次轮值失约", "室友是否愿意寻求帮助"]
+        },
+        {
+          "id": "B",
+          "label": "先替对方兜底",
+          "action": "暂时继续清理，并私下为室友寻找工作和心理支持资源。",
+          "strategyTag": "照护缓冲",
+          "tradeoff": "给对方恢复窗口，却继续消耗自己的时间与边界。",
+          "immediate": {
+            "narrative": "室友感谢你找来的信息，却没有主动碰水槽；好友问你准备兜底到什么时候。",
+            "statDelta": { "health": -3, "connections": 2, "happiness": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "roommate",
+                "delta": { "closeness": 4, "trust": 2, "commitment": -1 },
+                "reason": "室友感受到照顾，但对共同责任的承担继续下降。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": -1, "conflict": 2 },
+                "reason": "好友认为你再次忽略自己的处境。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "如果室友恢复行动能力，这段照护可能成为重要的共同记忆。",
+            "risk": "帮助没有期限时，你会积累怨气，对方也更难区分支持与代劳。"
+          },
+          "flags": ["roommate_care_window"],
+          "followUpHooks": ["照护期限到期", "好友拒绝再听同一抱怨"]
+        },
+        {
+          "id": "C",
+          "label": "启动搬家",
+          "action": "按合同提前告知搬离，承担押金或通勤损失，并协助完成一次交接。",
+          "strategyTag": "退出合住",
+          "tradeoff": "迅速恢复生活边界，但结束共同日常并承担现金成本。",
+          "immediate": {
+            "narrative": "室友说你在他最难的时候离开；好友帮你列房源，却提醒你不要把自己包装成毫无责任。",
+            "statDelta": { "cash": -6, "health": 5, "happiness": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "roommate",
+                "delta": { "closeness": -6, "trust": -2, "conflict": 6 },
+                "reason": "搬离保护了边界，也让室友感到被抛下。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 2, "commitment": 1 },
+                "reason": "好友看见你终于采取行动，并愿意提供有限帮助。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "新的居住环境恢复健康与工作节奏。",
+            "risk": "押金和租金压力增加，旧友关系若没有后续说明可能永久疏远。"
+          },
+          "flags": ["left_shared_home"],
+          "followUpHooks": ["搬家后的财务紧张", "是否向前室友解释边界而非指责"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["室友矛盾怎么解决", "朋友合租如何设边界"],
+        "originalityNote": "把卫生争议扩展为照护、边界与退出成本的关系事件。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-first-offer-values",
+      "version": 1,
+      "title": "三份 offer 的不同生活",
+      "domain": "career",
+      "secondaryDomains": ["finance", "relocation", "family"],
+      "lifeStages": ["university", "graduate"],
+      "ageRange": { "min": 20, "max": 29 },
+      "requiredRelationshipRoles": ["parent", "partner"],
+      "compatibleRelationshipTypes": ["family", "partner"],
+      "situation": "校招季结束，你手里有三种并不等价的路径：高薪但高强度的外地岗位、本地收入普通却有成熟导师的团队，以及一家方向喜欢但现金紧张的初创公司。父母希望你选稳定和薪资，伴侣更在意是否留在同城，而你在意能否真正学到东西。",
+      "dilemma": "这不是比较三个工资数字，而是在决定前两年由谁承担风险、你愿意过怎样的日常。",
+      "stakes": [
+        "现金安全度与工作强度",
+        "能力成长与职业期权",
+        "家庭和伴侣对未来安排的参与感"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "去外地高薪岗",
+          "action": "接受高薪岗位，建立健康底线和一年退出条件，并与伴侣讨论迁移或异地。",
+          "strategyTag": "现金换强度",
+          "tradeoff": "迅速积累现金和履历，但牺牲时间、健康及同城关系。",
+          "immediate": {
+            "narrative": "父母开始向亲友报喜，伴侣却只问了一句：‘一年后退出，是计划还是安慰我？’",
+            "statDelta": { "cash": 8, "career": 5, "health": -4 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "closeness": 2, "trust": 3 },
+                "reason": "薪资与平台符合父母对安全和体面的理解。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": -1, "conflict": 5, "commitment": 1 },
+                "reason": "你提出期限，但异地成本主要由关系承担。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "现金与履历增长，为之后转岗提供筹码。",
+            "risk": "退出条件被奖金和沉没成本推迟，健康与关系在高强度中持续磨损。"
+          },
+          "flags": ["accepted_high_pay_offer"],
+          "followUpHooks": ["第一次加班错过约定", "一年退出条件复盘"]
+        },
+        {
+          "id": "B",
+          "label": "选本地导师团队",
+          "action": "接受本地成熟团队，主动争取负责完整项目而非只做辅助工作。",
+          "strategyTag": "导师型成长",
+          "tradeoff": "放弃最高薪资，换取可验证的训练、较稳定生活和同城关系。",
+          "immediate": {
+            "narrative": "伴侣开始计划周末；父母拿着薪资差反复计算，你则约了未来导师确认前六个月任务。",
+            "statDelta": { "cash": 3, "knowledge": 6, "career": 3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "partner",
+                "delta": { "closeness": 4, "trust": 3 },
+                "reason": "你保留同城生活并给出了清晰成长依据。"
+              },
+              {
+                "targetRole": "parent",
+                "delta": { "conflict": 2, "trust": 1 },
+                "reason": "父母仍担心收入，但看见选择不是单纯求稳。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "若导师兑现承诺，你将获得完整项目经验和稳定推荐。",
+            "risk": "团队可能用‘培养新人’包装低薪杂务，成长速度低于预期。"
+          },
+          "flags": ["accepted_mentor_team_offer"],
+          "followUpHooks": ["导师是否兑现项目承诺", "薪资差带来的家庭比较"]
+        },
+        {
+          "id": "C",
+          "label": "加入喜欢的初创",
+          "action": "加入初创，但先谈清现金储备、职责边界和三个月生存检查点。",
+          "strategyTag": "兴趣押注",
+          "tradeoff": "获得方向所有权与高波动机会，同时承担公司和个人双重现金风险。",
+          "immediate": {
+            "narrative": "父母认为你在拿未来试错，伴侣愿意支持三个月，但明确不会无限承担你的生活成本。",
+            "statDelta": {
+              "cash": -4,
+              "knowledge": 4,
+              "career": 4,
+              "happiness": 3
+            },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "trust": -3, "conflict": 5 },
+                "reason": "选择偏离父母的稳定预期，且失败成本可见。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 2, "commitment": 2, "conflict": 2 },
+                "reason": "你尊重了伴侣的财务边界，但把波动带入共同生活。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "你快速接触核心业务，兴趣和责任感可能形成稀缺能力。",
+            "risk": "融资或产品失败会使现金迅速下降，并考验亲近者是否需要替你兜底。"
+          },
+          "flags": ["joined_early_startup"],
+          "followUpHooks": ["三个月现金检查点", "产品方向与价值观冲突"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["第一份 offer 怎么选", "大厂和初创如何选择"],
+        "originalityNote": "用生活结构、关系成本和退出条件重写 offer 比较题。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-parent-care-opportunity",
+      "version": 1,
+      "title": "手术日期与晋升项目",
+      "domain": "family",
+      "secondaryDomains": ["health", "career", "finance"],
+      "lifeStages": ["graduate"],
+      "ageRange": { "min": 24, "max": 48 },
+      "requiredRelationshipRoles": ["parent", "partner"],
+      "compatibleRelationshipTypes": ["family", "partner", "spouse"],
+      "situation": "父亲需要接受一场恢复期较长的手术，母亲嘴上说能照顾，实际已经疲惫。与此同时，你负责的晋升项目进入最后六周，临时退出会让同事接手成果。伴侣愿意帮忙，但明确表示不能长期独自承担你们两个人的生活。",
+      "dilemma": "照护不是一句孝顺，职业也不是一句现实；你要决定如何分配时间、金钱与求助责任。",
+      "stakes": ["父母照护质量", "晋升项目与同事公平", "伴侣承担的隐形劳动"],
+      "options": [
+        {
+          "id": "A",
+          "label": "请假承担主照护",
+          "action": "申请阶段性请假回家，向团队完整交接，并与父母约定恢复期后的退出日期。",
+          "strategyTag": "亲自照护",
+          "tradeoff": "把照护质量握在手里，但职业机会和家庭现金流受损。",
+          "immediate": {
+            "narrative": "父亲说不用你回来，母亲却在电话那头沉默；伴侣开始重排共同预算。",
+            "statDelta": {
+              "career": -6,
+              "cash": -4,
+              "happiness": 2,
+              "health": -2
+            },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "closeness": 7, "trust": 5, "commitment": 5 },
+                "reason": "你实际承担照护而非只表达关心。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "commitment": 2, "conflict": 4 },
+                "reason": "伴侣认可你的责任，也需要承担预算和独处压力。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "家庭关系因共同度过恢复期而加深，照护信息更透明。",
+            "risk": "请假边界失守时，你会成为默认照护者，并错过晋升与收入增长。"
+          },
+          "flags": ["became_primary_carer"],
+          "followUpHooks": ["恢复期退出日期", "回岗后项目归属争议"]
+        },
+        {
+          "id": "B",
+          "label": "组织分工与付费照护",
+          "action": "保留项目职责，投入现金购买部分照护，并组织家人轮班、远程问诊和固定探视。",
+          "strategyTag": "资源协同",
+          "tradeoff": "保住职业连续性，却用现金和协调劳动替代全天陪伴。",
+          "immediate": {
+            "narrative": "母亲终于承认自己需要帮手；父亲对陌生护理人员不太自在，伴侣愿意承担一次探视。",
+            "statDelta": { "cash": -8, "career": 4, "connections": 2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "trust": 3, "conflict": 2, "closeness": 2 },
+                "reason": "照护更可持续，但父母需要适应由外人参与。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 4, "commitment": 3 },
+                "reason": "你没有默认让伴侣补位，而是明确分工和预算。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "分工稳定后，父母获得持续照护，你也能完成项目。",
+            "risk": "服务质量或家人轮班失约时，你仍可能在关键工作期被迫返乡。"
+          },
+          "flags": ["care_network_built"],
+          "followUpHooks": ["照护服务质量检查", "家人轮班是否兑现"]
+        },
+        {
+          "id": "C",
+          "label": "先完成关键六周",
+          "action": "明确六周内不回去长期照护，只承担费用和每日联系，项目结束后再接替母亲。",
+          "strategyTag": "延期承担",
+          "tradeoff": "最大化职业收益，但把当前照护压力集中给父母和伴侣。",
+          "immediate": {
+            "narrative": "母亲说‘工作要紧’，声音却比平时更累；伴侣问你六周后是否真的会兑现。",
+            "statDelta": { "career": 7, "cash": -3, "happiness": -5 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "closeness": -3, "trust": -2, "conflict": 3 },
+                "reason": "你提供费用但没有在最需要时出现。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": -2, "conflict": 3 },
+                "reason": "伴侣担心你会在共同生活中同样推迟照护责任。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "项目成功可改善收入与职业位置，为长期照护提供资源。",
+            "risk": "父母恢复不顺或母亲透支时，错过的陪伴无法由后来资源完全补偿。"
+          },
+          "flags": ["delayed_family_care"],
+          "followUpHooks": ["六周承诺到期", "母亲的健康是否被忽视"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["父母生病与工作冲突", "独生子女照护压力"],
+        "originalityNote": "围绕照护劳动、职业连续性和伴侣边界进行原创情境设计。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-friend-loan-boundary",
+      "version": 1,
+      "title": "好友的借款请求",
+      "domain": "finance",
+      "secondaryDomains": ["friendship", "family"],
+      "lifeStages": ["graduate"],
+      "ageRange": { "min": 22, "max": 55 },
+      "requiredRelationshipRoles": ["friend", "partner"],
+      "compatibleRelationshipTypes": [
+        "friend",
+        "close_friend",
+        "partner",
+        "spouse"
+      ],
+      "situation": "多年好友因家里突发支出向你借一笔会动用大半应急储备的钱，并希望不要写借条。你知道他过去讲信用，也知道他最近收入不稳。伴侣发现这笔转账后提醒你：共同储蓄不该由一个人用友情决定。",
+      "dilemma": "你要帮助朋友，同时决定个人善意、共同财务和可验证边界之间的顺序。",
+      "stakes": [
+        "家庭现金安全度",
+        "多年友情的信任方式",
+        "伴侣对共同财务决策权的信任"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "限额借款并留凭据",
+          "action": "只从个人可支配部分借出能承受损失的金额，写清用途、还款节点和无法按期时的沟通方式。",
+          "strategyTag": "有限信用",
+          "tradeoff": "提供实质帮助，但拒绝用含糊证明友情。",
+          "immediate": {
+            "narrative": "好友对借条有些难堪，最终还是签了；伴侣看过金额后同意这不会影响共同账单。",
+            "statDelta": { "cash": -5, "happiness": 1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 3, "conflict": 2, "commitment": 2 },
+                "reason": "帮助真实发生，边界也让朋友感到被审视。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 5, "conflict": -2 },
+                "reason": "你尊重了共同财务的知情与决策权。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "若按期沟通或还款，友情从口头信任变成可持续合作。",
+            "risk": "逾期会迫使你在催款与维持友情之间再次选择。"
+          },
+          "flags": ["documented_friend_loan"],
+          "followUpHooks": ["第一次还款节点", "好友是否主动说明收入变化"]
+        },
+        {
+          "id": "B",
+          "label": "直接赠予小额",
+          "action": "说明自己不能借大额，只提供不要求归还的小额帮助，并协助寻找其他正规方案。",
+          "strategyTag": "赠予止损",
+          "tradeoff": "把最坏损失固定下来，但可能无法解决朋友的全部问题。",
+          "immediate": {
+            "narrative": "好友先失望，随后接受你陪他整理支出的提议；伴侣认可金额，却担心你继续投入时间。",
+            "statDelta": { "cash": -3, "connections": 2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 2, "trust": 2, "conflict": 1 },
+                "reason": "你没有假装能解决一切，但提供了不附带催债压力的支持。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 3, "commitment": 1 },
+                "reason": "损失上限明确，共同储蓄未被动用。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "朋友若愿意面对收支问题，会形成更稳定的解决路径。",
+            "risk": "朋友可能把限额理解为关系降级，并转向高风险借款。"
+          },
+          "flags": ["gifted_limited_support"],
+          "followUpHooks": ["朋友是否接受正规帮助", "高风险借款的后果"]
+        },
+        {
+          "id": "C",
+          "label": "瞒着伴侣全额借出",
+          "action": "相信多年交情，先全额转账，打算等朋友还款后再向伴侣解释。",
+          "strategyTag": "关系豪赌",
+          "tradeoff": "最大程度满足朋友需求，却把共同财务和伴侣信任置于不可控风险。",
+          "immediate": {
+            "narrative": "好友很快收下并保证不会让你为难；你删除了转账提醒，第一次觉得这笔帮助需要躲藏。",
+            "statDelta": { "cash": -11, "happiness": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 5, "commitment": 4 },
+                "reason": "朋友获得了关键支持，但还款责任被口头承诺承载。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": -8, "conflict": 7, "commitment": -3 },
+                "reason": "你绕开了共同财务规则并主动隐瞒。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "若好友迅速还款，现金损失可恢复，但隐瞒事实仍需要处理。",
+            "risk": "逾期或被伴侣发现会同时引爆财务危机与两段关系的信任问题。"
+          },
+          "flags": ["secret_full_friend_loan"],
+          "followUpHooks": ["伴侣发现异常支出", "好友首次逾期或兑现"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["朋友借钱该不该借", "伴侣共同财务边界"],
+        "originalityNote": "将借款议题设计为友情与共同财务双关系冲突。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-credit-taken-at-work",
+      "version": 1,
+      "title": "汇报里消失的名字",
+      "domain": "career",
+      "secondaryDomains": ["friendship", "social"],
+      "lifeStages": ["graduate"],
+      "ageRange": { "min": 22, "max": 50 },
+      "requiredRelationshipRoles": ["coworker", "friend"],
+      "compatibleRelationshipTypes": ["coworker", "friend", "rival"],
+      "situation": "部门汇报会上，同事把你负责的分析当成自己的核心成果展示。会后他解释说时间紧，承诺下次补上你的名字。与你私交不错的同组好友看见全过程，却劝你别在关键晋升期把事情闹大。下周材料就会进入正式评审。",
+      "dilemma": "你需要夺回可验证的贡献，同时决定是否让友谊、团队表面和个人边界继续混在一起。",
+      "stakes": [
+        "晋升证据和职业声誉",
+        "与同事的合作关系",
+        "好友是否愿意在关键时刻承担见证责任"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "私下要求更正",
+          "action": "把版本记录和分工列清，要求同事在评审材料中书面更正，并给出明确期限。",
+          "strategyTag": "直接纠偏",
+          "tradeoff": "保留合作修复机会，但要承担对方拖延或反击的风险。",
+          "immediate": {
+            "narrative": "同事不再说只是误会，要求你别抄送主管；好友答应在必要时确认分工。",
+            "statDelta": { "career": 2, "connections": -1, "happiness": -1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "coworker",
+                "delta": { "trust": -2, "conflict": 6 },
+                "reason": "你明确挑战了对方对成果的占有。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 3, "commitment": 1 },
+                "reason": "你先自行沟通，只要求好友在事实层面作证。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "书面更正后贡献可进入正式评审，合作规则也更清晰。",
+            "risk": "对方可能只做模糊补充，迫使你在期限后公开升级。"
+          },
+          "flags": ["requested_credit_correction"],
+          "followUpHooks": ["更正期限到期", "同事是否进行隐性报复"]
+        },
+        {
+          "id": "B",
+          "label": "公开补充事实",
+          "action": "在评审材料讨论中直接补充自己的负责范围、数据和版本记录，不评价同事动机。",
+          "strategyTag": "证据公开",
+          "tradeoff": "最快保护成果归属，也让团队冲突公开化。",
+          "immediate": {
+            "narrative": "会议室短暂安静，主管要求重新标注分工；同事没有反驳，好友却显得不自在。",
+            "statDelta": { "career": 5, "connections": -3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "coworker",
+                "delta": { "trust": -4, "conflict": 9 },
+                "reason": "你在公开场合纠正了成果归属。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": -1, "trust": 1, "conflict": 2 },
+                "reason": "好友认可事实，却担心自己被卷入站队。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "组织内对你的实际能力形成更清晰认识，后续分工更可追踪。",
+            "risk": "团队可能把你标记为难合作，尤其在主管只追求表面稳定时。"
+          },
+          "flags": ["publicly_corrected_credit"],
+          "followUpHooks": ["主管对冲突的处理", "下一项目的分工方式"]
+        },
+        {
+          "id": "C",
+          "label": "暂不争取署名",
+          "action": "保存证据但不在本轮发声，把精力放在下一项独立成果上。",
+          "strategyTag": "延迟竞争",
+          "tradeoff": "避免即时冲突，却接受本次评审可能不承认你的贡献。",
+          "immediate": {
+            "narrative": "同事顺利接过了后续发言，好友请你吃饭安慰；你发现安慰并不能进入晋升材料。",
+            "statDelta": { "career": -5, "knowledge": 2, "happiness": -3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "coworker",
+                "delta": { "closeness": 1, "trust": -3 },
+                "reason": "表面合作未破裂，但你确认对方不值得信任。"
+              },
+              {
+                "targetRole": "friend",
+                "delta": { "closeness": 2, "trust": -2 },
+                "reason": "好友提供情绪支持，却回避了事实支持。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "你可用独立成果绕开归属争议，并保留记录作为后手。",
+            "risk": "沉默会成为默认授权，对方可能再次占用你的工作。"
+          },
+          "flags": ["withheld_credit_challenge"],
+          "followUpHooks": ["下一次成果再次被占用", "独立项目能否获得资源"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["同事抢功怎么办", "职场如何留证据"],
+        "originalityNote": "聚焦成果归属、见证责任与团队关系，不复述个案。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-city-return-or-stay",
+      "version": 1,
+      "title": "回家不是一个人的决定",
+      "domain": "relocation",
+      "secondaryDomains": ["family", "romance", "career"],
+      "lifeStages": ["graduate"],
+      "ageRange": { "min": 25, "max": 48 },
+      "requiredRelationshipRoles": ["parent", "partner"],
+      "compatibleRelationshipTypes": ["family", "partner", "spouse"],
+      "situation": "父母希望你结束多年外地生活回到家乡，并表示可以帮你解决住房。伴侣的职业网络几乎都在当前城市，也担心回去后被默认承担照护。你在本地工作进入平台期，却没有认真调查过家乡岗位，只在‘陪父母’和‘保住发展’之间反复争吵。",
+      "dilemma": "迁移会重新分配职业机会、照护责任和伴侣在家庭中的话语权。",
+      "stakes": [
+        "父母未来照护与距离",
+        "伴侣职业和家庭边界",
+        "住房资产与职业机会成本"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "一起回家乡",
+          "action": "接受住房支持，但先与父母和伴侣写清产权、照护分工和伴侣求职期限。",
+          "strategyTag": "家庭迁移",
+          "tradeoff": "获得住房和陪伴，却让伴侣承担更大的职业与适应风险。",
+          "immediate": {
+            "narrative": "父母开始看房，伴侣要求产权和照护约定不能只靠口头保证。",
+            "statDelta": { "assets": 8, "career": -4, "connections": -3 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "closeness": 6, "commitment": 5, "conflict": 1 },
+                "reason": "回迁回应了父母的陪伴需求，但书面边界带来不适。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "commitment": 4, "trust": 2, "conflict": 5 },
+                "reason": "共同迁移体现承诺，但职业损失和家庭权力不对称真实存在。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "住房压力下降，家庭陪伴增加，双方有机会重建本地网络。",
+            "risk": "伴侣求职受阻或父母越过边界时，迁移会被理解为单方面牺牲。"
+          },
+          "flags": ["returned_to_hometown"],
+          "followUpHooks": ["产权与装修决策", "伴侣求职期限到期"]
+        },
+        {
+          "id": "B",
+          "label": "继续留在当前城市",
+          "action": "拒绝立即回迁，增加固定探视频率并为未来照护建立专项预算。",
+          "strategyTag": "远程照护",
+          "tradeoff": "保住双方职业网络，但用现金和通勤弥补距离。",
+          "immediate": {
+            "narrative": "伴侣愿意共同出预算，父母却觉得你把陪伴换成了日程表和转账。",
+            "statDelta": { "cash": -5, "career": 4, "connections": 2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "closeness": -2, "trust": 1, "conflict": 4 },
+                "reason": "你提供稳定安排，却拒绝了父母最想要的同城陪伴。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 4, "commitment": 3 },
+                "reason": "你保护了伴侣职业，也邀请其共同承担有限照护。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "职业和社交连续性保留，照护资金逐步形成。",
+            "risk": "父母健康突然变化时，远程方案可能迅速失效并产生愧疚。"
+          },
+          "flags": ["stayed_with_remote_care"],
+          "followUpHooks": ["探视计划第一次被工作打断", "父母健康变化"]
+        },
+        {
+          "id": "C",
+          "label": "先做三个月双城试验",
+          "action": "不接受住房承诺，租短期住所轮换两城，并分别验证岗位、照护和伴侣适应情况。",
+          "strategyTag": "迁移试验",
+          "tradeoff": "用高现金和高精力成本换取真实信息，暂时不满足任何一方的确定性。",
+          "immediate": {
+            "narrative": "父母觉得你不够干脆，伴侣却愿意在不辞职的前提下参加两次长住测试。",
+            "statDelta": { "cash": -8, "health": -3, "knowledge": 4 },
+            "relationshipEffects": [
+              {
+                "targetRole": "parent",
+                "delta": { "trust": 1, "conflict": 2 },
+                "reason": "父母获得更多陪伴，但住房提议被暂缓。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 5, "commitment": 2, "conflict": 1 },
+                "reason": "决定基于共同体验而非要求伴侣盲目牺牲。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "真实体验会暴露求职、通勤和家庭边界问题，降低永久迁移误判。",
+            "risk": "双城生活消耗巨大，试验可能因疲惫而提前结束而非得到清晰答案。"
+          },
+          "flags": ["dual_city_trial"],
+          "followUpHooks": ["第一次家乡长住冲突", "三个月数据复盘"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["大城市还是回老家", "为父母回乡是否值得"],
+        "originalityNote": "把迁移从城市优劣比较改写为家庭权力与关系成本分配。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-burnout-medical-leave",
+      "version": 1,
+      "title": "身体先替你按下暂停",
+      "domain": "health",
+      "secondaryDomains": ["career", "romance"],
+      "lifeStages": ["graduate"],
+      "ageRange": { "min": 22, "max": 55 },
+      "requiredRelationshipRoles": ["partner", "coworker"],
+      "compatibleRelationshipTypes": [
+        "partner",
+        "spouse",
+        "coworker",
+        "friend"
+      ],
+      "situation": "连续失眠和心悸后，医生建议你至少休息两周并进一步检查。团队正处于交付前夕，同事已经替你处理过一次突发问题；伴侣则说你每次回家都只剩沉默和脾气。请假、降载或继续撑完项目都会把成本落到具体的人身上。",
+      "dilemma": "你要决定健康风险由谁承担，以及是否继续把‘负责’等同于不让别人看到自己的极限。",
+      "stakes": [
+        "可逆与不可逆的健康后果",
+        "同事分工和项目交付",
+        "伴侣承受的情绪劳动"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "立即病假检查",
+          "action": "提交医疗建议，完整交接后休息两周，并暂时退出非必要沟通。",
+          "strategyTag": "医疗暂停",
+          "tradeoff": "优先阻止健康恶化，但团队短期负担和职业评价会受影响。",
+          "immediate": {
+            "narrative": "同事接过交接清单时很严肃，伴侣第一次没有劝你再坚持，只问检查时间。",
+            "statDelta": { "health": 8, "career": -4, "happiness": 2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 6, "closeness": 4, "conflict": -2 },
+                "reason": "你终于承认健康问题并允许伴侣参与照护。"
+              },
+              {
+                "targetRole": "coworker",
+                "delta": { "trust": 2, "conflict": 4 },
+                "reason": "清晰交接减少混乱，但同事仍需承担额外工作。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "检查和休息能识别真实健康问题，并迫使团队修复单点依赖。",
+            "risk": "组织可能在晋升时把病假视为不稳定，你也可能休息后回到同样工作结构。"
+          },
+          "flags": ["took_medical_leave"],
+          "followUpHooks": ["检查结果", "复工条件谈判"]
+        },
+        {
+          "id": "B",
+          "label": "协商降载完成交付",
+          "action": "保留关键职责，公开删减非核心任务，并与同事交换明确补偿和后续休假。",
+          "strategyTag": "责任重组",
+          "tradeoff": "维持交付连续性，但健康恢复有限且依赖团队真正接受降载。",
+          "immediate": {
+            "narrative": "同事要求把删减范围写进排期；伴侣同意观察一周，但不再接受凌晨继续工作的安排。",
+            "statDelta": { "health": 2, "career": 3, "connections": 2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 3, "conflict": 1 },
+                "reason": "你开始调整，但仍没有完全退出高压环境。"
+              },
+              {
+                "targetRole": "coworker",
+                "delta": { "trust": 5, "commitment": 2, "conflict": 2 },
+                "reason": "分工与补偿透明，同事知道额外负担何时结束。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "若降载兑现，项目完成且团队建立更可持续的职责结构。",
+            "risk": "非核心任务可能悄悄回流，症状缓解会被误判为已经恢复。"
+          },
+          "flags": ["negotiated_reduced_load"],
+          "followUpHooks": ["一周健康复查", "承诺的补休是否兑现"]
+        },
+        {
+          "id": "C",
+          "label": "撑到交付结束",
+          "action": "隐瞒医生建议，继续全量工作，打算项目结束后一次性休息。",
+          "strategyTag": "透支冲刺",
+          "tradeoff": "最大化短期交付表现，把健康与亲密关系风险推迟并放大。",
+          "immediate": {
+            "narrative": "同事以为你已经好转，伴侣却从药袋里看到了检查单，问你为什么所有人都比身体重要。",
+            "statDelta": { "health": -10, "career": 6, "happiness": -5 },
+            "relationshipEffects": [
+              {
+                "targetRole": "partner",
+                "delta": { "trust": -7, "conflict": 8, "closeness": -3 },
+                "reason": "你隐瞒健康风险，也让伴侣继续承受情绪后果。"
+              },
+              {
+                "targetRole": "coworker",
+                "delta": { "trust": 2, "commitment": 2 },
+                "reason": "同事只看见你继续承担工作，尚不知道风险。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-scene",
+            "likely": "若身体没有进一步恶化，项目能按原计划推进。",
+            "risk": "症状可能在交付前升级为急性事件，届时团队会在毫无准备的情况下接手。"
+          },
+          "flags": ["concealed_health_warning"],
+          "followUpHooks": ["交付前的健康警报", "伴侣要求重新定义共同生活边界"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["职业倦怠怎么办", "身体不适是否该请假"],
+        "originalityNote": "以健康、同事负担和伴侣信任三方责任重写倦怠议题。",
+        "reviewStatus": "reviewed"
+      }
+    },
+    {
+      "id": "life-friend-business-invitation",
+      "version": 1,
+      "title": "好友递来的创业邀请",
+      "domain": "entrepreneurship",
+      "secondaryDomains": ["friendship", "finance", "career"],
+      "lifeStages": ["graduate"],
+      "ageRange": { "min": 23, "max": 45 },
+      "requiredRelationshipRoles": ["friend", "partner"],
+      "compatibleRelationshipTypes": [
+        "friend",
+        "close_friend",
+        "partner",
+        "spouse"
+      ],
+      "situation": "好友拿着一个已经有少量付费用户的项目邀请你成为联合创始人，希望你三个月内离职全职加入。你认可产品方向，却发现股权、决策权和工资都只停留在口头。伴侣愿意让你试，但家庭应急储备只够支撑有限时间。",
+      "dilemma": "你要区分对朋友的信任、对项目的判断，以及共同生活能承受的风险。",
+      "stakes": [
+        "现金安全与职业退出成本",
+        "友情能否承受商业权责",
+        "伴侣是否被动成为创业投资人"
+      ],
+      "options": [
+        {
+          "id": "A",
+          "label": "先兼职验证三个月",
+          "action": "不立即离职，约定三个月验证指标、工作量、知识产权和终止条件。",
+          "strategyTag": "低成本验证",
+          "tradeoff": "降低不可逆风险，但双方都要承受高负荷和推进速度下降。",
+          "immediate": {
+            "narrative": "好友对速度不满意，还是同意把指标写下来；伴侣接受试验，但要求每周至少留出完整休息日。",
+            "statDelta": { "health": -3, "knowledge": 4, "cash": 1 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 4, "conflict": 3, "commitment": 2 },
+                "reason": "商业边界变清晰，但好友感到你没有完全押注。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 5, "conflict": 1 },
+                "reason": "你让共同风险可见并设置了退出条件。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "next-chapter",
+            "likely": "真实用户和协作数据能验证项目与合伙关系。",
+            "risk": "双重工作消耗健康，指标也可能因投入不足而失真。"
+          },
+          "flags": ["startup_part_time_trial"],
+          "followUpHooks": ["三个月验证复盘", "好友要求提前全职"]
+        },
+        {
+          "id": "B",
+          "label": "谈妥条款后全职",
+          "action": "要求书面股权、归属期、工资和决策机制，达成后离职加入。",
+          "strategyTag": "契约押注",
+          "tradeoff": "以正式权责承担高风险，仍无法消除市场失败和收入下降。",
+          "immediate": {
+            "narrative": "好友第一次以合伙人而非朋友身份与你谈判；伴侣看到合同后同意动用约定额度的储备。",
+            "statDelta": {
+              "cash": -7,
+              "career": 3,
+              "knowledge": 5,
+              "happiness": 3
+            },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": { "trust": 5, "commitment": 6, "conflict": 4 },
+                "reason": "共同承担增加，权责谈判也暴露双方期待差异。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 4, "commitment": 3, "conflict": 2 },
+                "reason": "伴侣参与风险边界，而不是事后被迫兜底。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "项目若增长，你获得所有权、能力和新的职业身份。",
+            "risk": "市场失败或合伙分歧会同时损失现金、职业连续性和多年友情。"
+          },
+          "flags": ["joined_friend_startup"],
+          "followUpHooks": ["第一次重大产品分歧", "现金跑道警报"]
+        },
+        {
+          "id": "C",
+          "label": "拒绝加入但提供引荐",
+          "action": "明确拒绝合伙，只提供有限的行业引荐和一次产品评审。",
+          "strategyTag": "友情去商业化",
+          "tradeoff": "保护职业和现金，却可能让好友把拒绝理解为不相信他。",
+          "immediate": {
+            "narrative": "好友礼貌地收下联系人名单，之后没有再聊周末聚会；伴侣松了口气，也提醒你别假装这对友情没有影响。",
+            "statDelta": { "connections": 2, "career": 2, "happiness": -2 },
+            "relationshipEffects": [
+              {
+                "targetRole": "friend",
+                "delta": {
+                  "closeness": -3,
+                  "trust": 1,
+                  "conflict": 2,
+                  "commitment": -2
+                },
+                "reason": "你提供帮助但拒绝共同承担项目。"
+              },
+              {
+                "targetRole": "partner",
+                "delta": { "trust": 3, "conflict": -1 },
+                "reason": "你保护了共同财务稳定。"
+              }
+            ]
+          },
+          "delayed": {
+            "horizon": "one-to-three-chapters",
+            "likely": "双方避免在不成熟条件下绑定，友情可能在项目压力后恢复。",
+            "risk": "项目成功时你可能后悔，好友也可能把距离固化为关系降级。"
+          },
+          "flags": ["declined_friend_startup"],
+          "followUpHooks": ["项目获得融资后的重逢", "好友是否继续维持私人联系"]
+        }
+      ],
+      "editorial": {
+        "sourceMode": "zhihu-topic-human-adaptation",
+        "sourceTopics": ["要不要和朋友创业", "合伙创业如何谈股权"],
+        "originalityNote": "把创业决定设计为契约、友情与伴侣共同风险的交叉事件。",
+        "reviewStatus": "reviewed"
+      }
+    }
+  ]
+}
