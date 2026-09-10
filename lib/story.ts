@@ -1,85 +1,435 @@
 import { z } from 'zod';
 import config from './story-config.json';
+import storyPublic from './story-public.json';
 import examples from './story-examples.json';
-export const ids = ['lin', 'tao', 'shen'] as const;
-export type Route = typeof ids[number];
-export const total = config.BEATS.length;
-export const isCommonStage=(stage:number)=>String(config.BEATS[stage]||'').startsWith('共同篇');
-export const cast = config.WORLD.cast.map(({ id, name, identity }) => ({ id, name, identity }));
-export const count = (text: string) => [...text].filter(c => /[\p{L}\p{N}]/u.test(c)).length;
+import storyReference from './story-reference.json';
+
+export type StageKind = 'common' | 'route' | 'ending';
+export type Beat = { id: string; kind: StageKind; task: string };
+export type PublicCastMember = { id: string; name: string; gender: '男' | '女'; age: number; identity: string };
+export type CharacterProfile = { id: string; name: string; gender: '男' | '女'; background?: string; zhihuHandle?: string };
+export type CastDetails = { voice: string; desire: string; object: string; route_event: string; payoff: string };
+export type CastMember = PublicCastMember & CastDetails & { background?: string; zhihuHandle?: string };
+export type Route = string;
+export type StoryState = { relationships: Record<string, number>; flags: string[]; timeline: string[] };
+export type Player = { id: string; name: string; age: number; identity: string };
+
+const beats = config.BEATS as unknown as Beat[];
+const privateCast = config.CAST as Record<string, CastDetails>;
+export const total = beats.length;
+export const castPool = storyPublic.cast as unknown as PublicCastMember[];
+export const ids = castPool.map((member) => member.id);
+export const requiredCastCount = storyPublic.requiredCastCount;
+export const player = storyPublic.player as Player;
+export const limits = config.LIMITS;
+
+if (!beats.length || beats.some((beat) => !beat.id || !beat.kind || !beat.task)) throw new Error('BEATS 配置不完整。');
+if (castPool.length !== 8 || new Set(ids).size !== castPool.length) throw new Error('公开角色池必须是 8 位不重复角色。');
+if (castPool.some((member) => !privateCast[member.id])) throw new Error('公开角色池与私密角色资料不匹配。');
+if (storyPublic.totalStages !== total) throw new Error('story-public.totalStages 必须与 BEATS 数量一致。');
+
+export function beatFor(stage: number): Beat {
+  const beat = beats[stage];
+  if (!beat) throw new Error(`无效的剧情阶段：${stage}`);
+  return beat;
+}
+
+export const stageKind = (stage: number): StageKind => beatFor(stage).kind;
+export const isCommonStage = (stage: number) => stageKind(stage) === 'common';
+export const isEndingStage = (stage: number) => stageKind(stage) === 'ending';
+export const count = (text: string) => [...text].filter((char) => /[\p{L}\p{N}]/u.test(char)).length;
+
 export const nodeSchema = z.object({
- title:z.string().min(1).max(25),
- lines:z.array(z.object({speaker:z.string(),text:z.string().min(1).max(150)}).strict()).min(4).max(22),
- choices:z.array(z.object({text:z.string().min(4).max(30),target:z.enum(ids).nullable()}).strict()).max(3),
- memory:z.object({summary:z.string().max(240),facts:z.array(z.string().max(55)).max(6)}).strict()
+  title: z.string().min(1).max(25),
+  lines: z.array(z.object({ speaker: z.string(), text: z.string().min(1).max(limits.maxLineChars) }).strict()).min(4).max(22),
+  choices: z.array(z.object({ text: z.string().min(4).max(30), target: z.string().nullable() }).strict()).max(limits.totalChoiceMax),
+  memory: z.object({ summary: z.string().max(240), facts: z.array(z.string().max(55)).max(6) }).strict(),
 }).strict();
+
 export type StoryNode = z.infer<typeof nodeSchema>;
-export type Selection = {node:number;index:number;text:string;target:Route|null};
-export type CharacterProfile={id:string;name:string;gender:'男'|'女';background?:string;zhihuHandle?:string};
-export type StoryState={relationships:Record<Route,number>;flags:string[];timeline:string[]};
-export type State = {version:1;nodes:StoryNode[];selections:Selection[];route:Route|null;pending:boolean;partial?:Partial<StoryNode>;memory:StoryNode['memory'];profiles?:CharacterProfile[];storyTitle?:string;storyTone?:string;worldState:StoryState};
-export function initial(profiles:CharacterProfile[]=[]):State {return {version:1,nodes:[],selections:[],route:null,pending:true,memory:{summary:'',facts:[]},profiles,storyTitle:undefined,storyTone:undefined,worldState:{relationships:{lin:0,tao:0,shen:0},flags:[],timeline:[]}};}
-export function choose(state:State, index:number, expected:number) {
- if(!state.worldState) state.worldState={relationships:{lin:0,tao:0,shen:0},flags:[],timeline:[]};
- if (expected!==state.nodes.length || state.pending || state.nodes.length===total) throw new Error('剧情进度已变化，请刷新后继续。');
- const choices=state.nodes.at(-1)?.choices;
- if (!Number.isInteger(index)||!choices?.[index]) throw new Error('无效的选项。');
- state.selections.push({node:state.nodes.length-1,index,...choices[index]});
- const picked=choices[index];
- if(picked.target) state.worldState.relationships[picked.target]+=1;
- state.worldState.timeline.push(`第${state.nodes.length}段选择：${picked.text}`);
- if (state.selections.length===3) {
-  const scores=Object.fromEntries(ids.map(id=>[id,state.selections.filter(s=>s.target===id).length]));
-  const max=Math.max(...Object.values(scores));
-  state.route=[...state.selections].reverse().find(s=>s.target && scores[s.target]===max)!.target;
- }
- state.pending=true;
-}
-export function validate(raw:unknown,state:State):StoryNode {
- const parsed=nodeSchema.parse(raw);
- let normalizedChoices=!isCommonStage(state.nodes.length)?parsed.choices.map(choice=>({...choice,target:null})):parsed.choices;
- if(state.nodes.length===total-1) normalizedChoices=[];
- if(state.nodes.length<total-1 && normalizedChoices.length<2) normalizedChoices=isCommonStage(state.nodes.length)?ids.map((id,index)=>({text:['继续观察并回应','主动帮忙推进','先照顾现场细节'][index],target:id})): [{text:'继续当前行动',target:null},{text:'放慢一步再回应',target:null}];
- const node={...parsed,choices:normalizedChoices};
- for (const line of node.lines) {
-  if(line.speaker==='我') line.speaker=config.WORLD.player.name;
-  if(!['旁白',config.WORLD.player.name,...cast.map(c=>c.name)].includes(line.speaker)) throw new Error('speaker必须使用设定姓名或旁白');
- }
- const length=node.lines.reduce((n,l)=>n+count(l.text),0);
- if(state.nodes.length && node.lines.map(l=>l.text).join('\n')===state.nodes.at(-1)!.lines.map(l=>l.text).join('\n')) throw new Error('本段正文与上一段完全重复，必须推进上一选择及当前事件');
- if(length<200||length>300) throw new Error(`正文${length}字，要求200—300字，建议255字左右`);
- const stage=state.nodes.length;
- if(stage===total-1 ? node.choices.length!==0 : node.choices.length<2) throw new Error('非结局需2—3个选项，结局无选项');
- if(new Set(node.choices.map(c=>c.text)).size!==node.choices.length) throw new Error('选项不能重复');
- if(isCommonStage(stage) && (node.choices.length!==3 || ids.some(id=>!node.choices.some(c=>c.target===id)))) throw new Error('共同篇选项必须分别对应三位人物');
- if(!isCommonStage(stage) && node.choices.some(c=>c.target!==null)) throw new Error('个人线target必须为null');
- if(stage===0 && cast.some(c=>!node.lines.some(l=>l.speaker===c.name))) throw new Error('开场三人必须各有台词');
- return node;
+export type Selection = { node: number; index: number; text: string; target: Route | null };
+export type State = { version: 1; nodes: StoryNode[]; selections: Selection[]; route: Route | null; pending: boolean; partial?: Partial<StoryNode>; memory: StoryNode['memory']; profiles?: CharacterProfile[]; storyTitle?: string; storyTone?: string; worldState: StoryState };
+
+function defaultProfiles(): CharacterProfile[] {
+  return ['m1', 'm3', 'f2', 'f4'].map((id) => {
+    const member = castPool.find((candidate) => candidate.id === id);
+    if (!member) throw new Error('默认角色池不完整。');
+    return { id: member.id, name: member.name, gender: member.gender };
+  });
 }
 
-function selectExamples(stage:number) {
- const groups=Object.entries(examples.categories);
- const start=Math.min(stage*3,Math.max(0,groups.length-3));
- return groups.slice(start,start+3).flatMap(([category,items])=>items.slice(0,1).map(item=>({category,source:item.source,text:item.text})));
+export function canonicalProfiles(input: CharacterProfile[] = defaultProfiles()): CharacterProfile[] {
+  if (input.length !== requiredCastCount) throw new Error(`必须选择${requiredCastCount}位角色。`);
+  const seen = new Set<string>();
+  return input.map((profile) => {
+    if (seen.has(profile.id)) throw new Error('角色不能重复选择。');
+    seen.add(profile.id);
+    const member = castPool.find((candidate) => candidate.id === profile.id);
+    if (!member || member.gender !== profile.gender) throw new Error('角色资料与当前角色池不一致。');
+    return {
+      id: member.id,
+      name: member.name,
+      gender: member.gender,
+      background: profile.background?.trim().slice(0, 300) || undefined,
+      zhihuHandle: profile.zhihuHandle?.trim().slice(0, 80) || undefined,
+    };
+  });
 }
 
-export function messages(state:State) {
- const world=structuredClone(config.WORLD);
- const cards=world.cast.map(c=>state.route&&c.id!==state.route?{id:c.id,name:c.name,identity:c.identity,voice:c.voice}:c);
- const latest=state.selections.at(-1);
- return [{role:'system',content:config.SYSTEM}, {role:'user',content:JSON.stringify({
- must_execute_first:latest?`玩家刚选【${latest.text}】；前3条先执行并给具体结果，询问必须回答。`:'开场未选择。',
- world:{...world,cast:cards},stage:state.nodes.length+1,total_stages:total,task:config.BEATS[state.nodes.length],story_title_instruction:state.nodes.length===0?'本段title同时作为整部故事标题：请根据模板世界观、角色和你自行判断的基调生成，不要使用固定标题。后续保持标题与基调一致。':'沿用已生成的故事标题与基调，不要改写。',
- locked_route:state.route,advance_required:state.nodes.length?`必须先兑现上一选择：${latest?.text||'上一段行动'}；不得重复上一段对白或场景。`: '必须建立开场事件。',world_state:state.worldState,budget:'只写当前一段225—300有效字，目标255字，约45—60秒；不写下一段。',
- allowed_speakers:['旁白',world.player.name,...cast.map(c=>c.name)],choice_targets:state.route?'所有target为JSON null':'分别lin/tao/shen',
- past_choices:state.selections,conversation_history:state.nodes.map((node,index)=>({stage:index+1,title:node.title,lines:node.lines,choices:node.choices,memory:node.memory})),reference_examples:selectExamples(state.nodes.length),previous_text_tail:state.nodes.at(-1)?.lines.map(l=>l.text).join('\n').slice(-240)||'',memory:state.memory
- })}];
+export function selectedCast(state: Pick<State, 'profiles'>): CastMember[] {
+  return canonicalProfiles(state.profiles).map((profile) => {
+    const member = castPool.find((candidate) => candidate.id === profile.id);
+    if (!member) throw new Error('角色资料不存在。');
+    return { ...member, ...privateCast[member.id], background: profile.background, zhihuHandle: profile.zhihuHandle };
+  });
 }
-export function publicState(state:State) {return {storyTitle:state.storyTitle,storyTone:state.storyTone,worldState:state.worldState,world:{premise:config.WORLD.premise,locations:config.WORLD.locations},partial:state.partial?{title:state.partial.title,lines:state.partial.lines||[],choices:state.partial.choices?.map(c=>({text:c.text}))||[]}:null,nodes:state.nodes.map(n=>({title:n.title,lines:n.lines,choices:n.choices.map(c=>({text:c.text})),readingSeconds:n.lines.reduce((v,l)=>v+count(l.text),0)/5})),route:state.route,selections:state.selections.map(s=>({node:s.node,index:s.index})),pending:state.pending,total,complete:state.nodes.length===total};}
-export type PublicState=ReturnType<typeof publicState>;
-export type GameEvent = {type:'status';phase:'generating'|'validating'|'repairing'|'translating';message:string}|{type:'scene';segment:number;title:string;readingSeconds:number}|{type:'line';index:number;speaker:string;text:string}|{type:'choices';items:{text:string}[]}|{type:'done';state:PublicState}|{type:'error';message:string};
-export function eventsFor(node:StoryNode,state:State):GameEvent[] {return [
- {type:'scene',segment:state.nodes.length,title:node.title,readingSeconds:node.lines.reduce((v,l)=>v+count(l.text),0)/5},
- ...node.lines.map((l,index)=>({type:'line' as const,index,...l})),
- {type:'choices',items:node.choices.map(c=>({text:c.text}))}, {type:'done',state:publicState(state)}
-];}
+
+export function selectedIds(state: Pick<State, 'profiles'>): string[] {
+  return selectedCast(state).map((member) => member.id);
+}
+
+function emptyRelationships(profiles: CharacterProfile[]): Record<string, number> {
+  return Object.fromEntries(profiles.map((profile) => [profile.id, 0]));
+}
+
+export function initial(profiles: CharacterProfile[] = defaultProfiles()): State {
+  const canonical = canonicalProfiles(profiles);
+  return {
+    version: 1,
+    nodes: [],
+    selections: [],
+    route: null,
+    pending: true,
+    memory: { summary: '', facts: [] },
+    profiles: canonical,
+    worldState: { relationships: emptyRelationships(canonical), flags: [], timeline: [] },
+  };
+}
+
+export function choose(state: State, index: number, expected: number) {
+  const routeIds = selectedIds(state);
+  state.worldState ??= { relationships: emptyRelationships(canonicalProfiles(state.profiles)), flags: [], timeline: [] };
+  for (const id of routeIds) state.worldState.relationships[id] ??= 0;
+  if (expected !== state.nodes.length || state.pending || state.nodes.length === total) throw new Error('剧情进度已变化，请刷新后继续。');
+  const choices = state.nodes.at(-1)?.choices;
+  const picked = choices?.[index];
+  if (!Number.isInteger(index) || !picked) throw new Error('无效的选项。');
+  state.selections.push({ node: state.nodes.length - 1, index, ...picked });
+  if (picked.target) {
+    if (!routeIds.includes(picked.target)) throw new Error('选项目标不属于当前角色。');
+    state.worldState.relationships[picked.target] += 1;
+  }
+  state.worldState.timeline.push(`第${state.nodes.length}段选择：${picked.text}`);
+  const commonStages = beats.filter((beat) => beat.kind === 'common').length;
+  if (state.selections.length === commonStages) {
+    const scores = Object.fromEntries(routeIds.map((id) => [id, state.selections.filter((selection) => selection.target === id).length]));
+    const max = Math.max(...Object.values(scores));
+    const latest = [...state.selections].reverse().find((selection) => selection.target && scores[selection.target] === max);
+    if (!latest?.target) throw new Error('共同篇没有形成可锁定的人物。');
+    state.route = latest.target;
+  }
+  state.pending = true;
+}
+
+function commonFallback(member: CastMember, index: number) {
+  const texts = [
+    `先回应${member.name}`,
+    `和${member.name}一起收尾`,
+    `接住${member.name}的提议`,
+    `请${member.name}说说想法`,
+  ];
+  return { text: texts[index % texts.length], target: member.id };
+}
+
+function normalizeChoices(state: State, input: StoryNode['choices']): StoryNode['choices'] {
+  const stage = state.nodes.length;
+  if (isEndingStage(stage)) return [];
+
+  if (isCommonStage(stage)) {
+    const members = selectedCast(state);
+    const byTarget = new Map<string, StoryNode['choices'][number]>();
+    for (const choice of input) {
+      if (choice.target && members.some((member) => member.id === choice.target) && !byTarget.has(choice.target)) {
+        byTarget.set(choice.target, choice);
+      }
+    }
+    return members.map((member, index) => byTarget.get(member.id) ?? commonFallback(member, index));
+  }
+
+  const normalized = input.map((choice) => ({ ...choice, target: null }));
+  const fallbacks = [
+    { text: '继续当前行动', target: null },
+    { text: '放慢一步再回应', target: null },
+    { text: '说出自己的顾虑', target: null },
+  ];
+  for (const fallback of fallbacks) {
+    if (normalized.length >= limits.routeChoiceMin) break;
+    normalized.push(fallback);
+  }
+  return normalized.slice(0, limits.routeChoiceMax);
+}
+
+export function validate(raw: unknown, state: State): StoryNode {
+  const parsed = nodeSchema.parse(raw);
+  const choices = normalizeChoices(state, parsed.choices);
+  const node: StoryNode = {
+    ...parsed,
+    choices,
+    lines: parsed.lines.map((line) => ({ ...line, speaker: line.speaker === '我' ? player.name : line.speaker })),
+  };
+
+  const allowedSpeakers = ['旁白', player.name, ...selectedCast(state).map((member) => member.name)];
+  for (const line of node.lines) {
+    if (!allowedSpeakers.includes(line.speaker)) throw new Error('speaker必须使用当前所选角色姓名或旁白');
+  }
+
+  const length = node.lines.reduce((sum, line) => sum + count(line.text), 0);
+  if (state.nodes.length && node.lines.map((line) => line.text).join('\n') === state.nodes.at(-1)!.lines.map((line) => line.text).join('\n')) throw new Error('本段正文与上一段完全重复，必须推进上一选择及当前事件');
+  if (length < limits.minEffectiveChars || length > limits.maxEffectiveChars) throw new Error(`正文${length}字，要求${limits.minEffectiveChars}至${limits.maxEffectiveChars}字，建议${limits.targetEffectiveChars}字左右`);
+
+  const stage = state.nodes.length;
+  if (isEndingStage(stage) ? node.choices.length !== 0 : node.choices.length < limits.routeChoiceMin) throw new Error('选项数量不符合当前阶段要求');
+  if (new Set(node.choices.map((choice) => choice.text)).size !== node.choices.length) throw new Error('选项不能重复');
+  if (isCommonStage(stage)) {
+    const routeIds = selectedIds(state);
+    if (node.choices.length !== requiredCastCount || routeIds.some((id) => !node.choices.some((choice) => choice.target === id))) throw new Error('共同篇选项必须分别对应当前全部角色');
+  }
+  if (stageKind(stage) === 'route' && node.choices.some((choice) => choice.target !== null)) throw new Error('个人线target必须为null');
+  if (stage === 0) {
+    const names = selectedCast(state).map((member) => member.name);
+    if (names.some((name) => !node.lines.some((line) => line.speaker === name))) throw new Error('开场四位角色必须各有台词');
+  }
+  return node;
+}
+
+type ExampleEntry = { example: number; text: string; effective_chars: number };
+type ExampleStory = { id: string; stageKey: string; label: string; source: string; examples: ExampleEntry[] };
+type ReferenceSegment = { id: string; order: number; stageKey: string; heading: string; text: string; effective_chars: number };
+type ReferenceStory = { version: number; title: string; source: string; note: string; segments: ReferenceSegment[] };
+const exampleStories = (examples as unknown as { stories: ExampleStory[] }).stories;
+const referenceStory = storyReference as ReferenceStory;
+
+if (
+  referenceStory.segments.length !== beats.length
+  || referenceStory.segments.some((segment, index) => segment.stageKey !== beats[index]?.id || !segment.text.trim())
+) throw new Error('完整范本故事必须按 BEATS 顺序覆盖全部剧情阶段。');
+
+export function selectExamples(stage: number) {
+  const beat = beatFor(stage);
+  const stories = exampleStories.filter((story) => story.stageKey === beat.id);
+  if (!stories.length) throw new Error(`阶段${beat.id}没有可用的写作范例。`);
+  return stories.flatMap((story) => story.examples.map((item) => ({
+    stageKey: story.stageKey,
+    sourceId: story.id,
+    label: story.label,
+    source: story.source,
+    example: item.example,
+    effective_chars: item.effective_chars,
+    text: item.text,
+  })));
+}
+
+export function selectReferenceStory() {
+  return structuredClone(referenceStory);
+}
+
+function listOrNone(items: string[]) {
+  return items.length ? items.join('、') : '无';
+}
+
+function renderWorldState(state: State) {
+  const relationships = selectedCast(state).map((member) => `${member.id}(${member.name})=${state.worldState.relationships[member.id] ?? 0}`);
+  const timeline = state.worldState.timeline.length ? state.worldState.timeline.map((entry, index) => `${index + 1}. ${entry}`).join('\n') : '暂无';
+  return [
+    `角色关系：${listOrNone(relationships)}`,
+    `已记录事实：${listOrNone(state.worldState.flags)}`,
+    `行动时间线：\n${timeline}`,
+  ].join('\n');
+}
+
+function renderHistory(state: State) {
+  if (!state.nodes.length) return '暂无。';
+  return state.nodes.map((node, index) => [
+    `第${index + 1}段：${node.title}`,
+    ...node.lines.map((line) => `[${line.speaker}] ${line.text}`),
+    `选项：${listOrNone(node.choices.map((choice) => `${choice.text}${choice.target ? ` -> ${choice.target}` : ''}`))}`,
+  ].join('\n')).join('\n\n');
+}
+
+function renderReference(stageId: string) {
+  return [
+    `标题：${referenceStory.title}`,
+    `用途：${referenceStory.note}`,
+    ...referenceStory.segments.map((segment) => `## ${segment.heading}${segment.stageKey === stageId ? '（当前阶段对应段落）' : ''}\n${segment.text}`),
+  ].join('\n\n');
+}
+
+function renderExamples(stage: number) {
+  const selected = selectExamples(stage);
+  return selected.map((example, index) => [
+    `参考片段 ${String(index + 1).padStart(2, '0')}｜${example.label}｜${example.sourceId}｜${example.effective_chars}字`,
+    `事件：${example.source}`,
+    example.text,
+  ].join('\n')).join('\n\n');
+}
+
+function renderChoiceContract(beat: Beat, routeIds: string[]) {
+  if (beat.kind === 'common') {
+    return `输出${requiredCastCount}个选项，target 分别覆盖 ${routeIds.join('、')}，每个当前角色恰好一次；选项写具体行动，不写“进入某人路线”。`;
+  }
+  if (beat.kind === 'route') {
+    return `输出${limits.routeChoiceMin}至${limits.routeChoiceMax}个选项，所有 target 均为 null；至少一个选项允许放慢关系，不能只写询问或查看。`;
+  }
+  return '结局不输出选项，choices 必须为空数组。';
+}
+
+export function promptText(state: State) {
+  const beat = beatFor(state.nodes.length);
+  const selected = selectedCast(state);
+  const cards = selected.map((member) => state.route && member.id !== state.route ? {
+    id: member.id,
+    name: member.name,
+    gender: member.gender,
+    age: member.age,
+    identity: member.identity,
+    background: member.background,
+    zhihuHandle: member.zhihuHandle,
+  } : member);
+  const latest = state.selections.at(-1);
+  const routeIds = selected.map((member) => member.id);
+  const lockedMember = selected.find((member) => member.id === state.route);
+  const castText = cards.map((member) => [
+    `- ${member.id}｜${member.name}｜${member.gender}｜${member.age}岁｜${member.identity}`,
+    member.background ? `背景：${member.background}` : null,
+    member.zhihuHandle ? `知乎账号：${member.zhihuHandle}` : null,
+    'desire' in member && member.desire ? `当下愿望：${member.desire}` : null,
+    'object' in member && member.object ? `关键物件：${member.object}` : null,
+  ].filter(Boolean).join('\n')).join('\n');
+  const history = renderHistory(state);
+  const previousTail = state.nodes.at(-1)?.lines.map((line) => line.text).join('\n').slice(-240) || '暂无。';
+  const nextAction = latest
+    ? `先执行玩家刚选择的【${latest.text}】并给出具体结果；玩家选择必须真实发生，不能重写或跳过。`
+    : '这是开场片段，必须建立第一件具体的小事，并让当前全部角色各有独特行动或台词。';
+
+  return [
+    `【本轮必须执行】\n${nextAction}`,
+    `【阶段】\n第 ${state.nodes.length + 1} / ${total} 段｜${beat.id}｜${beat.kind}\n任务：${beat.task}`,
+    `【玩家与世界】\n玩家：${player.name}，${player.age}岁，${player.identity}\n故事前提：${storyPublic.premise}\n可用地点：${listOrNone(storyPublic.locations)}\n当前角色：\n${castText}`,
+    `【已选路线】\n${lockedMember ? `${lockedMember.id}(${lockedMember.name})` : '尚未锁定。'}${state.route ? '；后续只能推进该角色关系。' : ''}`,
+    `【标题规则】\n${state.nodes.length === 0 ? '本段 title 同时作为整部故事标题；根据当前世界、角色和基调自行生成，不使用固定标题。' : `沿用已生成标题「${state.storyTitle || '未命名'}」与基调，不改写。`}`,
+    `【选择规则】\n${renderChoiceContract(beat, routeIds)}`,
+    `【当前状态】\n${renderWorldState(state)}`,
+    `【完整范本故事｜全文完整注入】\n${renderReference(beat.id)}`,
+    `【同阶段参考片段｜完整注入】\n以下共 ${selectExamples(state.nodes.length).length} 条，均来自当前阶段 ${beat.id}。只学习结构、节奏、动作和因果，不复制原句、人名、世界观或专有名词。\n\n${renderExamples(state.nodes.length)}`,
+    `【已经发生的剧情｜不可改写】\n${history}`,
+    `【上一段收尾】\n${previousTail}`,
+    `【长期记忆】\n摘要：${state.memory.summary || '暂无'}\n事实：${listOrNone(state.memory.facts)}`,
+  ].join('\n\n');
+}
+
+export function continuationMessage(state: State, issue: string, next: string) {
+  const partial = state.partial;
+  const delivered = partial?.lines?.length
+    ? partial.lines.map((line) => `[${line.speaker}] ${line.text}`).join('\n')
+    : '暂无。';
+  return [
+    `【续写要求｜最高优先级】\n${next}`,
+    `【已发送且不可重写】\n标题：${partial?.title || '尚未发送'}\n${delivered}`,
+    `【纠错信息】\n${issue || '无。'}`,
+    '【输出硬约束】\n只从下一条缺失记录开始续写。已经发送的标题和正文禁止再次输出；如果标题已存在，本次绝不能再次输出 [SCENE]。不要重新生成整段，不要解释，不要输出 Markdown。',
+  ].join('\n\n');
+}
+
+export function protocolInstruction(state: State) {
+  const beat = beatFor(state.nodes.length);
+  const selected = selectedCast(state);
+  const targetRule = beat.kind === 'common'
+    ? `必须输出${requiredCastCount}个选项，target分别覆盖${selected.map((member) => `${member.id}(${member.name})`).join('、')}，每个角色恰好一次`
+    : beat.kind === 'route'
+      ? `必须输出${limits.routeChoiceMin}至${limits.routeChoiceMax}个选项，所有target均为JSON null`
+      : '结局必须输出空数组：[CHOICES] {"items":[]}';
+  return `你必须输出固定标签文本协议，每行一条记录，禁止Markdown围栏。严格顺序：
+[SCENE] 本段短标题
+[NPC:旁白] 一条叙述
+[NPC:角色名] 一句对白
+重复NPC，整段正文${limits.minEffectiveChars}至${limits.maxEffectiveChars}有效字，目标${limits.targetEffectiveChars}字、${limits.targetLinesMin}至${limits.targetLinesMax}条。
+[CHOICES] {"items":[{"text":"行动","target":null}]}
+[MEMORY] {"summary":"累计事实","facts":["事实"]}
+[END]
+${targetRule}；只生成当前片段，不输出解释。`;
+}
+
+export function nextInstruction(state: State) {
+  const written = (state.partial?.lines || []).reduce((sum, line) => sum + count(line.text), 0);
+  if (state.partial?.memory) return '本次必须只输出end；禁止输出scene、line、choices或memory。';
+  if (state.partial?.choices) return '本次必须只输出memory，然后end；禁止输出scene、line或choices。';
+  if (written >= limits.minEffectiveChars) return '本次直接输出choices，然后memory和end；禁止输出scene或line。';
+  return `正文目前${written}字，还缺至少${Math.max(0, limits.minEffectiveChars - written)}字。本次只能继续输出新的line对白记录，不能输出scene或choices；达到${limits.minEffectiveChars}字后再进入下一轮。最多可写到${limits.maxEffectiveChars}字。`;
+}
+
+export function buildModelMessages(state: State, issue = '') {
+  const messages = [{
+    role: 'system' as const,
+    content: `${config.SYSTEM}\n\n${protocolInstruction(state)}`,
+  }, {
+    role: 'user' as const,
+    content: promptText(state),
+  }, {
+    role: 'user' as const,
+    content: continuationMessage(state, issue, nextInstruction(state)),
+  }];
+  if (messages.some((message) => typeof message.content !== 'string')) throw new Error('消息content必须是字符串');
+  return messages;
+}
+
+export function messages(state: State) {
+  return [{
+    role: 'system',
+    content: config.SYSTEM,
+  }, {
+    role: 'user',
+    content: promptText(state),
+  }];
+}
+
+export function publicState(state: State) {
+  return {
+    storyTitle: state.storyTitle,
+    storyTone: state.storyTone,
+    worldState: state.worldState,
+    world: {
+      player,
+      premise: storyPublic.premise,
+      locations: storyPublic.locations,
+      cast: selectedCast(state).map(({ id, name, gender, age, identity, background, zhihuHandle }) => ({ id, name, gender, age, identity, background, zhihuHandle })),
+    },
+    partial: state.partial ? {
+      title: state.partial.title,
+      lines: state.partial.lines || [],
+      choices: state.partial.choices?.map((choice) => ({ text: choice.text })) || [],
+    } : null,
+    nodes: state.nodes.map((node) => ({
+      title: node.title,
+      lines: node.lines,
+      choices: node.choices.map((choice) => ({ text: choice.text })),
+      readingSeconds: node.lines.reduce((sum, line) => sum + count(line.text), 0) / 5,
+    })),
+    route: state.route,
+    selections: state.selections.map((selection) => ({ node: selection.node, index: selection.index })),
+    pending: state.pending,
+    total,
+    complete: state.nodes.length === total,
+  };
+}
+
+export type PublicState = ReturnType<typeof publicState>;
+export type GameEvent = { type: 'status'; phase: 'generating' | 'validating' | 'repairing' | 'translating'; message: string } | { type: 'scene'; segment: number; title: string; readingSeconds: number } | { type: 'line'; index: number; speaker: string; text: string } | { type: 'choices'; items: { text: string }[] } | { type: 'done'; state: PublicState } | { type: 'error'; message: string };
+
+export function eventsFor(node: StoryNode, state: State): GameEvent[] {
+  return [
+    { type: 'scene', segment: state.nodes.length, title: node.title, readingSeconds: node.lines.reduce((sum, line) => sum + count(line.text), 0) / 5 },
+    ...node.lines.map((line, index) => ({ type: 'line' as const, index, ...line })),
+    { type: 'choices', items: node.choices.map((choice) => ({ text: choice.text })) },
+    { type: 'done', state: publicState(state) },
+  ];
+}

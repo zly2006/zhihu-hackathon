@@ -11,9 +11,9 @@ npm run dev
 
 打开 http://127.0.0.1:3000 。生产构建：`npm run build && npm start`。默认只监听本机；这是单实例本地原型，存档在 `.data/`，不适合直接放到无持久磁盘的serverless环境。
 
-服务端优先读 `CPA_API_KEY` 和 `CPA_ENDPOINT`。本机未设置时，静态读取 `/Users/zhaoliyan/test_cpa_chat_completion.py` 的两个字面量，不执行该Python文件；也可用 `CPA_REFERENCE` 指定参考文件。密钥不进入前端bundle、浏览器响应或请求日志。部署时配置服务端环境变量即可，无需Python。
+服务端默认使用 `MODEL_PROVIDER=opencode`，通过 `OPENCODE_API_KEY`、`OPENCODE_ENDPOINT` 和 `OPENCODE_MODEL` 调用 OpenCode Go。`CPA_API_KEY`、`CPA_ENDPOINT`、`CPA_MODEL` 仅作为旧环境变量兼容别名。密钥不进入前端bundle、浏览器响应或请求日志；部署时配置服务端环境变量即可。
 
-模型为 `gpt-5.6-luna`，请求 `reasoning_effort=none`。上游报告非零或未报告推理token时，只写后台warning，继续生成。
+模型为 `deepseek-flash`，请求携带 `x-opencode-session` 路由头，`reasoning_effort` 默认 `none`。上游返回的推理token数只写后台日志，不影响正文流。
 
 ## 一句一推的协议
 
@@ -62,7 +62,7 @@ data: {"type":"done","state":{"...":"当前公开进度"}}
 ```bash
 npm test
 npm run build
-# 真实CPA测试，会产生token费用，逐轮走完一条路线
+# 真实OpenCode测试，会产生token费用，逐轮走完一条路线
 node scripts/test-live.mjs
 ```
 

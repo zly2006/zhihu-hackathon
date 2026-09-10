@@ -1,16 +1,15 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { initial, choose } from '../lib/story';
+import { castPool, initial, choose, total } from '../lib/story';
 import { generate } from '../lib/generator';
 import type { CharacterProfile, GameEvent, State } from '../lib/story';
 
-const profiles: CharacterProfile[] = [
-  { id: 'lin', name: '林见夏', gender: '女' },
-  { id: 'tao', name: '陶晚晴', gender: '女' },
-  { id: 'shen', name: '沈知遥', gender: '女' },
-  { id: 'player', name: '许澄', gender: '男' },
-];
+const profiles: CharacterProfile[] = ['m1', 'm3', 'f2', 'f4'].map((id) => {
+  const member = castPool.find((candidate) => candidate.id === id);
+  if (!member) throw new Error(`回放角色不存在：${id}`);
+  return { id: member.id, name: member.name, gender: member.gender };
+});
 
 const outputDir = path.join(process.cwd(), '.data', 'reviews');
 const stamp = `${new Date().toISOString().replaceAll(':', '-').replaceAll('.', '-')}-${randomUUID().slice(0, 8)}`;
@@ -24,7 +23,7 @@ function pickChoice(state: State) {
 
 async function main() {
   const state = initial(profiles);
-  while (state.nodes.length < 7) {
+  while (state.nodes.length < total) {
     const events: GameEvent[] = [];
     const node = await generate(state, (event) => events.push(event), async () => undefined);
     state.nodes.push(node);
@@ -33,7 +32,7 @@ async function main() {
     if (!state.storyTitle) state.storyTitle = node.title;
     state.pending = false;
     transcript.push({ stage: state.nodes.length, events });
-    if (state.nodes.length === 7) break;
+    if (state.nodes.length === total) break;
     const selected = pickChoice(state);
     if (!selected) throw new Error(`第 ${state.nodes.length} 段没有可选项，无法继续`);
     const choices = state.nodes.at(-1)?.choices ?? [];

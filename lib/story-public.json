@@ -1,0 +1,73 @@
+{
+  "player": {
+    "id": "player",
+    "name": "许澄",
+    "age": 24,
+    "identity": "街角共享工作室的兼职管理员；习惯帮忙，却不敢提出自己的愿望"
+  },
+  "premise": "共享工作室今晚办周年开放夜。突然下雨，最后一批客人没来，四位伙伴和许澄要在闭店前收拾好展示桌，并决定如何留下今晚的纪念。没有关店、拆迁或失业危机。",
+  "locations": [
+    "工作室前厅",
+    "门口雨棚"
+  ],
+  "requiredCastCount": 4,
+  "totalStages": 7,
+  "cast": [
+    {
+      "id": "m1",
+      "name": "顾言川",
+      "gender": "男",
+      "age": 28,
+      "identity": "产品经理"
+    },
+    {
+      "id": "m2",
+      "name": "周砚",
+      "gender": "男",
+      "age": 27,
+      "identity": "摄影师"
+    },
+    {
+      "id": "m3",
+      "name": "沈屿",
+      "gender": "男",
+      "age": 25,
+      "identity": "程序员"
+    },
+    {
+      "id": "m4",
+      "name": "陆沉",
+      "gender": "男",
+      "age": 30,
+      "identity": "知乎答主"
+    },
+    {
+      "id": "f1",
+      "name": "林见夏",
+      "gender": "女",
+      "age": 25,
+      "identity": "插画师"
+    },
+    {
+      "id": "f2",
+      "name": "陶晚晴",
+      "gender": "女",
+      "age": 24,
+      "identity": "陶艺师"
+    },
+    {
+      "id": "f3",
+      "name": "沈知遥",
+      "gender": "女",
+      "age": 26,
+      "identity": "记者"
+    },
+    {
+      "id": "f4",
+      "name": "苏棠",
+      "gender": "女",
+      "age": 23,
+      "identity": "音乐人"
+    }
+  ]
+}

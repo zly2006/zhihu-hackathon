@@ -19,3 +19,7 @@ This block is written and re-added by `next dev` — verify at `node_modules/nex
 ## 流式状态必须单一化
 
 生成协议的流式 partial、最终 finishPartial 和持久化状态必须使用同一份规范化记录；不能只在中间事件上修正字段，却让最终校验重新读取模型原始值。任何字段修正都应在进入 partial 前完成，并由最终校验复用。
+
+## 消息 content 必须保持字符串
+
+对外发送 Chat Completions 消息时，业务上下文的 `message.content` 必须是字符串；需要传结构化数据时先序列化成 JSON 文本，再放入 `content`。禁止把对象直接作为 `content`，也不得在文档或提示词示意中把已经序列化的文本画成对象，否则会让人误判真实协议。排查请求时应直接校验每层 `typeof content === 'string'`。

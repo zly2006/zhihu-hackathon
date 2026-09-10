@@ -1,7 +1,7 @@
 import {z} from 'zod';
-import {ids,type State,type GameEvent} from './story';
+import {limits,type State,type GameEvent} from './story';
 
-const choiceSchema=z.object({items:z.array(z.object({text:z.string().min(4).max(30),target:z.enum(ids).nullable()}).strict()).max(3)}).strict();
+const choiceSchema=z.object({items:z.array(z.object({text:z.string().min(4).max(30),target:z.string().nullable().optional()}).strict()).max(limits.totalChoiceMax)}).strict();
 const memorySchema=z.object({summary:z.string().max(240),facts:z.array(z.string().max(55)).max(6)}).strict();
 function parseBlockJson(value:string) {
  let source=value.trim();
@@ -28,7 +28,7 @@ export function parseTagged(raw:string):TaggedRecord {
  const line=raw.trim();
  if(line==='[END]')return {type:'end'};
  const scene=line.match(/^\[SCENE\]\s*(.+)$/);if(scene)return {type:'scene',title:scene[1].trim()};
- const npc=line.match(/^\[(?:NPC:([^\]]+)|PLAYER)\]\s*(.+)$/);if(npc)return {type:'line',speaker:npc[1]?.trim()||'许澄',text:npc[2].trim()};
+ const npc=line.match(/^\[(?:NPC:([^\]]+)|PLAYER)\]\s*(.+)$/);if(npc)return {type:'line',speaker:npc[1]?.trim()||'我',text:npc[2].trim()};
  if(line==='[CHOICES]')throw new Error('choices标签必须紧跟JSON对象');
  if(line.startsWith('[CHOICES]'))return {type:'choices',...choiceSchema.parse(parseBlockJson(line.slice(9).trim()))};
  if(line.startsWith('[MEMORY]'))return {type:'memory',...memorySchema.parse(parseBlockJson(line.slice(8).trim()))};

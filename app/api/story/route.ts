@@ -1,19 +1,34 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
-import {initial,choose,publicState,type GameEvent,type CharacterProfile} from '../../../lib/story';
+import {castPool,initial,choose,limits,publicState,requiredCastCount,total,type GameEvent,type CharacterProfile} from '../../../lib/story';
 import {readState,saveState,saveJsonl,busy} from '../../../lib/storage';
 import {generate} from '../../../lib/generator';
 export const runtime='nodejs';
 export const maxDuration=600;
-export async function GET(req:NextRequest) {const id=req.nextUrl.searchParams.get('storyId')||'';const state=id?await readState(id):null;return NextResponse.json({storyId:id||null,state:state?publicState(state):null},{headers:{'Cache-Control':'no-store'}});}
-const schema=z.object({storyId:z.string().uuid().optional(),action:z.enum(['start','choose','retry','restart']),choice:z.number().int().min(0).max(2).optional(),expected:z.number().int().optional(),profiles:z.array(z.object({id:z.string(),name:z.string(),gender:z.enum(['男','女']),background:z.string().max(300).optional(),zhihuHandle:z.string().max(80).optional()}).strict()).max(4).optional()}).strict();
+export async function GET(req:NextRequest) {
+ const id=req.nextUrl.searchParams.get('storyId')||'';
+ const state=id?await readState(id):null;
+ return NextResponse.json({
+  storyId:id||null,
+  state:state?publicState(state):null,
+  pool:castPool,
+  requiredCastCount,
+  total,
+ },{headers:{'Cache-Control':'no-store'}});
+}
+const schema=z.object({storyId:z.string().uuid().optional(),action:z.enum(['start','choose','retry','restart']),choice:z.number().int().min(0).max(limits.totalChoiceMax-1).optional(),expected:z.number().int().optional(),profiles:z.array(z.object({id:z.string(),name:z.string(),gender:z.enum(['男','女']),background:z.string().max(300).optional(),zhihuHandle:z.string().max(80).optional()}).strict()).length(requiredCastCount).optional()}).strict();
 export async function POST(req:NextRequest) {
  if(req.headers.get('origin') && new URL(req.headers.get('origin')!).host!==req.headers.get('host'))return NextResponse.json({error:'请求来源不匹配。'},{status:403});
  const parsed=schema.safeParse(await req.json().catch(()=>null));if(!parsed.success)return NextResponse.json({error:'请求格式不正确。'},{status:400});
  const {action,choice,expected,profiles}=parsed.data;
  let id=parsed.data.storyId;let state=id?await readState(id):null;
- if(action==='restart'||!state){if(!['start','restart'].includes(action))return NextResponse.json({error:'请先开始故事。'},{status:400});if (!profiles || profiles.length!==4)return NextResponse.json({error:'请先选择4位角色。'},{status:400});id=randomUUID();state=initial(profiles as CharacterProfile[]);}
+ if(action==='restart'||!state){
+  if(!['start','restart'].includes(action))return NextResponse.json({error:'请先开始故事。'},{status:400});
+  if(!profiles)return NextResponse.json({error:`请先选择${requiredCastCount}位角色。`},{status:400});
+  id=randomUUID();
+  try{state=initial(profiles as CharacterProfile[]);}catch(error){return NextResponse.json({error:error instanceof Error?error.message:'角色选择无效。'},{status:400});}
+ }
  if(!id||!state)return NextResponse.json({error:'存档不可用。'},{status:400});
  if(busy.has(id))return NextResponse.json({error:'这一段正在生成，请稍候再继续。'},{status:409});
  busy.add(id);
