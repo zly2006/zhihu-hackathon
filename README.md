@@ -11,7 +11,7 @@ npm run dev
 
 打开 http://127.0.0.1:3000 。生产构建：`npm run build && npm start`。默认只监听本机；这是单实例本地原型，存档在 `.data/`，不适合直接放到无持久磁盘的serverless环境。
 
-服务端默认使用 `MODEL_PROVIDER=opencode`，通过 `OPENCODE_API_KEY`、`OPENCODE_ENDPOINT` 和 `OPENCODE_MODEL` 调用 OpenCode Go。`CPA_API_KEY`、`CPA_ENDPOINT`、`CPA_MODEL` 仅作为旧环境变量兼容别名。密钥不进入前端bundle、浏览器响应或请求日志；部署时配置服务端环境变量即可。
+服务端使用 `MODEL_PROVIDER=opencode`，通过 `OPENCODE_API_KEY`、`OPENCODE_ENDPOINT` 和 `OPENCODE_MODEL` 调用 OpenCode Go。OpenCode 模式不会读取 CPA 凭证，避免把另一套密钥发往错误上游。密钥不进入前端bundle、浏览器响应或请求日志；部署时配置服务端环境变量即可。
 
 模型为 `deepseek-flash`，请求携带 `x-opencode-session` 路由头，`reasoning_effort` 默认 `none`。上游返回的推理token数只写后台日志，不影响正文流。
 
@@ -20,13 +20,13 @@ npm run dev
 `POST /api/story` 返回 `text/event-stream`。每一个 `data:` 都是一个完整JSON事件，保持SSE要求的空行分隔。SSE外层不是裸JSONL；事件内容使用JSON对象，落盘时一行一个对象，形成JSONL。
 
 ```text
-data: {"type":"scene","segment":1,"title":"雨声里的收尾","readingSeconds":0}
+data: {"type":"scene","segment":1,"title":"先把这一页翻过去","readingSeconds":0}
 
-data: {"type":"line","index":0,"speaker":"旁白","text":"雨点敲着工作室的窗。"}
+data: {"type":"line","index":0,"speaker":"旁白","text":"展示桌收好以后，走廊里只剩四个人。"}
 
-data: {"type":"line","index":1,"speaker":"林见夏","text":"别把画纸放在窗边，会沾到雨。"}
+data: {"type":"line","index":1,"speaker":"顾言川","text":"最后一版还可以再改，但今晚得先定方向。"}
 
-data: {"type":"choices","items":[{"text":"帮她收起画纸"},{"text":"先去看看那只杯子"},{"text":"和摄影师检查灯光"}]}
+data: {"type":"choices","items":[{"text":"请顾言川先定方向"},{"text":"和陶晚晴核对方案"},{"text":"留下听完沈屿的顾虑"},{"text":"陪苏棠把现场收好"}]}
 
 data: {"type":"done","state":{"...":"当前公开进度"}}
 ```
@@ -36,7 +36,7 @@ data: {"type":"done","state":{"...":"当前公开进度"}}
 1. LLM逐条输出JSONL，token到达时增量解码；遇到完整换行才形成一条记录。
 2. 立即检查该条JSON、字段、说话者、顺序、单条长度与累计字数。明确的“我”映射为玩家姓名。
 3. 检查通过后先保存已接收部分，再发送对应SSE事件；后面的对白可以仍在生成。
-4. 选项出现时检查正文225—300字、选项2—3个和route归属；结局无选项。选项在整段确认完成后才能点击。
+4. 选项出现时检查正文225—300字、共同篇四个角色目标或个人线2—3个选项；结局无选项。选项在整段确认完成后才能点击。
 5. 内部memory记录仅保存在服务端。`end`、上游`finish_reason=stop`和`[DONE]`全部到齐，才提交完整片段并发`done`。
 
 这不是等完整片段生成完再拆句发送。`lib/protocol.ts` 负责逐条校验与转换，`lib/generator.ts` 负责模型流和续写，`app/api/story/route.ts` 负责SSE及会话。
@@ -47,13 +47,15 @@ data: {"type":"done","state":{"...":"当前公开进度"}}
 
 ## 游戏与状态
 
-- 三位初始人物。共同篇3次选择累计倾向，最高分锁定route，平票取最近选择。
-- 总共7轮：共同篇3、个人线3、结局1。每轮正文225—300有效字，按300字/分钟约45—60秒；选项、思考、接口等待另计，不能保证实际总墙钟时间小于10分钟。
+- 开局先选择高中、大学、研究生或毕业到工作的人生阶段，再从8位角色中选择4位，并填写玩家姓名与性别。
+- 共同篇通常两次选择锁定唯一领先者；两人同票时追加第三次共同选择。同性进入友情线，异性进入恋爱线。
+- 通常共6轮，平票时7轮：共同篇2或3轮、关系线3轮、结局1轮。模板中的事件模块按固定种子选择，重放同一故事时保持一致。
+- 每轮正文225—300有效字，按300字/分钟约45—60秒；选项、思考、接口等待另计，不能保证实际总墙钟时间小于10分钟。
 - 点击对话区域、空格/右方向键推进；F全屏，Esc退出；回看历史、重新开始确认。
-- HttpOnly、SameSite cookie定位服务端存档。客户端只提交选项编号和期望进度，不上传人设、route或剧情状态。
+- 客户端用本地保存的 `storyId` 定位服务端存档。客户端只提交开局选择、选项编号和期望进度，不上传生成后的剧情状态。
 - 单进程生成互斥与进度校验防止重复点击；读档不触发模型。服务端重启后可从已保存的partial恢复。多实例部署需要将文件存储与互斥改为共享数据库/锁。
 
-接口请求：`{action:"start"}`、`{action:"choose",choice:0,expected:1}`、`{action:"retry"}`、`{action:"restart"}`。`GET /api/story`仅读公开存档。
+接口请求：`{action:"start",profiles,backgroundId,player}`、`{action:"choose",choice:0,expected:1}`、`{action:"retry"}`、`{action:"restart"}`。`GET /api/story?storyId=...` 仅读公开存档。
 
 `.data/sessions/*.json` 保存私有状态；`*.jsonl`追加保存对外事件；`.data/requests/`记录真实提示、原始模型输出、usage与耗时，不含认证头。目录应按私人数据保护，不作为静态资源发布。
 

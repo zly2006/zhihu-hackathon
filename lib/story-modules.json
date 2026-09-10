@@ -1,0 +1,65 @@
+{
+  "version": 1,
+  "backgrounds": {
+    "high-school": {
+      "common": [
+        {"id":"hs-common-board","title":"联合活动的最后一块展板","situation":"各社团都要在同一块公共展板上留位置，已画好的内容却被人覆盖。","location":"教学楼走廊","object":"一块反复擦改的展板"},
+        {"id":"hs-common-form","title":"意向表收错了三份","situation":"分科意向表需要重新核对，一张错误表格可能让某位同学被迫解释家庭安排。","location":"教室后排","object":"夹着便签的分科意向表"},
+        {"id":"hs-common-audition","title":"排练临时缺一个位置","situation":"联合活动彩排缺少负责音响或伴奏的人，大家必须调整各自安排补上空缺。","location":"社团活动室","object":"写满改动的排练表"}
+      ],
+      "romance": [
+        {"id":"hs-romance-notes","title":"只借给一个人的笔记","situation":"一份整理得过分认真的复习笔记被交到玩家手里，原主人却要求不要告诉别人。","location":"图书馆自习区","object":"夹着私人批注的笔记本"},
+        {"id":"hs-romance-photo","title":"没有被交出去的合照","situation":"活动结束后剩下一张双人合照，角色想洗出来，又担心被别人看见。","location":"校园打印室","object":"尚未导出的小相机"}
+      ],
+      "friendship": [
+        {"id":"hs-friend-promise","title":"替朋友保守的选择","situation":"有人发现了朋友的升学意向，却不知道该替对方保密，还是提醒老师风险。","location":"校刊办公室","object":"写有候选名单的采访本"},
+        {"id":"hs-friend-competition","title":"同一个名额","situation":"玩家和朋友同时进入一个名额有限的推荐名单，必须决定怎样谈竞争。","location":"教师办公室外","object":"一张推荐名单"}
+      ]
+    },
+    "university": {
+      "common": [
+        {"id":"uni-common-exhibition","title":"联合展临时少了主视觉","situation":"展板即将送印，主视觉文件版本混乱，所有人必须确认该保留谁的决定。","location":"综合楼展厅","object":"存有多个版本的移动硬盘"},
+        {"id":"uni-common-signup","title":"重复出现的报名名单","situation":"报名系统把同一个人统计了两次，导致最后一个名额归属产生争议。","location":"社团活动室","object":"导出错误的报名表"},
+        {"id":"uni-common-nightbus","title":"错过末班校车之后","situation":"活动收尾超过预计时间，大家需要重新安排回宿舍、设备和第二天的课程。","location":"校门口公交站","object":"一辆即将发车的校车"}
+      ],
+      "romance": [
+        {"id":"uni-romance-portfolio","title":"作品集的最后一页","situation":"角色把尚未提交的个人作品先交给玩家看，其中一页明显与两个人有关。","location":"校园咖啡区","object":"一份没有正式提交的作品集"},
+        {"id":"uni-romance-festival","title":"被误认成约会的排练","situation":"两个人替朋友准备惊喜，却被其他人默认他们正在单独约会。","location":"综合楼展厅","object":"写错署名的惊喜卡片"}
+      ],
+      "friendship": [
+        {"id":"uni-friend-dropout","title":"有人想退出项目","situation":"项目最忙时，一位朋友提出退出，真实原因却没有立刻说出口。","location":"社团活动室","object":"缺人的分工表"},
+        {"id":"uni-friend-interview","title":"朋友成为采访对象","situation":"校媒需要采访项目中的朋友，对方却要求删掉最关键的私人经历。","location":"校园广播站","object":"一段未公开的采访录音"}
+      ]
+    },
+    "graduate": {
+      "common": [
+        {"id":"grad-common-review","title":"阶段汇报前一晚","situation":"跨组汇报的数据版本不一致，大家必须在一夜内确定哪些结果可以公开。","location":"实验室研讨区","object":"仍未统一的汇报数据"},
+        {"id":"grad-common-reagent","title":"实验预约撞车","situation":"共享设备只剩一个时间段，两个人的实验都无法延期。","location":"实验准备间","object":"只剩一格预约的登记表"},
+        {"id":"grad-common-revision","title":"论文返修意见","situation":"同一份返修意见被不同人理解成完全相反的方向，必须决定如何回应。","location":"资料室","object":"画满不同颜色批注的返修稿"}
+      ],
+      "romance": [
+        {"id":"grad-romance-failure","title":"失败的实验结果","situation":"角色第一次让玩家看见自己彻底失败的记录，并邀请玩家陪自己重新整理。","location":"实验室研讨区","object":"杯壁写有日期的失败样品"},
+        {"id":"grad-romance-journal","title":"投稿前删除的致谢","situation":"论文致谢里曾出现玩家，提交前又被删掉，原因需要当面说明。","location":"校园咖啡区","object":"修改记录仍在的投稿文件"}
+      ],
+      "friendship": [
+        {"id":"grad-friend-authorship","title":"署名顺序的沉默","situation":"合作成果需要决定作者顺序，一位朋友主动退让却没有说明真实代价。","location":"资料室","object":"未签字的署名确认页"},
+        {"id":"grad-friend-advisor","title":"导师没有回的那封邮件","situation":"朋友想让玩家帮忙看一封给导师的邮件，却担心这变成替自己出头。","location":"校门外公交站","object":"草稿箱里的邮件"}
+      ]
+    },
+    "early-career": {
+      "common": [
+        {"id":"work-common-deadline","title":"项目续约前的最后一版","situation":"合作项目要在试用期结束前交付，客户临时改变需求，所有人都要重新分配时间。","location":"共享办公区","object":"写满修改意见的需求单"},
+        {"id":"work-common-rent","title":"三个人的房租到期","situation":"合租合同即将续签，薪资、城市和返乡计划让原本简单的决定变得敏感。","location":"地铁站出口","object":"一份续租通知"},
+        {"id":"work-common-event","title":"线下活动的临时缺人","situation":"周末活动缺少现场协调，参与者必须牺牲休息或原定安排补位。","location":"城市公园长椅","object":"排班表上唯一空白的时段"}
+      ],
+      "romance": [
+        {"id":"work-romance-commute","title":"跨城面试的返程票","situation":"两个人都收到异地机会，却只剩一张合适时间的返程票，必须坦白各自计划。","location":"高铁站候车区","object":"两张时间冲突的车票"},
+        {"id":"work-romance-home","title":"出租屋里的第二把钥匙","situation":"角色托玩家保管钥匙，却没有说明是临时帮忙，还是关系向前一步。","location":"公寓楼下","object":"一把没有标签的备用钥匙"}
+      ],
+      "friendship": [
+        {"id":"work-friend-job","title":"拒掉的稳定工作","situation":"朋友瞒着家里放弃了一份稳定岗位，希望玩家先替自己保管这个决定。","location":"深夜便利店","object":"已经回复拒信的邮件"},
+        {"id":"work-friend-city","title":"留下来的理由","situation":"一位朋友准备离开城市，却仍在等玩家说一句挽留。玩家必须区分舍不得和支持。","location":"城市公园长椅","object":"已经打包好的纸箱"}
+      ]
+    }
+  }
+}

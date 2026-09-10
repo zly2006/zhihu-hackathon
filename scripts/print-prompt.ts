@@ -1,6 +1,6 @@
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { castPool, buildModelMessages, initial, total, type CharacterProfile, type State } from '../lib/story';
+import { castPool, buildModelMessages, initial, totalForState, type CharacterProfile, type Gender, type StartOptions, type State } from '../lib/story';
 
 function argument(name: string) {
   const inline = process.argv.find((value) => value.startsWith(`--${name}=`));
@@ -40,8 +40,14 @@ async function readSessionState(id: string) {
 async function main() {
   const storyId = argument('story-id');
   const profileIds = argument('profiles');
+  const startOptions: StartOptions = {
+    backgroundId: argument('background') || 'university',
+    playerName: argument('name') || '许澄',
+    playerGender: (argument('gender') as Gender) || '女',
+    seed: argument('seed') || 'prompt-preview',
+  };
   const outputPath = path.resolve(argument('out') || path.join('.data', 'prompts', 'current-prompt.txt'));
-  const state: State = storyId ? await readSessionState(storyId) : initial(parseProfiles(profileIds));
+  const state: State = storyId ? await readSessionState(storyId) : initial(parseProfiles(profileIds), startOptions);
 
   if (!state) throw new Error(`没有找到故事存档：${storyId}`);
 
@@ -50,7 +56,7 @@ async function main() {
     '当前实际发送给模型的提示词',
     `生成时间：${new Date().toISOString()}`,
     `故事来源：${storyId ? `storyId=${storyId}` : '新开局默认角色'}`,
-    `剧情阶段：${state.nodes.length + 1} / ${total}`,
+    `剧情阶段：${state.nodes.length + 1} / ${totalForState(state)}`,
     `消息数量：${modelMessages.length}`,
     '说明：下方内容与 generate() 实际发送的 messages 一致，仅省略 HTTP 请求头和认证信息。',
     '',
@@ -64,7 +70,7 @@ async function main() {
     await mkdir(path.dirname(outputPath), { recursive: true });
     await writeFile(outputPath, output, 'utf8');
     console.log(`提示词已生成：${outputPath}`);
-    console.log(`剧情阶段：${state.nodes.length + 1} / ${total}`);
+    console.log(`剧情阶段：${state.nodes.length + 1} / ${totalForState(state)}`);
     console.log(`消息数量：${modelMessages.length}`);
     console.log(`提示词字符数：${output.length}`);
   }

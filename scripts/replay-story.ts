@@ -1,7 +1,7 @@
 import { randomInt, randomUUID } from 'node:crypto';
 import { mkdir, writeFile } from 'node:fs/promises';
 import path from 'node:path';
-import { castPool, initial, choose, total } from '../lib/story';
+import { castPool, initial, choose, beatForState } from '../lib/story';
 import { generate } from '../lib/generator';
 import type { CharacterProfile, GameEvent, State } from '../lib/story';
 
@@ -22,8 +22,9 @@ function pickChoice(state: State) {
 }
 
 async function main() {
-  const state = initial(profiles);
-  while (state.nodes.length < total) {
+  const state = initial(profiles, { backgroundId: 'university', playerName: '许澄', playerGender: '女', seed: randomUUID() });
+  while (true) {
+    const beat = beatForState(state);
     const events: GameEvent[] = [];
     const node = await generate(state, (event) => events.push(event), async () => undefined);
     state.nodes.push(node);
@@ -32,7 +33,7 @@ async function main() {
     if (!state.storyTitle) state.storyTitle = node.title;
     state.pending = false;
     transcript.push({ stage: state.nodes.length, events });
-    if (state.nodes.length === total) break;
+    if (beat.kind === 'ending') break;
     const selected = pickChoice(state);
     if (!selected) throw new Error(`第 ${state.nodes.length} 段没有可选项，无法继续`);
     const choices = state.nodes.at(-1)?.choices ?? [];

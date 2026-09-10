@@ -29,6 +29,7 @@ export function parseTagged(raw:string):TaggedRecord {
  if(line==='[END]')return {type:'end'};
  const scene=line.match(/^\[SCENE\]\s*(.+)$/);if(scene)return {type:'scene',title:scene[1].trim()};
  const npc=line.match(/^\[(?:NPC:([^\]]+)|PLAYER)\]\s*(.+)$/);if(npc)return {type:'line',speaker:npc[1]?.trim()||'我',text:npc[2].trim()};
+ const bareNpc=line.match(/^\[([\p{Script=Han}]{1,8})\]\s*(.+)$/u);if(bareNpc)return {type:'line',speaker:bareNpc[1].trim(),text:bareNpc[2].trim()};
  if(line==='[CHOICES]')throw new Error('choices标签必须紧跟JSON对象');
  if(line.startsWith('[CHOICES]'))return {type:'choices',...choiceSchema.parse(parseBlockJson(line.slice(9).trim()))};
  if(line.startsWith('[MEMORY]'))return {type:'memory',...memorySchema.parse(parseBlockJson(line.slice(8).trim()))};

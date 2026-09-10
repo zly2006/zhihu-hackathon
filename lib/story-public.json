@@ -1,70 +1,19 @@
 {
   "player": {
     "id": "player",
-    "name": "许澄",
-    "age": 24,
-    "identity": "即将硕士毕业的学生；习惯替身边的人收拾局面，却不擅长说明自己的愿望"
+    "name": "许澄"
   },
-  "premise": "硕士毕业前，许澄和几位一路相识的伙伴整理旧物，也重新面对从高中、本科到硕士改变彼此关系的三次人生选择。每次选择都有现实代价，身边的人会记住，也会按自己的利益作出回应。",
-  "locations": ["校园活动室", "教学楼连廊"],
   "requiredCastCount": 4,
-  "totalStages": 7,
+  "maxStages": 7,
+  "defaultBackgroundId": "university",
   "cast": [
-    {
-      "id": "m1",
-      "name": "顾言川",
-      "gender": "男",
-      "age": 28,
-      "identity": "产品经理"
-    },
-    {
-      "id": "m2",
-      "name": "周砚",
-      "gender": "男",
-      "age": 27,
-      "identity": "摄影师"
-    },
-    {
-      "id": "m3",
-      "name": "沈屿",
-      "gender": "男",
-      "age": 25,
-      "identity": "程序员"
-    },
-    {
-      "id": "m4",
-      "name": "陆沉",
-      "gender": "男",
-      "age": 30,
-      "identity": "知乎答主"
-    },
-    {
-      "id": "f1",
-      "name": "林见夏",
-      "gender": "女",
-      "age": 25,
-      "identity": "插画师"
-    },
-    {
-      "id": "f2",
-      "name": "陶晚晴",
-      "gender": "女",
-      "age": 24,
-      "identity": "陶艺师"
-    },
-    {
-      "id": "f3",
-      "name": "沈知遥",
-      "gender": "女",
-      "age": 26,
-      "identity": "记者"
-    },
-    {
-      "id": "f4",
-      "name": "苏棠",
-      "gender": "女",
-      "age": 23,
-      "identity": "音乐人"
-    }
+    {"id":"m1","name":"顾言川","gender":"男","age":28,"identity":"产品经理"},
+    {"id":"m2","name":"周砚","gender":"男","age":27,"identity":"摄影师"},
+    {"id":"m3","name":"沈屿","gender":"男","age":25,"identity":"程序员"},
+    {"id":"m4","name":"陆沉","gender":"男","age":30,"identity":"知乎答主"},
+    {"id":"f1","name":"林见夏","gender":"女","age":25,"identity":"插画师"},
+    {"id":"f2","name":"陶晚晴","gender":"女","age":24,"identity":"陶艺师"},
+    {"id":"f3","name":"沈知遥","gender":"女","age":26,"identity":"记者"},
+    {"id":"f4","name":"苏棠","gender":"女","age":23,"identity":"音乐人"}
   ]
 }

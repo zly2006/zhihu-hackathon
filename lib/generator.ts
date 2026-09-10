@@ -12,19 +12,19 @@ const MAX_ATTEMPTS=5;
 async function credentials() {
  const provider=process.env.MODEL_PROVIDER?.trim()||'opencode';
  if(provider!=='opencode')throw new Error('MODEL_PROVIDER必须是opencode');
- const key=process.env.OPENCODE_API_KEY||process.env.CPA_API_KEY;
+ const key=process.env.OPENCODE_API_KEY?.trim();
  if(!key)throw new Error('服务端尚未配置OPENCODE_API_KEY');
  return {
   key,
-  endpoint:process.env.OPENCODE_ENDPOINT||process.env.CPA_ENDPOINT||DEFAULT_ENDPOINT,
-  model:process.env.OPENCODE_MODEL||process.env.CPA_MODEL||DEFAULT_MODEL,
-  effort:process.env.OPENCODE_REASONING_EFFORT||process.env.CPA_REASONING_EFFORT||DEFAULT_REASONING_EFFORT,
+  endpoint:process.env.OPENCODE_ENDPOINT||DEFAULT_ENDPOINT,
+  model:process.env.OPENCODE_MODEL||DEFAULT_MODEL,
+  effort:process.env.OPENCODE_REASONING_EFFORT||DEFAULT_REASONING_EFFORT,
  };
 }
 export async function generate(state:State,emit:(e:GameEvent)=>void,persist:()=>Promise<void>):Promise<StoryNode> {
  const {key,endpoint,model,effort}=await credentials();const opencodeSession=randomUUID();let issue='';
  for(let attempt=0;attempt<MAX_ATTEMPTS;attempt++) {
- emit({type:'status',phase:attempt?'repairing':'generating',message:attempt?'正在接着写这一段…':'雨还在下，故事正在继续…'});
+ emit({type:'status',phase:attempt?'repairing':'generating',message:attempt?'正在接着写这一段…':'故事正在继续…'});
   const msg=buildModelMessages(state,issue);
   const payload={model,reasoning_effort:effort,temperature:0.9,seed:randomInt(1_000_000_000),messages:msg,max_tokens:2800,stream:true,stream_options:{include_usage:true}};
   const started=Date.now();let raw='',finish='',done=false,ended=false,usage:Record<string,unknown>|null=null;let failure:string|undefined;

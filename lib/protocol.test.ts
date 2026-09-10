@@ -1,6 +1,8 @@
-import test from "node:test";
-import assert from "node:assert/strict";
+import test from 'node:test';
+import assert from 'node:assert/strict';
 import {
+  backgroundFor,
+  beatForState,
   buildModelMessages,
   castPool,
   choose,
@@ -9,366 +11,284 @@ import {
   isCommonStage,
   isEndingStage,
   limits,
+  maxStages,
   messages,
+  nextInstruction,
   nodeSchema,
+  publicBackgrounds,
+  publicState,
   requiredCastCount,
   selectExamples,
   selectReferenceStory,
   selectedCast,
   selectedIds,
-  total,
+  selectedModule,
+  totalForState,
   validate,
   type CharacterProfile,
+  type StartOptions,
   type State,
   type StoryNode,
-} from "./story";
-import { JsonlDecoder, acceptRecord } from "./protocol";
-import { TaggedDecoder, parseTagged } from "./tagged-protocol";
+} from './story';
+import { JsonlDecoder, acceptRecord } from './protocol';
+import { TaggedDecoder, parseTagged } from './tagged-protocol';
 
-const selectedIdsForTest = ["m1", "m3", "f2", "f4"];
+const selectedIdsForTest = ['m1', 'm3', 'f2', 'f4'];
 const profiles: CharacterProfile[] = selectedIdsForTest.map((id) => {
   const member = castPool.find((candidate) => candidate.id === id)!;
   return { id: member.id, name: member.name, gender: member.gender };
 });
+const startOptions: StartOptions = { backgroundId: 'university', playerName: '许澄', playerGender: '女', seed: 'test-seed' };
 const record = (value: unknown) => JSON.stringify(value);
 
 function linesFor(state: State) {
   const names = selectedCast(state).map((member) => member.name);
-  return names.map((speaker) => ({ speaker, text: "字".repeat(60) }));
+  return names.map((speaker) => ({ speaker, text: '字'.repeat(60) }));
 }
 
 function commonChoices(state: State) {
-  return selectedCast(state).map((member) => ({
-    text: `请${member.name}一起收尾`,
-    target: member.id,
-  }));
+  return selectedCast(state).map((member) => ({ text: `请${member.name}一起处理`, target: member.id }));
 }
 
 function routeChoices() {
   return [
-    { text: "继续当前行动", target: null },
-    { text: "放慢一步再回应", target: null },
+    { text: '继续当前行动', target: null },
+    { text: '放慢一步再回应', target: null },
   ];
 }
 
-function makeNode(
-  state: State,
-  choices: StoryNode["choices"],
-  textPrefix = "",
-): StoryNode {
+function makeNode(state: State, choices: StoryNode['choices'], textPrefix = ''): StoryNode {
   return {
-    title: "雨停之前",
-    lines: linesFor(state).map((line) => ({
-      ...line,
-      text: `${textPrefix}${line.text}`.slice(0, limits.maxLineChars),
-    })),
+    title: '最后一项安排',
+    lines: linesFor(state).map((line) => ({ ...line, text: `${textPrefix}${line.text}`.slice(0, limits.maxLineChars) })),
     choices,
-    memory: { summary: "", facts: [] },
+    memory: { summary: '', facts: [] },
   };
 }
 
-function stateAtStage(stage: number) {
-  const state = initial(profiles);
-  state.nodes = Array.from({ length: stage }, (_, index) =>
-    makeNode(state, [], `第${index + 1}段`),
-  );
+function appendNode(state: State, node: StoryNode) {
+  state.nodes.push(node);
+  state.pending = false;
+}
+
+function chooseTarget(state: State, target: string) {
+  const node = validate(makeNode(state, commonChoices(state), `第${state.nodes.length}段`), state);
+  appendNode(state, node);
+  const index = node.choices.findIndex((choice) => choice.target === target);
+  choose(state, index, state.nodes.length);
+}
+
+function lockedState(target = 'm1', options: StartOptions = startOptions) {
+  const state = initial(profiles, options);
+  chooseTarget(state, target);
+  chooseTarget(state, target);
   return state;
 }
 
-test("profile selection requires exactly four unique characters from the eight-person pool", () => {
+function advanceRoute(state: State, index = 0) {
+  const node = validate(makeNode(state, routeChoices(), `路线${state.nodes.length}`), state);
+  appendNode(state, node);
+  choose(state, index, state.nodes.length);
+}
+
+test('opening selection requires four unique characters, a life background, and player data', () => {
   assert.equal(castPool.length, 8);
   assert.equal(requiredCastCount, 4);
-  assert.equal(initial(profiles).profiles?.length, 4);
-  assert.throws(() => initial(profiles.slice(0, 3)), /必须选择4位角色/);
-  assert.throws(
-    () => initial([...profiles.slice(0, 3), profiles[0]]),
-    /角色不能重复选择/,
-  );
-  assert.throws(
-    () => initial([...profiles.slice(0, 3), { ...profiles[0], id: "unknown" }]),
-    /角色资料与当前角色池不一致/,
-  );
+  assert.equal(publicBackgrounds.length, 4);
+  assert.equal(initial(profiles, startOptions).profiles?.length, 4);
+  assert.equal(initial(profiles, startOptions).backgroundId, 'university');
+  assert.throws(() => initial(profiles.slice(0, 3), startOptions), /必须选择4位角色/);
+  assert.throws(() => initial([...profiles.slice(0, 3), profiles[0]], startOptions), /角色不能重复选择/);
+  assert.throws(() => initial([...profiles.slice(0, 3), { ...profiles[0], id: 'unknown' }], startOptions), /角色资料与当前角色池不一致/);
+  assert.throws(() => initial(profiles, { ...startOptions, backgroundId: 'unknown' }), /人生背景包不存在/);
 });
 
-test("three common choices lock the latest tied route and later route choices cannot change it", () => {
-  const state = initial(profiles);
-  const votes = ["m1", "m3", "f2"];
-  for (const [round, target] of votes.entries()) {
-    const node = validate(
-      makeNode(state, commonChoices(state), `第${round + 1}轮`),
-      state,
-    );
-    state.nodes.push(node);
-    state.pending = false;
-    const index = node.choices.findIndex((choice) => choice.target === target);
-    choose(state, index, state.nodes.length);
-  }
-  assert.equal(state.route, "f2");
-
-  const routeNode = validate(makeNode(state, routeChoices()), state);
-  state.nodes.push(routeNode);
-  state.pending = false;
-  choose(state, 0, state.nodes.length);
-  assert.equal(state.route, "f2");
+test('two common choices lock the unique leader and produce a six-stage romance route', () => {
+  const state = initial(profiles, startOptions);
+  chooseTarget(state, 'm1');
+  chooseTarget(state, 'm1');
+  assert.equal(state.route, 'm1');
+  assert.equal(state.relationshipType, 'romance');
+  assert.equal(state.needsTiebreak, false);
+  assert.equal(totalForState(state), 6);
+  assert.equal(isCommonStage(state), false);
+  assert.equal(beatForState(state).id, 'route-1');
 });
 
-test("common choices cover all current characters while personal and ending choices use the locked protocol", () => {
-  const commonState = initial(profiles);
-  const common = validate(
-    makeNode(commonState, commonChoices(commonState)),
-    commonState,
-  );
+test('a two-round tie adds a third common choice and same-gender lock enters the friendship route', () => {
+  const state = initial(profiles, startOptions);
+  chooseTarget(state, 'm1');
+  chooseTarget(state, 'f2');
+  assert.equal(state.route, null);
+  assert.equal(state.needsTiebreak, true);
+  assert.equal(totalForState(state), 7);
+  chooseTarget(state, 'f2');
+  assert.equal(state.route, 'f2');
+  assert.equal(state.relationshipType, 'friendship');
+  assert.equal(state.commonRounds, 3);
+  assert.equal(totalForState(state), 7);
+});
+
+test('later route choices cannot change the locked character or relationship type', () => {
+  const state = lockedState('m1');
+  advanceRoute(state, 0);
+  advanceRoute(state, 1);
+  assert.equal(publicState(state).complete, false);
+  advanceRoute(state, 0);
+  assert.equal(state.route, 'm1');
+  assert.equal(state.relationshipType, 'romance');
+  assert.equal(isEndingStage(state), true);
+  assert.equal(publicState(state).complete, false);
+
+  const ending = validate(makeNode(state, routeChoices(), '结局'), state);
+  appendNode(state, ending);
+  assert.equal(publicState(state).complete, true);
+});
+
+test('common choices cover all selected characters while route and ending choices use their contracts', () => {
+  const commonState = initial(profiles, startOptions);
+  const common = validate(makeNode(commonState, commonChoices(commonState)), commonState);
   assert.equal(common.choices.length, requiredCastCount);
-  assert.deepEqual(
-    new Set(common.choices.map((choice) => choice.target)),
-    new Set(selectedIdsForTest),
-  );
+  assert.deepEqual(new Set(common.choices.map((choice) => choice.target)), new Set(selectedIdsForTest));
 
-  const routeState = stateAtStage(3);
-  const route = validate(
-    makeNode(routeState, [
-      { text: "先和顾言川确认安排", target: "m1" },
-      { text: "暂时继续行动", target: null },
-    ]),
-    routeState,
-  );
+  const routeState = lockedState('m1');
+  const route = validate(makeNode(routeState, [{ text: '先和顾言川确认安排', target: 'm1' }, { text: '暂时继续行动', target: null }]), routeState);
   assert.ok(route.choices.every((choice) => choice.target === null));
 
-  const endingState = stateAtStage(total - 1);
-  assert.equal(isEndingStage(total - 1), true);
-  const ending = validate(makeNode(endingState, routeChoices()), endingState);
+  advanceRoute(routeState);
+  advanceRoute(routeState);
+  advanceRoute(routeState);
+  assert.equal(isEndingStage(routeState), true);
+  const ending = validate(makeNode(routeState, routeChoices()), routeState);
   assert.deepEqual(ending.choices, []);
 });
 
-test("speakers are limited to narration, the player, and the four selected characters", () => {
-  const state = initial(profiles);
-  const outsider = castPool.find(
-    (member) => !selectedIdsForTest.includes(member.id),
-  )!;
+test('speakers are limited to narration, the named player, and the four selected characters', () => {
+  const state = initial(profiles, startOptions);
+  const outsider = castPool.find((member) => !selectedIdsForTest.includes(member.id))!;
   const node = makeNode(state, commonChoices(state));
   node.lines[0].speaker = outsider.name;
-  assert.throws(
-    () => validate(node, state),
-    /speaker必须使用当前所选角色姓名或旁白/,
-  );
+  assert.throws(() => validate(node, state), /speaker必须使用当前所选角色姓名或旁白/);
 });
 
-test("every structured beat has reachable examples and the ending includes closing material", () => {
-  assert.equal(total, 7);
-  for (let stage = 0; stage < total; stage += 1) {
+test('every base beat has complete examples and the reference story still covers the maximum seven-stage shape', () => {
+  assert.equal(maxStages, 7);
+  for (let stage = 0; stage < maxStages; stage += 1) {
     const examples = selectExamples(stage);
-    assert.ok(
-      examples.length >= 15,
-      `stage ${stage} should expose its complete example group`,
-    );
-    if (isEndingStage(stage)) {
-      assert.ok(
-        examples.some((example) =>
-          ["约会与告别·宁宁", "重逢与长久相伴·宁宁"].includes(example.label),
-        ),
-      );
-    }
+    assert.ok(examples.length >= 15, `stage ${stage} should expose its complete example group`);
   }
+  const reference = selectReferenceStory();
+  assert.equal(reference.segments.length, maxStages);
+  assert.ok(reference.segments.reduce((sum, segment) => sum + segment.effective_chars, 0) >= 1800);
 });
 
-test("prompt messages are plain text and inject the complete reference story plus every current-stage example", () => {
-  const state = initial(profiles);
+test('prompt messages are plain strings and inject background, life choice, module, route, and complete references', () => {
+  const state = initial(profiles, startOptions);
   const [system, user] = messages(state);
-  assert.equal(typeof system.content, "string");
-  assert.equal(typeof user.content, "string");
-  assert.doesNotMatch(system.content, /reference_examples/);
+  assert.equal(typeof system.content, 'string');
+  assert.equal(typeof user.content, 'string');
+  assert.match(system.content, /人生选择必须贯穿全文/);
   assert.match(system.content, /完整范本故事/);
-  assert.equal(user.content.trim().startsWith("{"), false);
-  assert.doesNotMatch(user.content, /"reference_examples"\s*:/);
+  assert.equal(user.content.trim().startsWith('{'), false);
+  assert.match(user.content, /人生背景与核心冲突/);
+  assert.match(user.content, /专业与毕业去向/);
+  assert.match(user.content, /本段剧情模块/);
+  assert.match(user.content, /恋爱线规则/);
+  assert.match(user.content, /友情线规则/);
 
   const reference = selectReferenceStory();
-  assert.equal(reference.segments.length, total);
-  assert.ok(
-    reference.segments.reduce(
-      (sum, segment) => sum + segment.effective_chars,
-      0,
-    ) >= 1800,
-  );
   for (const segment of reference.segments) {
-    assert.match(
-      user.content,
-      new RegExp(segment.heading.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")),
-    );
     assert.ok(user.content.includes(segment.text));
   }
 
-  const currentExamples = selectExamples(0);
-  assert.ok(currentExamples.length >= 15);
-  for (const example of currentExamples)
-    assert.ok(user.content.includes(example.text));
-
-  const continuation = continuationMessage(
-    { ...state, partial: { title: "已发送标题" } },
-    "",
-    "继续补足正文。",
-  );
-  assert.equal(typeof continuation, "string");
-  assert.equal(continuation.trim().startsWith("{"), false);
-  assert.doesNotMatch(continuation, /"already_sent"\s*:/);
+  const continuation = continuationMessage({ ...state, partial: { title: '已发送标题' } }, '', '继续补足正文。');
+  assert.equal(typeof continuation, 'string');
+  assert.equal(continuation.trim().startsWith('{'), false);
   assert.match(continuation, /绝不能再次输出 \[SCENE\]/);
 
   const actual = buildModelMessages(state);
   assert.equal(actual.length, 3);
-  assert.deepEqual(
-    actual.map((message) => typeof message.content),
-    ["string", "string", "string"],
-  );
+  assert.deepEqual(actual.map((message) => typeof message.content), ['string', 'string', 'string']);
   assert.match(actual[0].content, /\[SCENE\] 本段短标题/);
-  assert.match(actual[1].content, /【完整范本故事｜全文完整注入】/);
-  assert.match(actual[2].content, /【续写要求｜最高优先级】/);
+  assert.match(actual[1].content, /完整范本故事/);
+  assert.match(actual[2].content, /续写要求/);
 });
 
-test("prompt injects the planned campus event with relationship and delayed consequences", () => {
-  const state = initial(profiles, "prompt-life-event");
-  const eventId = state.lifeEventPlan?.["high-school"];
-  assert.ok(eventId);
-  const prompt = buildModelMessages(state)[1].content;
-  assert.match(prompt, /【人生选择事件｜必须成为本段核心】/);
-  assert.match(prompt, new RegExp(eventId));
-  assert.match(prompt, /关系变化/);
-  assert.match(prompt, /延迟收益/);
-  assert.match(prompt, /延迟风险/);
+test('module selection is deterministic for the same story seed and reflects the selected background', () => {
+  const university = initial(profiles, startOptions);
+  const graduate = initial(profiles, { ...startOptions, backgroundId: 'graduate' });
+  const beat = beatForState(university);
+  const first = selectedModule(university, beat);
+  const second = selectedModule(structuredClone(university), beat);
+  const other = selectedModule(graduate, beatForState(graduate));
+  assert.ok(first && second && other);
+  assert.equal(first.id, second.id);
+  assert.equal(backgroundFor(university.backgroundId).label, '大学');
+  assert.equal(backgroundFor(graduate.backgroundId).label, '研究生');
+  assert.notEqual(first.id, other.id);
 });
 
-test("choosing records the event and advancing the story switches life stages", () => {
-  const state = initial(profiles, "timeline-life-event");
-  const highSchoolEvent = state.lifeEventPlan!["high-school"];
-  state.nodes.push(makeNode(state, commonChoices(state)));
-  state.pending = false;
-  choose(state, 0, 1);
-  assert.deepEqual(state.worldState.usedLifeEventIds, [highSchoolEvent]);
-  assert.ok(state.worldState.flags.includes(`life-event:${highSchoolEvent}`));
-  assert.match(state.worldState.timeline[0], /高中/);
-
-  state.nodes.push(makeNode(state, commonChoices(state), "第二段"));
-  state.pending = false;
-  choose(state, 1, 2);
-  state.nodes.push(makeNode(state, commonChoices(state), "第三段"));
-  assert.match(buildModelMessages(state)[1].content, /人生阶段：本科/);
-  assert.match(
-    buildModelMessages(state)[1].content,
-    new RegExp(state.lifeEventPlan!.university),
-  );
-});
-
-test("a complete tagged-style record stream emits before later bytes and can be validated after end", () => {
+test('a complete tagged-style record stream emits before later bytes and can be validated after end', () => {
   const decoder = new JsonlDecoder();
-  const state = initial(profiles);
-  acceptRecord(record({ type: "scene", title: "灯下" }), state);
-  assert.deepEqual(
-    decoder.push('{"type":"line","speaker":"旁白","text":"第一'),
-    [],
-  );
+  const state = initial(profiles, startOptions);
+  acceptRecord(record({ type: 'scene', title: '最后一项安排' }), state);
+  assert.deepEqual(decoder.push('{"type":"line","speaker":"旁白","text":"第一'), []);
   const rows = decoder.push('句已经到了。"}\n{"type":"line"');
   assert.equal(rows.length, 1);
   const result = acceptRecord(rows[0], state);
-  assert.equal(result.event?.type, "line");
+  assert.equal(result.event?.type, 'line');
   assert.equal(state.partial?.lines?.length, 1);
   assert.equal(state.nodes.length, 0);
 });
 
-test("invalid speaker or oversized text cannot mutate state, while the player alias is normalized", () => {
-  const state = initial(profiles);
-  acceptRecord(record({ type: "scene", title: "灯下" }), state);
+test('invalid speaker or oversized text cannot mutate state, while the player alias is normalized', () => {
+  const state = initial(profiles, startOptions);
+  acceptRecord(record({ type: 'scene', title: '最后一项安排' }), state);
   const before = structuredClone(state);
-  assert.throws(() =>
-    acceptRecord(
-      record({ type: "line", speaker: "陌生人", text: "不能进入对白。" }),
-      state,
-    ),
-  );
+  assert.throws(() => acceptRecord(record({ type: 'line', speaker: '陌生人', text: '不能进入对白。' }), state));
   assert.deepEqual(state, before);
-  const playerLine = acceptRecord(
-    record({ type: "line", speaker: "我", text: "我是玩家。" }),
-    state,
-  );
-  assert.equal(
-    playerLine.event?.type === "line" && playerLine.event.speaker,
-    "许澄",
-  );
-  assert.throws(() =>
-    acceptRecord(
-      record({
-        type: "line",
-        speaker: "旁白",
-        text: "字".repeat(limits.maxLineChars + 1),
-      }),
-      state,
-    ),
-  );
+  const playerLine = acceptRecord(record({ type: 'line', speaker: '我', text: '我是玩家。' }), state);
+  assert.equal(playerLine.event?.type === 'line' && playerLine.event.speaker, '许澄');
+  assert.throws(() => acceptRecord(record({ type: 'line', speaker: '旁白', text: '字'.repeat(limits.maxLineChars + 1) }), state));
 });
 
-test("common choices require a complete body, expose four dynamic targets, and memory stays private", () => {
-  const state = initial(profiles);
-  acceptRecord(record({ type: "scene", title: "灯下" }), state);
-  assert.throws(() =>
-    acceptRecord(
-      record({ type: "choices", items: commonChoices(state) }),
-      state,
-    ),
-  );
-  for (const line of linesFor(state))
-    acceptRecord(record({ type: "line", ...line }), state);
-  const choiceRecord = acceptRecord(
-    record({ type: "choices", items: commonChoices(state) }),
-    state,
-  );
-  assert.equal(choiceRecord.event?.type, "choices");
+test('common choices require a complete body, expose four dynamic targets, and memory stays private', () => {
+  const state = initial(profiles, startOptions);
+  acceptRecord(record({ type: 'scene', title: '最后一项安排' }), state);
+  assert.throws(() => acceptRecord(record({ type: 'choices', items: commonChoices(state) }), state));
+  for (const line of linesFor(state)) acceptRecord(record({ type: 'line', ...line }), state);
+  const choiceRecord = acceptRecord(record({ type: 'choices', items: commonChoices(state) }), state);
+  assert.equal(choiceRecord.event?.type, 'choices');
   assert.equal(state.partial?.choices?.length, requiredCastCount);
-  assert.equal(
-    acceptRecord(
-      record({ type: "memory", summary: "灯还亮着", facts: ["四人在场"] }),
-      state,
-    ).event,
-    undefined,
-  );
-  assert.equal(acceptRecord(record({ type: "end" }), state).ended, true);
-  assert.equal(isCommonStage(0), true);
+  assert.equal(acceptRecord(record({ type: 'memory', summary: '项目继续推进', facts: ['四人在场'] }), state).event, undefined);
+  assert.equal(acceptRecord(record({ type: 'end' }), state).ended, true);
+  assert.equal(isCommonStage(state), true);
   assert.doesNotThrow(() => nodeSchema.parse(state.partial));
 });
 
-test("duplicate or stale choices do not add selections", () => {
-  const state = initial(profiles);
-  state.nodes.push(makeNode(state, commonChoices(state)));
-  state.pending = false;
+test('duplicate or stale choices do not add selections', () => {
+  const state = initial(profiles, startOptions);
+  appendNode(state, makeNode(state, commonChoices(state)));
   choose(state, 0, 1);
   assert.throws(() => choose(state, 1, 1), /剧情进度已变化/);
   assert.equal(state.selections.length, 1);
 });
 
-test("tagged protocol parses player, scene, dialogue, and structured blocks without fixed cast ids", () => {
+test('tagged protocol parses player, scene, dialogue, and structured blocks without fixed cast ids', () => {
   const decoder = new TaggedDecoder();
-  assert.deepEqual(
-    decoder.push("[SCENE] 雨夜\n[NPC:顾言川] 先把展示桌收好\n"),
-    ["[SCENE] 雨夜", "[NPC:顾言川] 先把展示桌收好"],
-  );
-  assert.deepEqual(
-    parseTagged(
-      '[CHOICES] {"items":[{"text":"继续整理速写","target":"m1"},{"text":"先停下来等等","target":null}]}',
-    ),
-    {
-      type: "choices",
-      items: [
-        { text: "继续整理速写", target: "m1" },
-        { text: "先停下来等等", target: null },
-      ],
-    },
-  );
-  assert.deepEqual(parseTagged("[PLAYER] 好，我来帮你"), {
-    type: "line",
-    speaker: "我",
-    text: "好，我来帮你",
-  });
+  assert.deepEqual(decoder.push('[SCENE] 最后一项安排\n[NPC:顾言川] 先把展示桌收好\n'), ['[SCENE] 最后一项安排', '[NPC:顾言川] 先把展示桌收好']);
+  assert.deepEqual(parseTagged('[CHOICES] {"items":[{"text":"继续整理速写","target":"m1"},{"text":"先停下来等等","target":null}]}'), { type: 'choices', items: [{ text: '继续整理速写', target: 'm1' }, { text: '先停下来等等', target: null }] });
+  assert.deepEqual(parseTagged('[PLAYER] 好，我来帮你'), { type: 'line', speaker: '我', text: '好，我来帮你' });
+  assert.deepEqual(parseTagged('[顾言川] 先把展示桌收好'), { type: 'line', speaker: '顾言川', text: '先把展示桌收好' });
 });
 
-test("tagged protocol rejects unknown or malformed records", () => {
-  assert.throws(() => parseTagged("[NPC1] 错误标签"));
-  assert.throws(() =>
-    parseTagged('[CHOICES] {"items":[{"text":"x","target":null}]}'),
-  );
+test('tagged protocol rejects unknown or malformed records', () => {
+  assert.throws(() => parseTagged('[NPC1] 错误标签'));
+  assert.throws(() => parseTagged('[CHOICES] {"items":[{"text":"x","target":null}]}'));
+});
+
+test('a repair after an empty partial explicitly requires the missing scene before dialogue', () => {
+  const state = initial(profiles, startOptions);
+  assert.match(nextInstruction(state), /必须先输出scene标题/);
+  assert.doesNotMatch(nextInstruction(state), /不能输出scene/);
 });

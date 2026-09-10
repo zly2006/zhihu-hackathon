@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { count, isEndingStage, limits, player, selectedCast, validate, type GameEvent, type State, type StoryNode } from './story';
+import { beatForState, count, limits, selectedCast, validate, type GameEvent, type State, type StoryNode } from './story';
 
 const line = z.object({ type: z.literal('line'), speaker: z.string(), text: z.string().min(1).max(limits.maxLineChars) }).strict();
 const choice = z.object({ text: z.string().min(4).max(30), target: z.string().nullable().optional() }).strict();
@@ -44,8 +44,8 @@ export function acceptRecord(raw: string, state: State): { event?: GameEvent; en
     event = { type: 'scene', segment: state.nodes.length + 1, title: record.title, readingSeconds: 0 };
   } else if (record.type === 'line') {
     if (!partial.title || partial.choices) throw new Error('对白顺序错误：标题之后、选项之前才能发送对白');
-    const speaker = record.speaker === '我' ? player.name : record.speaker;
-    const allowedSpeakers = ['旁白', player.name, ...selectedCast(state).map((member) => member.name)];
+    const speaker = record.speaker === '我' ? state.player.name : record.speaker;
+    const allowedSpeakers = ['旁白', state.player.name, ...selectedCast(state).map((member) => member.name)];
     if (!allowedSpeakers.includes(speaker)) throw new Error('说话者必须为旁白或当前所选角色姓名');
     if (length + count(record.text) > limits.maxEffectiveChars) throw new Error(`剩余正文最多${limits.maxEffectiveChars - length}字，不可修改已显示对白`);
     if ((partial.lines || []).length >= 22) throw new Error('对白条数过多');
@@ -59,7 +59,7 @@ export function acceptRecord(raw: string, state: State): { event?: GameEvent; en
     partial.choices = normalized.choices;
     event = { type: 'choices', items: normalized.choices.map((item) => ({ text: item.text })) };
   } else if (record.type === 'memory') {
-    if (!partial.choices && !isEndingStage(state.nodes.length)) throw new Error('memory必须在choices之后');
+    if (!partial.choices && beatForState(state).kind !== 'ending') throw new Error('memory必须在choices之后');
     partial.memory = { summary: record.summary, facts: record.facts };
   } else {
     state.partial = validate(partial, state);

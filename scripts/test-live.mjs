@@ -8,6 +8,10 @@ const profiles = [
   { id: 'f2', name: '陶晚晴', gender: '女' },
   { id: 'f4', name: '苏棠', gender: '女' },
 ];
+const opening = {
+  backgroundId: 'university',
+  player: { name: '许澄', gender: '女' },
+};
 
 let storyId = null;
 let state = null;
@@ -24,11 +28,11 @@ try {
   }
 } catch {}
 
-const total = state?.total || 7;
-for (let turn = state?.nodes.length || 0; turn < total; turn += 1) {
+let turn = state?.nodes.length || 0;
+while (!state?.complete) {
   const begin = Date.now();
   const body = !state
-    ? { action: 'start', profiles }
+    ? { action: 'start', profiles, ...opening }
     : state.pending
       ? { storyId, action: 'retry' }
       : { storyId, action: 'choose', choice: 0, expected: state.nodes.length };
@@ -78,6 +82,7 @@ for (let turn = state?.nodes.length || 0; turn < total; turn += 1) {
   await fs.writeFile('test-output/live-summary.json', JSON.stringify(proof, null, 2));
   await fs.writeFile('test-output/browser-state.json', JSON.stringify({ storyId }, null, 2));
   console.log(JSON.stringify(proof.at(-1)));
+  turn += 1;
 }
 
 assert.equal(state.complete, true);
