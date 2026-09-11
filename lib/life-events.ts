@@ -4,47 +4,48 @@ import campusLibrary from "../content/campus-life-events.v1.json";
 export type LifeStage = "high-school" | "university" | "graduate";
 export type LifeEventPlan = Record<LifeStage, string>;
 
+export type ZhihuEvidence = {
+  contentId: string;
+  contentType: "Answer";
+  title: string;
+  author: string;
+  url: string;
+  excerpt: string;
+  voteUpCount: number;
+  authorityLevel: string;
+};
+
 export type LifeEventOption = {
   id: "A" | "B" | "C";
   label: string;
   action: string;
   strategyTag: string;
   tradeoff: string;
-  immediate: {
-    narrative: string;
-    statDelta: Record<string, number>;
-    relationshipEffects: Array<{
-      targetRole: string;
-      delta: Record<string, number>;
-      reason: string;
-    }>;
-  };
-  delayed: {
-    horizon: string;
-    likely: string;
-    risk: string;
-  };
-  flags: string[];
-  followUpHooks: string[];
+  searchQuery: string;
+  zhihuEvidence: ZhihuEvidence[];
 };
 
 export type LifeEventTemplate = {
   id: string;
-  version: 1;
+  version: 2;
   title: string;
   domain: string;
   secondaryDomains: string[];
   lifeStages: LifeStage[];
   ageRange: { min: number; max: number };
   requiredRelationshipRoles: string[];
-  situation: string;
-  dilemma: string;
-  stakes: string[];
   options: [LifeEventOption, LifeEventOption, LifeEventOption];
+  zhihuEvidence: ZhihuEvidence[];
+  sourcePolicy: {
+    mode: "zhihu-answers-only";
+    minimumAnswersPerOption: 3;
+    query: string;
+    collectedAt: string;
+  };
 };
 
 type RawLibrary = {
-  schemaVersion: 1;
+  schemaVersion: 2;
   updatedAt: string;
   events: LifeEventTemplate[];
 };
@@ -53,7 +54,7 @@ const core = coreLibrary as unknown as RawLibrary;
 const campus = campusLibrary as unknown as RawLibrary;
 
 export const LIFE_EVENT_LIBRARY = {
-  schemaVersion: 1 as const,
+  schemaVersion: 2 as const,
   updatedAt: campus.updatedAt,
   events: [...core.events, ...campus.events],
 };
@@ -131,10 +132,13 @@ export function lifeEventForStoryStage(
   return { lifeStage, event };
 }
 
-function renderDelta(delta: Record<string, number>) {
-  return Object.entries(delta)
-    .map(([key, value]) => `${key}${value >= 0 ? "+" : ""}${value}`)
-    .join("、");
+function renderEvidence(evidence: ZhihuEvidence[]) {
+  return evidence
+    .map(
+      (item, index) =>
+        `${index + 1}. ${item.title}｜${item.author}\n摘要：${item.excerpt}\n链接：${item.url}`,
+    )
+    .join("\n");
 }
 
 export function renderLifeEvent(
@@ -143,22 +147,11 @@ export function renderLifeEvent(
 ) {
   const options = event.options
     .map((option) => {
-      const relationships = option.immediate.relationshipEffects
-        .map(
-          (effect) =>
-            `${effect.targetRole}：${renderDelta(effect.delta)}；原因：${effect.reason}`,
-        )
-        .join("；");
       return [
         `${option.id}. ${option.label}｜机制：${option.strategyTag}`,
         `行动：${option.action}`,
         `代价：${option.tradeoff}`,
-        `即时后果：${option.immediate.narrative}`,
-        `状态变化：${renderDelta(option.immediate.statDelta)}`,
-        `关系变化：${relationships}`,
-        `延迟收益：${option.delayed.likely}`,
-        `延迟风险：${option.delayed.risk}`,
-        `后续钩子：${option.followUpHooks.join("、")}`,
+        `知乎回答依据（只能综合这些内容推导结果）：\n${renderEvidence(option.zhihuEvidence)}`,
       ].join("\n");
     })
     .join("\n\n");
@@ -166,9 +159,11 @@ export function renderLifeEvent(
   return [
     `人生阶段：${LIFE_STAGE_LABELS[lifeStage]}（主角约 ${LIFE_STAGE_AGES[lifeStage]}）`,
     `主题事件：${event.title}（${event.id}）`,
-    `具体处境：${event.situation}`,
-    `核心矛盾：${event.dilemma}`,
-    `利害关系：${event.stakes.join("；")}`,
-    `可用行动与后果边界：\n${options}`,
+    `事件背景只能从以下知乎回答综合，不得补写来源中没有的事实：\n${renderEvidence(event.zhihuEvidence)}`,
+    `候选行动与各自依据：\n${options}`,
   ].join("\n");
+}
+
+export function optionForEvent(event: LifeEventTemplate, index: number) {
+  return event.options[Math.max(0, Math.min(index, event.options.length - 1))];
 }

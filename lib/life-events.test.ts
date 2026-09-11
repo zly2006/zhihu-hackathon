@@ -56,16 +56,25 @@ test("event planning is deterministic and uses campus events from the correct st
   }
 });
 
-test("rendered event guidance carries actions, costs, immediate results, and delayed consequences", () => {
+test("every action and rendered event are grounded in at least three Zhihu answers", () => {
   const plan = planLifeEvents("render-seed");
   const { event, lifeStage } = lifeEventForStoryStage(plan, 0);
   const text = renderLifeEvent(event, lifeStage);
-  assert.match(text, /具体处境/);
+  assert.equal(event.sourcePolicy.mode, "zhihu-answers-only");
+  assert.ok(event.zhihuEvidence.length >= 3);
+  for (const option of event.options) {
+    assert.ok(option.zhihuEvidence.length >= 3);
+    for (const evidence of option.zhihuEvidence) {
+      assert.equal(evidence.contentType, "Answer");
+      assert.match(
+        evidence.url,
+        /^https:\/\/www\.zhihu\.com\/question\/\d+\/answer\/\d+/,
+      );
+    }
+  }
   assert.match(text, /代价/);
-  assert.match(text, /即时后果/);
-  assert.match(text, /关系变化/);
-  assert.match(text, /延迟收益/);
-  assert.match(text, /延迟风险/);
+  assert.match(text, /知乎回答依据/);
+  assert.doesNotMatch(text, /即时后果/);
   assert.match(text, /A\./);
   assert.match(text, /B\./);
   assert.match(text, /C\./);

@@ -266,3 +266,4 @@ img{display:block}
 }
 
 @media(prefers-reduced-motion:reduce){*{animation:none!important;transition:none!important}}
+.affinity{display:block;margin-top:.35rem;color:#8c5b42}.evidence-box,.choice-evidence{margin-top:.65rem;font-size:.78rem}.evidence-box summary,.choice-evidence summary{cursor:pointer;color:#8c5b42}.evidence-box a,.choice-evidence a{display:block;margin:.45rem 0;color:#476a68;text-decoration:underline}.choice-card{display:grid;gap:.15rem}.choice-card>button{width:100%}.choice-evidence{padding:0 .8rem .6rem}.choice-evidence p{margin:.45rem 0;color:#655}

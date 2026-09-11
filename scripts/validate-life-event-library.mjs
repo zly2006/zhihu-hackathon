@@ -11,19 +11,9 @@ const sourceLibraries = await Promise.all(
   ),
 );
 const library = {
-  schemaVersion: 1,
+  schemaVersion: 2,
   events: sourceLibraries.flatMap((source) => source.events ?? []),
 };
-const statKeys = new Set([
-  "cash",
-  "health",
-  "happiness",
-  "knowledge",
-  "connections",
-  "career",
-  "assets",
-]);
-const relationKeys = new Set(["closeness", "trust", "conflict", "commitment"]);
 const lifeStages = new Set(["high-school", "university", "graduate"]);
 const domains = new Set([
   "education",
@@ -44,7 +34,37 @@ const domains = new Set([
 ]);
 const errors = [];
 const reject = (path, message) => errors.push(`${path}: ${message}`);
-if (library.schemaVersion !== 1) reject("schemaVersion", "必须为 1");
+function normalizeTitle(title) {
+  return String(title || "")
+    .replace(/\s*-\s*知乎\s*$/u, "")
+    .replace(/\s+/g, "")
+    .trim();
+}
+function validateEvidence(evidence, path) {
+  if (!Array.isArray(evidence) || evidence.length < 3) {
+    reject(path, "至少需要 3 条知乎回答");
+    return;
+  }
+  if (new Set(evidence.map((item) => item.url)).size !== evidence.length)
+    reject(path, "知乎回答链接必须去重");
+  if (new Set(evidence.map((item) => item.contentId)).size !== evidence.length)
+    reject(path, "知乎回答 ContentID 必须去重");
+  if (new Set(evidence.map((item) => normalizeTitle(item.title))).size < 2)
+    reject(path, "至少需要来自 2 个不同知乎问题，不能只堆同一问题的多个回答");
+  for (const [index, item] of evidence.entries()) {
+    const itemPath = `${path}[${index}]`;
+    if (item.contentType !== "Answer") reject(itemPath, "来源必须是知乎回答");
+    if (
+      !/^https:\/\/(?:www\.)?zhihu\.com\/question\/\d+\/answer\/\d+/.test(
+        item.url || "",
+      )
+    )
+      reject(`${itemPath}.url`, "必须是可追溯的知乎回答链接");
+    if (!item.title?.trim() || !item.author?.trim() || !item.excerpt?.trim())
+      reject(itemPath, "必须保留标题、作者和原始摘要");
+  }
+}
+if (library.schemaVersion !== 2) reject("schemaVersion", "必须为 2");
 if (!Array.isArray(library.events) || library.events.length < 10)
   reject("events", "首批至少 10 条");
 const ids = new Set();
@@ -54,7 +74,7 @@ for (const [index, event] of (library.events ?? []).entries()) {
     reject(`${path}.id`, "格式非法");
   if (ids.has(event.id)) reject(`${path}.id`, "重复");
   ids.add(event.id);
-  if (event.version !== 1) reject(`${path}.version`, "必须为 1");
+  if (event.version !== 2) reject(`${path}.version`, "必须为 2");
   if (!domains.has(event.domain)) reject(`${path}.domain`, "领域非法");
   if (
     !Array.isArray(event.lifeStages) ||
@@ -70,10 +90,12 @@ for (const [index, event] of (library.events ?? []).entries()) {
     event.ageRange.min > event.ageRange.max
   )
     reject(`${path}.ageRange`, "年龄范围非法");
-  if (typeof event.situation !== "string" || event.situation.length < 45)
-    reject(`${path}.situation`, "情境必须具体且不少于 45 字");
-  if (!Array.isArray(event.stakes) || event.stakes.length < 3)
-    reject(`${path}.stakes`, "至少说明三项利害关系");
+  if (
+    event.sourcePolicy?.mode !== "zhihu-answers-only" ||
+    event.sourcePolicy?.minimumAnswersPerOption !== 3
+  )
+    reject(`${path}.sourcePolicy`, "必须声明只使用知乎回答且每个选项至少 3 条");
+  validateEvidence(event.zhihuEvidence, `${path}.zhihuEvidence`);
   if (!Array.isArray(event.options) || event.options.length !== 3) {
     reject(`${path}.options`, "必须恰好三个选项");
     continue;
@@ -87,81 +109,15 @@ for (const [index, event] of (library.events ?? []).entries()) {
     for (const key of ["label", "action", "strategyTag", "tradeoff"])
       if (typeof option[key] !== "string" || !option[key].trim())
         reject(`${optionPath}.${key}`, "不能为空");
-    if (!option.immediate?.narrative)
-      reject(`${optionPath}.immediate.narrative`, "缺少即时后果");
-    const statEntries = Object.entries(option.immediate?.statDelta ?? {});
-    if (!statEntries.length)
-      reject(`${optionPath}.immediate.statDelta`, "至少改变一项人生状态");
-    for (const [key, value] of statEntries)
-      if (
-        !statKeys.has(key) ||
-        !Number.isInteger(value) ||
-        Math.abs(value) > 12
-      )
-        reject(
-          `${optionPath}.immediate.statDelta.${key}`,
-          "必须是绝对值不超过 12 的整数",
-        );
-    const effects = option.immediate?.relationshipEffects;
-    if (!Array.isArray(effects) || effects.length === 0)
-      reject(`${optionPath}.immediate.relationshipEffects`, "至少影响一段关系");
-    for (const [effectIndex, effect] of (effects ?? []).entries()) {
-      if (!event.requiredRelationshipRoles.includes(effect.targetRole))
-        reject(
-          `${optionPath}.relationshipEffects[${effectIndex}]`,
-          "关系角色未在事件前置条件中声明",
-        );
-      if (!effect.reason?.trim())
-        reject(
-          `${optionPath}.relationshipEffects[${effectIndex}].reason`,
-          "必须说明关系变化原因",
-        );
-      const deltas = Object.entries(effect.delta ?? {});
-      if (!deltas.length)
-        reject(
-          `${optionPath}.relationshipEffects[${effectIndex}].delta`,
-          "关系变化不能为空",
-        );
-      for (const [key, value] of deltas)
-        if (
-          !relationKeys.has(key) ||
-          !Number.isInteger(value) ||
-          Math.abs(value) > 20
-        )
-          reject(
-            `${optionPath}.relationshipEffects[${effectIndex}].delta.${key}`,
-            "必须是绝对值不超过 20 的整数",
-          );
-    }
-    const hasVisibleCost =
-      statEntries.some(([, value]) => value < 0) ||
-      (effects ?? []).some((effect) =>
-        Object.entries(effect.delta ?? {}).some(
-          ([key, value]) => value < 0 || (key === "conflict" && value > 0),
-        ),
-      );
-    if (!hasVisibleCost)
-      reject(
-        optionPath,
-        "选项必须包含可见的资源代价或关系代价，不能成为无代价最优解",
-      );
-    if (
-      !option.delayed?.likely ||
-      !option.delayed?.risk ||
-      option.delayed.likely === option.delayed.risk
-    )
-      reject(`${optionPath}.delayed`, "必须分别说明可能收益与风险");
-    if (
-      !Array.isArray(option.followUpHooks) ||
-      option.followUpHooks.length === 0
-    )
-      reject(`${optionPath}.followUpHooks`, "至少一个后续钩子");
+    if (typeof option.searchQuery !== "string" || !option.searchQuery.trim())
+      reject(`${optionPath}.searchQuery`, "必须保留官方 CLI 使用的检索词");
+    validateEvidence(option.zhihuEvidence, `${optionPath}.zhihuEvidence`);
+    if (option.zhihuEvidence?.length < 3)
+      reject(`${optionPath}.zhihuEvidence`, "每个选项至少需要 3 条知乎回答");
+    for (const forbidden of ["immediate", "delayed", "flags", "followUpHooks"])
+      if (forbidden in option)
+        reject(`${optionPath}.${forbidden}`, "静态模板不得预写 AI 推断结果");
   }
-  if (
-    event.editorial?.sourceMode !== "zhihu-topic-human-adaptation" ||
-    event.editorial?.reviewStatus !== "reviewed"
-  )
-    reject(`${path}.editorial`, "首批事件必须注明人工改编并完成审阅");
 }
 for (const stage of lifeStages) {
   const count = library.events.filter((event) =>
@@ -185,5 +141,5 @@ const optionCount = library.events.reduce(
   0,
 );
 console.log(
-  `life event library: ${library.events.length} reviewed events, ${optionCount} options, ${new Set(library.events.map((event) => event.domain)).size} primary domains; stages high-school=${stageCounts["high-school"]}, university=${stageCounts.university}, graduate=${stageCounts.graduate}`,
+  `life event library: ${library.events.length} Zhihu-grounded events, ${optionCount} options, ${new Set(library.events.map((event) => event.domain)).size} primary domains; stages high-school=${stageCounts["high-school"]}, university=${stageCounts.university}, graduate=${stageCounts.graduate}`,
 );

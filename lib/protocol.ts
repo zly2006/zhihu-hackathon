@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { beatForState, count, limits, selectedCast, validate, type GameEvent, type State, type StoryNode } from './story';
+import { beatForState, count, limits, requiredEvidenceIds, selectedCast, validate, type GameEvent, type State, type StoryNode } from './story';
 
 const line = z.object({ type: z.literal('line'), speaker: z.string(), text: z.string().min(1).max(limits.maxLineChars) }).strict();
 const choice = z.object({ text: z.string().min(4).max(30), target: z.string().nullable().optional() }).strict();
@@ -7,6 +7,7 @@ const schema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('scene'), title: z.string().min(1).max(25) }).strict(),
   line,
   z.object({ type: z.literal('choices'), items: z.array(choice).max(limits.totalChoiceMax) }).strict(),
+  z.object({ type: z.literal('evidence'), ids: z.array(z.string().min(1).max(80)).min(3).max(6) }).strict(),
   z.object({ type: z.literal('memory'), summary: z.string().max(240), facts: z.array(z.string().max(55)).max(6) }).strict(),
   z.object({ type: z.literal('end') }).strict(),
 ]);
@@ -58,8 +59,13 @@ export function acceptRecord(raw: string, state: State): { event?: GameEvent; en
     const normalized = validate(draft, state);
     partial.choices = normalized.choices;
     event = { type: 'choices', items: normalized.choices.map((item) => ({ text: item.text })) };
+  } else if (record.type === 'evidence') {
+    if (!partial.choices && beatForState(state).kind !== 'ending') throw new Error('evidence必须在choices之后');
+    const required = requiredEvidenceIds(state);
+    if (required.some((id) => !record.ids.includes(id)) || record.ids.some((id) => !required.includes(id))) throw new Error('知乎证据回指不完整或包含未知来源');
+    partial.evidenceIds = record.ids;
   } else if (record.type === 'memory') {
-    if (!partial.choices && beatForState(state).kind !== 'ending') throw new Error('memory必须在choices之后');
+    partial.evidenceIds ??= requiredEvidenceIds(state);
     partial.memory = { summary: record.summary, facts: record.facts };
   } else {
     state.partial = validate(partial, state);

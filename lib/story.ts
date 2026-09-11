@@ -6,7 +6,7 @@ import storyReference from './story-reference.json';
 import backgroundData from './story-backgrounds.json';
 import routeData from './story-route-templates.json';
 import moduleData from './story-modules.json';
-import { LIFE_EVENT_LIBRARY, renderLifeEvent, type LifeEventTemplate, type LifeStage } from './life-events';
+import { LIFE_EVENT_LIBRARY, optionForEvent, renderLifeEvent, type LifeEventTemplate, type LifeStage, type ZhihuEvidence } from './life-events';
 
 export type Gender = '男' | '女';
 export type StageKind = 'common' | 'route' | 'ending';
@@ -96,11 +96,13 @@ export const nodeSchema = z.object({
   title: z.string().min(1).max(25),
   lines: z.array(z.object({ speaker: z.string(), text: z.string().min(1).max(limits.maxLineChars) }).strict()).min(4).max(22),
   choices: z.array(z.object({ text: z.string().min(4).max(30), target: z.string().nullable() }).strict()).max(limits.totalChoiceMax),
+  evidenceIds: z.array(z.string().min(1).max(80)).max(6).optional(),
+  lifeEventId: z.string().min(1).max(100).nullable().optional(),
   memory: z.object({ summary: z.string().max(240), facts: z.array(z.string().max(55)).max(6) }).strict(),
 }).strict();
 
 export type StoryNode = z.infer<typeof nodeSchema>;
-export type Selection = { node: number; index: number; text: string; target: Route | null };
+export type Selection = { node: number; index: number; text: string; target: Route | null; eventId?: string; optionId?: 'A' | 'B' | 'C'; evidence?: ZhihuEvidence[]; disclosure?: 'private' | 'confided' | 'shared' | 'co-decided' };
 export type State = {
   version: 2;
   seed: string;
@@ -255,12 +257,18 @@ export function choose(state: State, index: number, expected: number) {
   const picked = choices?.[index];
   if (!Number.isInteger(index) || !picked) throw new Error('无效的选项。');
   const currentBeat = beatAtNode(state, state.nodes.length - 1);
-  state.selections.push({ node: state.nodes.length - 1, index, ...picked });
+  const completedLifeEvent = getNodeLifeEvent(state.nodes.at(-1));
+  const evidenceOption = completedLifeEvent ? optionForEvent(completedLifeEvent, index) : null;
+  const confidantId = picked.target || state.route;
+  const nextAffinity = confidantId ? (state.worldState.relationships[confidantId] ?? 0) + 1 : 0;
+  const disclosure = nextAffinity >= 3 ? 'co-decided' : nextAffinity >= 2 ? 'shared' : nextAffinity >= 1 ? 'confided' : 'private';
+  state.selections.push({ node: state.nodes.length - 1, index, ...picked, eventId: completedLifeEvent?.id, optionId: evidenceOption?.id, evidence: evidenceOption ? structuredClone(evidenceOption.zhihuEvidence) : undefined, disclosure });
   if (picked.target) {
     if (!routeIds.includes(picked.target)) throw new Error('选项目标不属于当前角色。');
     state.worldState.relationships[picked.target] += 1;
+  } else if (state.route) {
+    state.worldState.relationships[state.route] = (state.worldState.relationships[state.route] ?? 0) + 1;
   }
-  const completedLifeEvent = selectedLifeEvent(state, currentBeat);
   if (completedLifeEvent && !state.worldState.usedLifeEventIds.includes(completedLifeEvent.id)) state.worldState.usedLifeEventIds.push(completedLifeEvent.id);
   state.worldState.timeline.push(`第${state.nodes.length}段选择：${picked.text}`);
 
@@ -296,35 +304,29 @@ function normalizeChoices(state: State, input: StoryNode['choices']): StoryNode[
   const beat = beatForState(state);
   if (beat.kind === 'ending') return [];
 
+  const event = selectedLifeEvent(state, beat);
+  if (!event) return input;
+
   if (beat.kind === 'common') {
     const members = selectedCast(state);
-    const byTarget = new Map<string, StoryNode['choices'][number]>();
-    for (const choice of input) {
-      if (choice.target && members.some((member) => member.id === choice.target) && !byTarget.has(choice.target)) byTarget.set(choice.target, choice);
-    }
-    return members.map((member, index) => byTarget.get(member.id) ?? commonFallback(member, index));
+    return members.map((member, index) => ({ text: `${member.name}：${optionForEvent(event, index).label}`.slice(0, 30), target: member.id }));
   }
-
-  const normalized = input.map((choice) => ({ ...choice, target: null }));
-  const fallbacks = [
-    { text: '继续当前行动', target: null },
-    { text: '放慢一步再回应', target: null },
-    { text: '说出自己的顾虑', target: null },
-  ];
-  for (const fallback of fallbacks) {
-    if (normalized.length >= limits.routeChoiceMin) break;
-    normalized.push(fallback);
-  }
-  return normalized.slice(0, limits.routeChoiceMax);
+  return event.options.slice(0, limits.routeChoiceMax).map((option) => ({ text: option.label, target: null }));
 }
 
 export function validate(raw: unknown, state: State): StoryNode {
   const parsed = nodeSchema.parse(raw);
   const beat = beatForState(state);
   const choices = normalizeChoices(state, parsed.choices);
+  const lifeEvent = selectedLifeEvent(state, beat);
+  const requiredSources = requiredEvidenceIds(state);
+  const receivedSources = parsed.evidenceIds?.length ? parsed.evidenceIds : requiredSources;
+  if (requiredSources.some((id) => !receivedSources.includes(id)) || receivedSources.some((id) => !requiredSources.includes(id))) throw new Error('本段必须完整回指程序提供的知乎回答，不能编造或漏掉来源');
   const node: StoryNode = {
     ...parsed,
     choices,
+    evidenceIds: receivedSources,
+    lifeEventId: lifeEvent?.id || null,
     lines: parsed.lines.map((line) => ({ ...line, speaker: line.speaker === '我' ? state.player.name : line.speaker })),
   };
 
@@ -402,6 +404,17 @@ export function selectedLifeEvent(state: Pick<State, 'backgroundId' | 'seed' | '
   const unused = candidates.filter((event) => !used.has(event.id));
   const pool = unused.length ? unused : candidates;
   return pool[stableHash(`${state.seed}:${beat.id}:${state.nodes.length}:${lifeEventStage}`) % pool.length];
+}
+
+function getNodeLifeEvent(node: StoryNode | undefined) {
+  return node?.lifeEventId ? LIFE_EVENT_LIBRARY.events.find((event) => event.id === node.lifeEventId) || null : null;
+}
+
+export function requiredEvidenceIds(state: State) {
+  const latest = state.selections.at(-1);
+  if (latest?.evidence?.length) return [...new Set(latest.evidence.map((item) => item.contentId))].slice(0, 6);
+  const event = selectedLifeEvent(state, beatForState(state));
+  return [...new Set((event?.zhihuEvidence || []).map((item) => item.contentId))].slice(0, 6);
 }
 
 function stableHash(value: string) {
@@ -512,8 +525,24 @@ function renderLifeEventModule(state: State, beat: Beat) {
   const lifeEventStage = backgroundFor(state.backgroundId).lifeEventStage!;
   return [
     renderLifeEvent(event, lifeEventStage),
-    '使用规则：把该事件作为本段现实因果骨架。最终选项数量与target仍严格服从上面的选择规则，不直接照抄A/B/C；把事件中的代价、关系和延迟风险分配给当前角色与行动。',
+    '使用规则：把该事件作为本段现实因果骨架。事件背景、行动与结果只能综合上方知乎回答；禁止虚构具体经历、数字、政策或必然结果。可选行动由程序固定为 A/B/C（共同篇第4人复用C），模型不得另编选项。',
   ].join('\n');
+}
+
+function disclosureRule(state: State) {
+  const latest = state.selections.at(-1);
+  const member = selectedCast(state).find((candidate) => candidate.id === (latest?.target || state.route));
+  const name = member?.name || '同行者';
+  if (!latest?.eventId) return '困境尚未分享。NPC 只能回应现场可见事实。';
+  if (latest.disclosure === 'co-decided') return `${name}已进入共同决策阶段：可以知道完整顾虑与三条知乎依据、提出异议并共同承担后果。`;
+  if (latest.disclosure === 'shared') return `${name}已进入完整分享阶段：可以知道完整困境与三条依据并讨论代价，但不能替玩家决定。`;
+  if (latest.disclosure === 'confided') return `${name}只处于部分倾诉阶段：只能知道部分处境和一种担忧，不能知道全部依据。`;
+  return `${name}尚未获知私人困境：不能读心、不能知道知乎依据、不能直接给答案。`;
+}
+
+function renderSelectedEvidence(state: State) {
+  const evidence = state.selections.at(-1)?.evidence;
+  return evidence?.length ? evidence.map((item, index) => `${index + 1}. ${item.title}｜${item.author}\n${item.excerpt}\n${item.url}`).join('\n\n') : '暂无已选择的知乎证据。';
 }
 
 export function promptText(state: State) {
@@ -550,7 +579,9 @@ export function promptText(state: State) {
     `【当前角色】\n${castText}`,
     `【关系线模板】\n${renderRoutePlan(state, beat)}`,
     `【本段剧情模块】\n${renderModule(state, beat)}`,
-    `【本段人生事件库】\n${renderLifeEventModule(state, beat)}`,
+    `【本段人生事件库｜具体处境】\n${renderLifeEventModule(state, beat)}`,
+    `【上次选择的知乎回答依据｜结果唯一事实源】\n${renderSelectedEvidence(state)}`,
+    `【好感度与分享边界】\n${disclosureRule(state)}`,
     `【标题规则】\n${state.nodes.length === 0 ? '本段 title 同时作为整部故事标题；根据当前人生阶段、角色和基调生成，不使用固定标题。' : `沿用已生成标题「${state.storyTitle || '未命名'}」与基调，不改写。`}`,
     `【选择规则】\n${renderChoiceContract(beat, routeIds)}`,
     `【当前状态】\n${renderWorldState(state)}`,
@@ -589,6 +620,7 @@ export function protocolInstruction(state: State) {
 [NPC:角色名] 一句对白
 重复NPC，整段正文${limits.minEffectiveChars}至${limits.maxEffectiveChars}有效字，目标${limits.targetEffectiveChars}字、${limits.targetLinesMin}至${limits.targetLinesMax}条。
 [CHOICES] {"items":[{"text":"行动","target":null}]}
+[EVIDENCE] {"ids":${JSON.stringify(requiredEvidenceIds(state))}}
 [MEMORY] {"summary":"累计事实","facts":["事实"]}
 [END]
 ${targetRule}；只生成当前片段，不输出解释。`;
@@ -597,9 +629,10 @@ ${targetRule}；只生成当前片段，不输出解释。`;
 export function nextInstruction(state: State) {
   const written = (state.partial?.lines || []).reduce((sum, line) => sum + count(line.text), 0);
   if (!state.partial?.title) return '本次必须先输出scene标题，然后继续输出新的line对白记录；标题已经缺失时禁止只输出line。';
-  if (state.partial?.memory) return '本次必须只输出end；禁止输出scene、line、choices或memory。';
-  if (state.partial?.choices) return '本次必须只输出memory，然后end；禁止输出scene、line或choices。';
-  if (written >= limits.minEffectiveChars) return '本次直接输出choices，然后memory和end；禁止输出scene或line。';
+  if (state.partial?.memory) return '本次必须只输出end；禁止输出scene、line、choices、evidence或memory。';
+  if (state.partial?.evidenceIds) return '本次必须只输出memory，然后end；禁止输出scene、line、choices或evidence。';
+  if (state.partial?.choices) return `本次必须只输出evidence，ids严格等于 ${JSON.stringify(requiredEvidenceIds(state))}；然后输出memory和end。`;
+  if (written >= limits.minEffectiveChars) return '本次直接输出choices、evidence、memory和end；禁止输出scene或line。';
   return `正文目前${written}字，还缺至少${Math.max(0, limits.minEffectiveChars - written)}字。本次只能继续输出新的line对白记录，不能输出scene或choices；达到${limits.minEffectiveChars}字后再进入下一轮。最多可写到${limits.maxEffectiveChars}字。`;
 }
 
@@ -632,10 +665,17 @@ export function publicState(state: State) {
   const background = backgroundFor(state.backgroundId);
   const route = state.relationshipType ? routeTemplates[state.relationshipType] : null;
   const currentBeat = beatForState(state);
+  const visibleNode = state.nodes.at(-1);
+  const event = getNodeLifeEvent(visibleNode) || selectedLifeEvent(state, currentBeat);
+  const latestSelection = state.selections.at(-1);
+  const publicEvidence = (items: ZhihuEvidence[]) => items.map(({ contentId, title, author, url }) => ({ contentId, title, author, url }));
   return {
     storyTitle: state.storyTitle,
     storyTone: state.storyTone,
     worldState: state.worldState,
+    lifeEvent: event ? { id: event.id, title: event.title, domain: event.domain, evidence: publicEvidence(event.zhihuEvidence), options: event.options.map((option) => ({ id: option.id, label: option.label, action: option.action, evidence: publicEvidence(option.zhihuEvidence) })), minimumEvidencePerOption: event.sourcePolicy.minimumAnswersPerOption } : null,
+    relationshipProgress: selectedCast(state).map((member) => { const affinity = state.worldState.relationships[member.id] ?? 0; return { id: member.id, name: member.name, affinity, disclosure: affinity >= 3 ? '共同决策' : affinity >= 2 ? '完整分享' : affinity >= 1 ? '部分倾诉' : '尚未分享' }; }),
+    selectedEvidence: publicEvidence(latestSelection?.evidence || []),
     world: {
       player: state.player,
       background: {

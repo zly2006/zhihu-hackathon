@@ -2,17 +2,28 @@ import 'server-only';
 import { mkdir,writeFile } from 'node:fs/promises';
 import path from 'node:path';
 import {randomUUID,randomInt} from 'node:crypto';
-import {buildModelMessages,type State,type GameEvent,type StoryNode} from './story';
+import {buildModelMessages,count,limits,requiredEvidenceIds,type State,type GameEvent,type StoryNode} from './story';
 import {acceptRecord,finishPartial} from './protocol';
 import {TaggedDecoder,parseTagged} from './tagged-protocol';
 const DEFAULT_ENDPOINT='https://opencode.ai/zen/go/v1/chat/completions';
 const DEFAULT_MODEL='deepseek-flash';
 const DEFAULT_REASONING_EFFORT='none';
 const MAX_ATTEMPTS=5;
+async function finishDeterministicTail(state:State,emit:(event:GameEvent)=>void,persist:()=>Promise<void>) {
+ const partial=state.partial;const written=(partial?.lines||[]).reduce((sum,line)=>sum+count(line.text),0);
+ if(!partial?.title||written<limits.minEffectiveChars)return null;
+ const records:unknown[]=[];
+ if(!partial.choices)records.push({type:'choices',items:[]});
+ if(!partial.evidenceIds)records.push({type:'evidence',ids:requiredEvidenceIds(state)});
+ if(!partial.memory)records.push({type:'memory',summary:`本段完成：${partial.title}`,facts:[]});
+ records.push({type:'end'});
+ for(const record of records){const result=acceptRecord(JSON.stringify(record),state);await persist();if(result.event)emit(result.event);}
+ return finishPartial(state);
+}
 async function credentials() {
  const provider=process.env.MODEL_PROVIDER?.trim()||'opencode';
  if(provider!=='opencode')throw new Error('MODEL_PROVIDER必须是opencode');
- const key=process.env.OPENCODE_API_KEY?.trim();
+ const key=(process.env.OPENCODE_API_KEY||process.env.CPA_API_KEY)?.trim();
  if(!key)throw new Error('服务端尚未配置OPENCODE_API_KEY');
  return {
   key,
@@ -32,7 +43,7 @@ export async function generate(state:State,emit:(e:GameEvent)=>void,persist:()=>
    const response=await fetch(endpoint,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json','x-opencode-session':opencodeSession},body:JSON.stringify(payload),signal:AbortSignal.timeout(180_000)});
    if(!response.ok||!response.body)throw new Error(`模型服务HTTP ${response.status}`);
    const reader=response.body.getReader(),decoder=new TextDecoder(),tagged=new TaggedDecoder();let buffer='';
-   const processLines=async(lines:string[])=>{for(const text of lines){const records=[text];for(const record of records){if(ended)throw new Error('end后不能再有记录');const taggedRecord=parseTagged(record);if(taggedRecord.type==='scene'&&state.partial?.title)continue;if(taggedRecord.type==='line'&&state.partial?.lines?.some(line=>line.speaker===taggedRecord.speaker&&line.text===taggedRecord.text))continue;const result=acceptRecord(JSON.stringify(taggedRecord.type==='line'?{type:'line',speaker:taggedRecord.speaker,text:taggedRecord.text}:taggedRecord.type==='scene'?{type:'scene',title:taggedRecord.title}:taggedRecord.type==='choices'?{type:'choices',items:taggedRecord.items}:taggedRecord.type==='memory'?{type:'memory',summary:taggedRecord.summary,facts:taggedRecord.facts}:{type:'end'}),state);await persist();if(result.event)emit(result.event);if(result.ended)ended=true;}}};
+   const processLines=async(lines:string[])=>{for(const text of lines){const records=[text];for(const record of records){if(ended)throw new Error('end后不能再有记录');const taggedRecord=parseTagged(record);if(taggedRecord.type==='scene'&&state.partial?.title)continue;if(taggedRecord.type==='line'&&state.partial?.lines?.some(line=>line.speaker===taggedRecord.speaker&&line.text===taggedRecord.text))continue;const result=acceptRecord(JSON.stringify(taggedRecord.type==='line'?{type:'line',speaker:taggedRecord.speaker,text:taggedRecord.text}:taggedRecord.type==='scene'?{type:'scene',title:taggedRecord.title}:taggedRecord.type==='choices'?{type:'choices',items:taggedRecord.items}:taggedRecord.type==='evidence'?{type:'evidence',ids:taggedRecord.ids}:taggedRecord.type==='memory'?{type:'memory',summary:taggedRecord.summary,facts:taggedRecord.facts}:{type:'end'}),state);await persist();if(result.event)emit(result.event);if(result.ended)ended=true;}}};
    try {while(!done) {
     const part=await reader.read();buffer+=decoder.decode(part.value,{stream:!part.done});const lines=buffer.split('\n');buffer=lines.pop()||'';if(part.done&&buffer){lines.push(buffer);buffer='';}
     for(const line of lines) {
@@ -48,7 +59,7 @@ export async function generate(state:State,emit:(e:GameEvent)=>void,persist:()=>
    if(typeof details?.reasoning_tokens==='number')console.info('[OpenCode] reasoning_tokens:',details.reasoning_tokens);
    if(!done||finish!=='stop'||!ended)throw new Error('模型流未完整结束，继续尚缺的记录');
    return finishPartial(state);
-  }catch(error){failure=error instanceof Error?error.message:'生成失败';issue=failure;console.warn('[JSONL check]',issue);if(attempt===MAX_ATTEMPTS-1)throw new Error('逐条生成暂时中断');}
+  }catch(error){failure=error instanceof Error?error.message:'生成失败';issue=failure;console.warn('[JSONL check]',issue);const completed=await finishDeterministicTail(state,emit,persist);if(completed)return completed;if(attempt===MAX_ATTEMPTS-1)throw new Error('逐条生成暂时中断');}
   finally{
    const dir=path.join(process.cwd(),'.data','requests');await mkdir(dir,{recursive:true});
    await writeFile(path.join(dir,`${Date.now()}-${randomUUID()}.json`),JSON.stringify({payload,seconds:(Date.now()-started)/1000,finish,done,usage,response:raw,error:failure?.split(key).join('[REDACTED]')},null,2));
