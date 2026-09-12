@@ -12,3 +12,11 @@ Original prompt: 能不能写一个简单的前端？把前后端统一成nextjs
 - 测试浏览器均已关闭；控制台未记录错误。单元测试5项通过（含27条共同篇组合），生产构建通过，无构建警告。
 - 当前服务器为127.0.0.1:3000的Next dev，供用户立即体验。
 - 剩余边界：本地单实例文件存档；语义/文学质量不是逐条schema校验能保证的；语言翻译暂按协议转换理解，正文直接生成中文。
+
+## 2026-09-12 formal Galgame flow restoration
+- Replaced the visual shell's default path with a three-step formal story setup: life stage, four-person cast, and player identity.
+- Kept the fixed preview as an explicit secondary action; formal setup submits selected profiles/background/player data to `/api/story`.
+- Added optional per-character background and Zhihu handle fields so the existing prompt wiring remains reachable from the UI.
+- Updated chat routing to resolve dynamic live cast IDs from the current story state instead of only the legacy demo IDs.
+- Verification: `npm test` 21/21, `npm run validate:life-events`, `npx tsc --noEmit`, `npm run build`, and `node scripts/ui-smoke.mjs` passed. Visual smoke screenshots: `galgame-ui-preview.png`, `galgame-setup-preview.png`.
+- Live model generation still requires a valid upstream credential; the earlier replay attempt returned HTTP 401.

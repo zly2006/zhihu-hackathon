@@ -8,7 +8,7 @@ try{
   const page=await browser.newPage({viewport:{width:1536,height:864},deviceScaleFactor:1});
   const errors=[];page.on('console',message=>{if(message.type()==='error'&&!message.text().includes('Failed to load resource'))errors.push(message.text());});page.on('pageerror',error=>errors.push(error.message));
   await page.goto(base,{waitUntil:'networkidle'});
-  await page.getByRole('button',{name:'开始体验'}).click();
+  await page.getByRole('button',{name:'体验预览'}).click();
   await page.locator('.dialogue-panel').waitFor();
   await page.locator('.dialogue-click').click();
   await page.screenshot({path:path.join(root,'galgame-ui-preview.png'),type:'png'});
@@ -28,4 +28,18 @@ try{
   await page.locator('.dialogue-panel').waitFor();
   if(errors.length)throw new Error(`浏览器控制台错误：${errors.join(' | ')}`);
   console.log('UI smoke passed; preview:',path.join(root,'galgame-ui-preview.png'));
+  const setup=await browser.newPage({viewport:{width:1536,height:864},deviceScaleFactor:1});
+  await setup.goto(base,{waitUntil:'networkidle'});
+  await setup.getByRole('button',{name:'开始正式故事'}).click();
+  const dialog=setup.getByRole('dialog',{name:'开始正式故事'});
+  await dialog.waitFor();
+  await setup.getByRole('heading',{name:'先决定你要走哪一段人生'}).waitFor();
+  await setup.getByRole('button',{name:'继续'}).click();
+  await setup.getByRole('heading',{name:'选择会改变故事的人'}).waitFor();
+  await setup.getByRole('button',{name:'继续'}).click();
+  await setup.getByRole('heading',{name:'最后，告诉故事你是谁'}).waitFor();
+  await setup.getByRole('textbox',{name:'你的名字'}).fill('林澈');
+  if(await setup.getByRole('button',{name:/开始生成/}).isDisabled())throw new Error('正式故事配置未完成');
+  await setup.screenshot({path:path.join(root,'galgame-setup-preview.png'),type:'png'});
+  console.log('Formal setup smoke passed; preview:',path.join(root,'galgame-setup-preview.png'));
 }finally{await browser.close();}
