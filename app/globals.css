@@ -9,3 +9,14 @@
 .slot-preview img:last-child.pose-left{object-position:left bottom}
 .slot-preview img:last-child.pose-middle{object-position:center bottom}
 .slot-preview img:last-child.pose-right{object-position:right bottom}
+
+/* Single portrait assets keep the original full-body fit; only three-pose sheets use crop positions. */
+.character{object-fit:contain;object-position:center bottom}
+.character.sheet{object-fit:cover}
+.character.sheet.pose-left{object-position:left bottom}
+.character.sheet.pose-middle{object-position:center bottom}
+.character.sheet.pose-right{object-position:right bottom}
+.slot-preview img:last-child.sheet{object-fit:cover}
+
+/* One pose occupies one third of a 1536x1024 sheet, so its display box is about 1:2. */
+.character.sheet{width:24%}
