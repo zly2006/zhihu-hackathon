@@ -1,30 +1,50 @@
 #!/usr/bin/env python3
-"""Convert independent character PNGs to WebP, build an atlas, and clean legacy art.
+"""Prepare, convert, and clean Galgame art assets.
 
-Usage: uv run --with pillow python scripts/art_pipeline.py --source-dir /path/to/pngs
-The source directory contains f1_happy.png ... m4_thinking.png (24 files).
-PNG inputs are temporary build inputs; product assets are WebP only.
+Usage:
+  uv run --with pillow python scripts/art_pipeline.py --source-dir /path/to/pngs
+
+The source directory must contain files named f1_happy.png, f1_surprised.png,
+... m4_thinking.png. PNGs are copied into public/art/_source and converted to
+512x1024 RGBA WebP files in public/art. Unrelated art files are moved to
+public/art/_trash with their relative path preserved.
 """
 from __future__ import annotations
-import argparse, json, re, shutil
+
+import argparse
+import re
+import shutil
 from pathlib import Path
 from PIL import Image
 
 ROOT = Path(__file__).resolve().parents[1]
 ART = ROOT / "public" / "art"
+SOURCE = ART / "_source"
 TRASH = ART / "_trash"
-CHARS = [f"{g}{i}" for g in "fm" for i in range(1, 5)]
-EXPRS = ("happy", "surprised", "thinking")
-EXPECTED = {f"{c}_{e}.png" for c in CHARS for e in EXPRS}
-ASSET_RE = re.compile(r"^(?:[fm][1-4]_(?:happy|surprised|thinking)|player|cafe-rain|characters-atlas)\.(?:webp|json)$")
+CHARACTERS = [f"{g}{i}" for g in "fm" for i in range(1, 5)]
+EXPRESSIONS = ("happy", "surprised", "thinking")
+EXPECTED = {f"{c}_{e}.png" for c in CHARACTERS for e in EXPRESSIONS}
+KEEP_RE = re.compile(r"^(?:[fm][1-4](?:_(?:happy|surprised|thinking))?|player|cafe-rain)\.(?:webp|png)$")
 
 
-def convert(source_dir: Path) -> list[tuple[Path, Path, int, int]]:
-    converted = []
+def copy_sources(source_dir: Path) -> list[Path]:
+    SOURCE.mkdir(parents=True, exist_ok=True)
+    copied: list[Path] = []
     for name in sorted(EXPECTED):
         src = source_dir / name
         if not src.is_file():
             raise FileNotFoundError(f"missing source PNG: {src}")
+        dst = SOURCE / name
+        shutil.copy2(src, dst)
+        copied.append(dst)
+    return copied
+
+
+def convert_sources() -> list[tuple[Path, Path, int, int]]:
+    converted = []
+    for src in sorted(SOURCE.glob("[fm][1-4]_[a-z]*.png")):
+        if src.name not in EXPECTED:
+            continue
         dst = ART / f"{src.stem}.webp"
         with Image.open(src) as im:
             rgba = im.convert("RGBA")
@@ -35,53 +55,48 @@ def convert(source_dir: Path) -> list[tuple[Path, Path, int, int]]:
     return converted
 
 
-def build_atlas() -> tuple[Path, Path]:
-    cols, rows = 4, 6
-    tile_w, tile_h = 512, 1024
-    atlas = Image.new("RGBA", (cols * tile_w, rows * tile_h), (0, 0, 0, 0))
-    frames = {}
-    for index, name in enumerate([f"{c}_{e}" for c in CHARS for e in EXPRS]):
-        src = ART / f"{name}.webp"
-        with Image.open(src) as im:
-            tile = im.convert("RGBA")
-            x, y = (index % cols) * tile_w, (index // cols) * tile_h
-            atlas.alpha_composite(tile, (x, y))
-            frames[name] = {"x": x, "y": y, "w": tile_w, "h": tile_h}
-    atlas_path = ART / "characters-atlas.webp"
-    atlas.save(atlas_path, "WEBP", lossless=False, quality=80, method=6)
-    meta_path = ART / "characters-atlas.json"
-    meta_path.write_text(json.dumps({"tileSize": [tile_w, tile_h], "columns": cols, "rows": rows, "frames": frames}, ensure_ascii=False, indent=2) + "\n")
-    return atlas_path, meta_path
-
-
-def clean() -> list[str]:
+def clean_art() -> tuple[list[Path], list[Path]]:
     TRASH.mkdir(parents=True, exist_ok=True)
-    moved = []
+    kept: list[Path] = []
+    moved: list[Path] = []
     for item in sorted(ART.iterdir()):
-        if item.name in {"_trash"}:
+        if item.name in {"_source", "_trash"}:
+            kept.append(item)
             continue
-        if item.is_file() and ASSET_RE.match(item.name):
+        if item.is_file() and KEEP_RE.match(item.name):
+            kept.append(item)
             continue
         target = TRASH / item.name
         if target.exists():
-            if target.is_dir(): shutil.rmtree(target)
-            else: target.unlink()
+            if target.is_dir():
+                shutil.rmtree(target)
+            else:
+                target.unlink()
         shutil.move(str(item), str(target))
-        moved.append(item.name)
-    return moved
+        moved.append(item)
+    return kept, moved
 
 
 def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--source-dir", type=Path, required=True)
+    parser.add_argument("--source-dir", type=Path, required=True, help="directory containing the 24 source PNGs")
     args = parser.parse_args()
-    converted = convert(args.source_dir)
-    atlas, meta = build_atlas()
-    moved = clean()
-    print(f"converted={len(converted)} atlas={atlas.relative_to(ROOT)} metadata={meta.relative_to(ROOT)}")
+    copied = copy_sources(args.source_dir)
+    converted = convert_sources()
+    kept, moved = clean_art()
+    print("Copied PNG sources:")
+    for p in copied:
+        print(f"  {p.relative_to(ROOT)}")
+    print("Converted WebP:")
     for src, dst, before, after in converted:
-        print(f"{dst.relative_to(ROOT)} {before} -> {after} bytes")
-    print("moved_to_trash=" + ", ".join(moved))
+        print(f"  {dst.relative_to(ROOT)} {before} -> {after} bytes")
+    print("Kept:")
+    for p in kept:
+        print(f"  {p.relative_to(ROOT)}")
+    print("Moved to _trash:")
+    for p in moved:
+        print(f"  {p.relative_to(ROOT)}")
+
 
 if __name__ == "__main__":
     main()
