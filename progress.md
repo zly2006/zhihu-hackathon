@@ -26,4 +26,4 @@ Original prompt: 能不能写一个简单的前端？把前后端统一成nextjs
 - Locked route choices remain deterministic per beat; each selected life action updates hidden courage/rationality/empathy, affinity, risk/protection flags, and the ending resolver.
 - Added `scripts/enrich-zhihu-avatars.mjs` for authenticated `zhurl` avatar/profile enrichment. Current local account is logged out, so no avatar URLs were fabricated or written.
 - Verification: `npm test` 23/23, campus event validation, `npx tsc --noEmit`, `npm run build`, and UI smoke passed. Screenshots were visually inspected.
-- Hidden life stats remain server-side; the public story state exposes relationship progress and ending summary without courage/rationality/empathy values.
+- Choice B is intentionally simple: each Zhihu event action records a deterministic action/result sentence in the server timeline, which is injected into the next generation prompt; no hidden attribute system is required.

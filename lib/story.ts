@@ -17,17 +17,15 @@ export type CharacterProfile = { id: string; name: string; gender: Gender; backg
 export type CastDetails = { voice: string; desire: string; object: string; route_event: string; payoff: string };
 export type CastMember = PublicCastMember & CastDetails & { background?: string; zhihuHandle?: string };
 export type Route = string;
-export type LifeStats = { courage: number; rationality: number; empathy: number };
 export type EndingResolution = { id: string; label: string; summary: string; tone: 'bright' | 'warm' | 'bittersweet' | 'quiet' };
 export type StoryState = {
   relationships: Record<string, number>;
   flags: string[];
   timeline: string[];
   usedLifeEventIds?: string[];
-  stats: LifeStats;
   endingId?: string;
 };
-export type PublicStoryState = Omit<StoryState, 'stats' | 'usedLifeEventIds'>;
+export type PublicStoryState = Omit<StoryState, 'usedLifeEventIds'>;
 export type PlayerSelection = { name: string; gender: Gender };
 export type Player = { id: string; name: string; gender: Gender; age: number; identity: string };
 export type LifeChoice = { title: string; question: string; pressure: string; directions: string[] };
@@ -112,7 +110,7 @@ export const nodeSchema = z.object({
 }).strict();
 
 export type StoryNode = z.infer<typeof nodeSchema>;
-export type Selection = { node: number; index: number; text: string; target: Route | null; eventId?: string; optionId?: 'A' | 'B' | 'C'; evidence?: ZhihuEvidence[]; disclosure?: 'private' | 'confided' | 'shared' | 'co-decided' };
+export type Selection = { node: number; index: number; text: string; target: Route | null; eventId?: string; optionId?: 'A' | 'B' | 'C'; evidence?: ZhihuEvidence[]; outcome?: string; disclosure?: 'private' | 'confided' | 'shared' | 'co-decided' };
 export type State = {
   version: 2;
   seed: string;
@@ -133,8 +131,6 @@ export type State = {
   plannedLifeEventIds?: Record<string, string>;
   worldState: StoryState;
 };
-
-const EMPTY_STATS: LifeStats = { courage: 0, rationality: 0, empathy: 0 };
 
 function defaultProfiles(): CharacterProfile[] {
   return ['m1', 'm3', 'f2', 'f4'].map((id) => {
@@ -212,33 +208,14 @@ function plannedEvents(seed: string, backgroundId: string) {
 
 function ensureWorldState(state: State) {
   const canonical = canonicalProfiles(state.profiles);
-  state.worldState ??= { relationships: emptyRelationships(canonical), flags: [], timeline: [], stats: { ...EMPTY_STATS }, usedLifeEventIds: [] };
+  state.worldState ??= { relationships: emptyRelationships(canonical), flags: [], timeline: [], usedLifeEventIds: [] };
   state.worldState.relationships ??= emptyRelationships(canonical);
   state.worldState.flags ??= [];
   state.worldState.timeline ??= [];
-  state.worldState.stats = { ...EMPTY_STATS, ...(state.worldState.stats || {}) };
   state.worldState.usedLifeEventIds ??= [];
   for (const id of selectedIds(state)) state.worldState.relationships[id] ??= 0;
   state.plannedLifeEventIds ??= plannedEvents(state.seed, state.backgroundId);
   return state.worldState;
-}
-
-function bounded(value: number, min = -3, max = 8) {
-  return Math.max(min, Math.min(max, value));
-}
-
-export function lifeChoiceDelta(option: { strategyTag: string; tradeoff?: string }) {
-  const tag = option.strategyTag;
-  const delta: LifeStats = { courage: 0, rationality: 0, empathy: 0 };
-  if (/(公开|直接|机会|押注|迁移|转向|竞选|申诉|兴趣|主动|创业)/.test(tag)) delta.courage += 2;
-  if (/(证据|规则|程序|验证|信息|可信度|能力|结构化|契约|制度|透明|审计|正式)/.test(tag)) delta.rationality += 2;
-  if (/(共同|照护|陪伴|关系|协商|交换|友情|同情|家庭|远程|亲自|团队)/.test(tag)) delta.empathy += 2;
-  if (/(回避|掩盖|透支|隐性|短期服从|延期|延迟|现金换强度|退出)/.test(tag)) {
-    delta.courage -= 1;
-    delta.rationality -= 1;
-  }
-  if (!delta.courage && !delta.rationality && !delta.empathy) delta.rationality = 1;
-  return delta;
 }
 
 function affinityDelta(option: { strategyTag: string }, isCommon: boolean) {
@@ -248,28 +225,16 @@ function affinityDelta(option: { strategyTag: string }, isCommon: boolean) {
   return 1;
 }
 
-function applyLifeChoice(state: State, option: ReturnType<typeof optionForEvent>, target: string | null, isCommon: boolean) {
-  const world = ensureWorldState(state);
-  const delta = lifeChoiceDelta(option);
-  world.stats.courage = bounded(world.stats.courage + delta.courage);
-  world.stats.rationality = bounded(world.stats.rationality + delta.rationality);
-  world.stats.empathy = bounded(world.stats.empathy + delta.empathy);
-  const risk = /(回避|掩盖|透支|隐性|短期服从|延期|延迟|现金换强度|退出)/.test(option.strategyTag);
-  const flag = risk ? 'life-choice-risk' : 'life-choice-protected';
-  if (!world.flags.includes(flag)) world.flags.push(flag);
-  const deltaText = [`勇气${delta.courage >= 0 ? '+' : ''}${delta.courage}`, `理性${delta.rationality >= 0 ? '+' : ''}${delta.rationality}`, `共情${delta.empathy >= 0 ? '+' : ''}${delta.empathy}`].join('，');
-  world.timeline.push(`人生选择：${option.label}｜${option.strategyTag}｜${deltaText}`);
-  if (target) world.timeline.push(`关系回应：${target}承担了这次选择的后果`);
+function resultForLifeChoice(option: ReturnType<typeof optionForEvent>) {
+  return `已执行“${option.action}”。当前结果：${option.tradeoff}`;
 }
 
 export function resolveEnding(state: State): EndingResolution {
   const world = ensureWorldState(state);
   const affinity = state.route ? world.relationships[state.route] ?? 0 : 0;
-  const { courage, rationality, empathy } = world.stats;
-  if (state.relationshipType === 'romance' && affinity >= 5 && courage >= 3 && empathy >= 3) return { id: 'mutual-commitment', label: '并肩向前', summary: '你们没有替彼此做决定，却在最难的选择里把未来写成了共同计划。', tone: 'bright' };
-  if (affinity >= 4 && rationality >= 4) return { id: 'steady-companions', label: '把答案留给明天', summary: '关系没有被一句承诺定格，但你们学会了用坦诚和行动继续靠近。', tone: 'warm' };
-  if (affinity >= 3 && empathy >= 3) return { id: 'shared-shelter', label: '留一盏灯', summary: '你们接住了彼此的脆弱，即使道路不同，也愿意为对方保留回来的位置。', tone: 'warm' };
-  if (world.flags.includes('life-choice-risk') && rationality < 2) return { id: 'costly-distance', label: '迟到的答案', summary: '有些代价来得比告白更早。你们仍然在意彼此，只是需要先学会对自己的选择负责。', tone: 'bittersweet' };
+  if (state.relationshipType === 'romance' && affinity >= 5) return { id: 'mutual-commitment', label: '并肩向前', summary: '你们在一次次具体选择里确认了彼此，最后把未来写成了共同计划。', tone: 'bright' };
+  if (affinity >= 4) return { id: 'steady-companions', label: '把答案留给明天', summary: '关系没有被一句承诺定格，但你们学会了用坦诚和行动继续靠近。', tone: 'warm' };
+  if (affinity >= 2) return { id: 'shared-shelter', label: '留一盏灯', summary: '你们接住了彼此的一部分处境，即使道路不同，也愿意保留回来的位置。', tone: 'warm' };
   return { id: 'honest-beginning', label: '从诚实开始', summary: '这一次没有完美结局，但你终于把真正想要的人生和关系说清楚了。', tone: 'quiet' };
 }
 
@@ -292,7 +257,7 @@ export function initial(profiles: CharacterProfile[] = defaultProfiles(), option
     memory: { summary: '', facts: [] },
     profiles: canonical,
     plannedLifeEventIds: plannedEvents(options.seed || 'preview-story', background.id),
-    worldState: { relationships: emptyRelationships(canonical), flags: [], timeline: [], stats: { ...EMPTY_STATS }, usedLifeEventIds: [] },
+    worldState: { relationships: emptyRelationships(canonical), flags: [], timeline: [], usedLifeEventIds: [] },
   };
 }
 
@@ -356,17 +321,17 @@ export function choose(state: State, index: number, expected: number) {
   const selectedAffinityDelta = routeOption ? affinityDelta(routeOption, currentBeat.kind === 'common') : (picked.target ? 1 : 0);
   const nextAffinity = confidantId ? (state.worldState.relationships[confidantId] ?? 0) + selectedAffinityDelta : 0;
   const disclosure = nextAffinity >= 3 ? 'co-decided' : nextAffinity >= 2 ? 'shared' : nextAffinity >= 1 ? 'confided' : 'private';
-  state.selections.push({ node: state.nodes.length - 1, index, ...picked, eventId: completedLifeEvent?.id, optionId: evidenceOption?.id, evidence: evidenceOption ? structuredClone(evidenceOption.zhihuEvidence) : undefined, disclosure });
+  const outcome = routeOption ? resultForLifeChoice(routeOption) : undefined;
+  state.selections.push({ node: state.nodes.length - 1, index, ...picked, eventId: completedLifeEvent?.id, optionId: evidenceOption?.id, evidence: evidenceOption ? structuredClone(evidenceOption.zhihuEvidence) : undefined, outcome, disclosure });
   if (picked.target) {
     if (!routeIds.includes(picked.target)) throw new Error('选项目标不属于当前角色。');
     state.worldState.relationships[picked.target] = Math.max(0, state.worldState.relationships[picked.target] + selectedAffinityDelta);
   } else if (state.route) {
     state.worldState.relationships[state.route] = Math.max(0, (state.worldState.relationships[state.route] ?? 0) + selectedAffinityDelta);
   }
-  if (routeOption) applyLifeChoice(state, routeOption, confidantId, currentBeat.kind === 'common');
   const usedLifeEventIds = state.worldState.usedLifeEventIds || (state.worldState.usedLifeEventIds = []);
   if (completedLifeEvent && !usedLifeEventIds.includes(completedLifeEvent.id)) usedLifeEventIds.push(completedLifeEvent.id);
-  state.worldState.timeline.push(`第${state.nodes.length}段选择：${picked.text}`);
+  state.worldState.timeline.push(`第${state.nodes.length}段选择：${picked.text}${outcome ? `｜${outcome}` : ''}`);
 
   if (currentBeat.kind === 'common') {
     state.commonRounds += 1;
@@ -536,7 +501,6 @@ function renderWorldState(state: State) {
   const timeline = state.worldState.timeline.length ? state.worldState.timeline.map((entry, index) => `${index + 1}. ${entry}`).join('\n') : '暂无';
   return [
     `角色关系：${listOrNone(relationships)}`,
-    `人生能力（隐藏）：勇气=${state.worldState.stats.courage}，理性=${state.worldState.stats.rationality}，共情=${state.worldState.stats.empathy}`,
     `已记录事实：${listOrNone(state.worldState.flags)}`,
     `行动时间线：\n${timeline}`,
   ].join('\n');
@@ -548,6 +512,7 @@ function renderHistory(state: State) {
     `第${index + 1}段：${node.title}`,
     ...node.lines.map((line) => `[${line.speaker}] ${line.text}`),
     `选项：${listOrNone(node.choices.map((choice) => `${choice.text}${choice.target ? ` -> ${choice.target}` : ''}`))}`,
+    state.selections.find((selection) => selection.node === index)?.outcome ? `已产生结果：${state.selections.find((selection) => selection.node === index)?.outcome}` : '结果：本段尚未选择。',
   ].join('\n')).join('\n\n');
 }
 
@@ -671,7 +636,7 @@ export function promptText(state: State) {
   const history = renderHistory(state);
   const previousTail = state.nodes.at(-1)?.lines.map((line) => line.text).join('\n').slice(-240) || '暂无。';
   const nextAction = latest
-    ? `先执行玩家刚选择的【${latest.text}】并给出具体结果；玩家选择必须真实发生，不能重写或跳过。`
+    ? `先执行玩家刚选择的【${latest.text}】。程序记录的结果是【${latest.outcome || '本段行动已经发生，必须补出具体结果'}】；必须写出行动如何改变现场、NPC如何反应、接下来出现什么新问题，不能重写或跳过。`
     : '这是开场片段，必须建立当前人生阶段里的第一件具体小事，并让四位角色各有独特行动或台词。';
 
   return [
@@ -692,6 +657,7 @@ export function promptText(state: State) {
     `【已经发生的剧情｜不可改写】\n${history}`,
     `【上一段收尾】\n${previousTail}`,
     `【长期记忆】\n摘要：${state.memory.summary || '暂无'}\n事实：${listOrNone(state.memory.facts)}`,
+    '【因果闭环】每段都必须完成“选择 → 行动 → 即时结果 → NPC反应 → 新问题/关系变化”。有起因就必须写经过和结果，不能只写氛围或把结果留给下一段。结局段必须收束最后一个结果，并完成告白、关系确认或诚实告别。',
   ].join('\n\n');
 }
 
@@ -725,7 +691,7 @@ export function protocolInstruction(state: State) {
 [EVIDENCE] {"ids":${JSON.stringify(requiredEvidenceIds(state))}}
 [MEMORY] {"summary":"累计事实","facts":["事实"]}
 [END]
-${targetRule}；只生成当前片段，不输出解释。`;
+${targetRule}；只生成当前片段，不输出解释。每段必须写清上次选择的行动、结果、NPC反应和新的推进，不能只复述选择。`;
 }
 
 export function nextInstruction(state: State) {
