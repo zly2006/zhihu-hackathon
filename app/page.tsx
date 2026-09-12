@@ -8,12 +8,12 @@ type PoolMember={id:string;name:string;gender:Gender;age:number;identity:string}
 type ProfileEdit={background:string;zhihuHandle:string};
 type LiveCatalog={pool:PoolMember[];backgrounds:StoryBackground[];requiredCastCount:number;maxStages:number;defaultBackgroundId:string};
 const assetFor=(id:string,pose:CharacterPose='happy')=>`/art/${({lin:'f1',tao:'f2',shen:'f3'} as Record<string,string>)[id]||id}_${pose}.webp`;
-type CharacterPose='happy'|'surprised'|'thinking';
+type CharacterPose='normal'|'happy'|'playful';
 const poseForText=(speaker:string,text:string):CharacterPose=>{
-  if(speaker==='旁白')return 'thinking';
-  if(/[!！?？]|突然|竟然|真的吗|诶|啊/.test(text))return 'surprised';
+  if(speaker==='旁白')return 'normal';
+  if(/[!！?？]|突然|竟然|真的吗|诶|啊/.test(text))return 'playful';
   if(/开心|高兴|谢谢|太好了|喜欢|愿意|好啊|没问题|成功|期待|笑|温暖|轻松/.test(text))return 'happy';
-  return 'thinking';
+  return 'normal';
 };
 const fallbackCharacter:UiCharacter={id:'lin',name:'林见夏',job:'插画师',color:'#bd7d91',greeting:'雨还没停。你想聊些什么？我在听。'};
 type Panel='menu'|'history'|'save'|'load'|'settings'|'title'|'skip'|'setup'|null;
