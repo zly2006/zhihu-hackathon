@@ -20,3 +20,10 @@ Original prompt: 能不能写一个简单的前端？把前后端统一成nextjs
 - Updated chat routing to resolve dynamic live cast IDs from the current story state instead of only the legacy demo IDs.
 - Verification: `npm test` 21/21, `npm run validate:life-events`, `npx tsc --noEmit`, `npm run build`, and `node scripts/ui-smoke.mjs` passed. Visual smoke screenshots: `galgame-ui-preview.png`, `galgame-setup-preview.png`.
 - Live model generation still requires a valid upstream credential; the earlier replay attempt returned HTTP 401.
+
+## 2026-09-12 route and campus event hardening
+- Runtime life-event source is now only `content/campus-life-events.v1.json`: 10 events, 30 actions, 90 option-level Zhihu answers; the older generic library is no longer mixed into the campus route.
+- Locked route choices remain deterministic per beat; each selected life action updates hidden courage/rationality/empathy, affinity, risk/protection flags, and the ending resolver.
+- Added `scripts/enrich-zhihu-avatars.mjs` for authenticated `zhurl` avatar/profile enrichment. Current local account is logged out, so no avatar URLs were fabricated or written.
+- Verification: `npm test` 23/23, campus event validation, `npx tsc --noEmit`, `npm run build`, and UI smoke passed. Screenshots were visually inspected.
+- Hidden life stats remain server-side; the public story state exposes relationship progress and ending summary without courage/rationality/empathy values.

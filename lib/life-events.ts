@@ -1,4 +1,3 @@
-import coreLibrary from "../content/life-events.v1.json";
 import campusLibrary from "../content/campus-life-events.v1.json";
 
 export type LifeStage = "high-school" | "university" | "graduate";
@@ -13,6 +12,8 @@ export type ZhihuEvidence = {
   excerpt: string;
   voteUpCount: number;
   authorityLevel: string;
+  authorAvatarUrl?: string;
+  authorProfileUrl?: string;
 };
 
 export type LifeEventOption = {
@@ -50,13 +51,12 @@ type RawLibrary = {
   events: LifeEventTemplate[];
 };
 
-const core = coreLibrary as unknown as RawLibrary;
 const campus = campusLibrary as unknown as RawLibrary;
 
 export const LIFE_EVENT_LIBRARY = {
   schemaVersion: 2 as const,
   updatedAt: campus.updatedAt,
-  events: [...core.events, ...campus.events],
+  events: campus.events,
 };
 
 const campusEvents = campus.events;

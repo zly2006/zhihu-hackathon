@@ -13,7 +13,6 @@ if (!cli) {
 }
 
 const files = [
-  "content/life-events.v1.json",
   "content/campus-life-events.v1.json",
 ];
 

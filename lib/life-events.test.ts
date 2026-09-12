@@ -10,18 +10,18 @@ import {
   renderLifeEvent,
 } from "./life-events";
 
-test("merged life event library keeps all reviewed events and three choices each", () => {
-  assert.equal(LIFE_EVENT_LIBRARY.events.length, 21);
+test("campus event library is the single runtime source and keeps three choices each", () => {
+  assert.equal(LIFE_EVENT_LIBRARY.events.length, 10);
   assert.equal(
     LIFE_EVENT_LIBRARY.events.reduce(
       (sum, event) => sum + event.options.length,
       0,
     ),
-    63,
+    30,
   );
   assert.equal(
     new Set(LIFE_EVENT_LIBRARY.events.map((event) => event.id)).size,
-    21,
+    10,
   );
   for (const event of LIFE_EVENT_LIBRARY.events)
     assert.deepEqual(

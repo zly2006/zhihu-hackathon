@@ -17,7 +17,17 @@ export type CharacterProfile = { id: string; name: string; gender: Gender; backg
 export type CastDetails = { voice: string; desire: string; object: string; route_event: string; payoff: string };
 export type CastMember = PublicCastMember & CastDetails & { background?: string; zhihuHandle?: string };
 export type Route = string;
-export type StoryState = { relationships: Record<string, number>; flags: string[]; timeline: string[]; usedLifeEventIds?: string[] };
+export type LifeStats = { courage: number; rationality: number; empathy: number };
+export type EndingResolution = { id: string; label: string; summary: string; tone: 'bright' | 'warm' | 'bittersweet' | 'quiet' };
+export type StoryState = {
+  relationships: Record<string, number>;
+  flags: string[];
+  timeline: string[];
+  usedLifeEventIds?: string[];
+  stats: LifeStats;
+  endingId?: string;
+};
+export type PublicStoryState = Omit<StoryState, 'stats' | 'usedLifeEventIds'>;
 export type PlayerSelection = { name: string; gender: Gender };
 export type Player = { id: string; name: string; gender: Gender; age: number; identity: string };
 export type LifeChoice = { title: string; question: string; pressure: string; directions: string[] };
@@ -120,8 +130,11 @@ export type State = {
   profiles?: CharacterProfile[];
   storyTitle?: string;
   storyTone?: string;
+  plannedLifeEventIds?: Record<string, string>;
   worldState: StoryState;
 };
+
+const EMPTY_STATS: LifeStats = { courage: 0, rationality: 0, empathy: 0 };
 
 function defaultProfiles(): CharacterProfile[] {
   return ['m1', 'm3', 'f2', 'f4'].map((id) => {
@@ -180,6 +193,86 @@ function normalizedPlayer(name: string | undefined, gender: Gender, background: 
   return { id: publicPlayer.id, name: safeName, gender, age: background.player.age, identity: background.player.identity };
 }
 
+function plannedEvents(seed: string, backgroundId: string) {
+  const lifeEventStage = backgroundFor(backgroundId).lifeEventStage;
+  if (!lifeEventStage) return {};
+  const candidates = LIFE_EVENT_LIBRARY.events.filter((event) => event.lifeStages.includes(lifeEventStage));
+  const used = new Set<string>();
+  return Object.fromEntries(
+    beats.filter((beat) => beat.kind !== 'ending').map((beat, index) => {
+      if (!candidates.length) return [beat.id, ''];
+      const start = stableHash(`${seed}:${backgroundId}:${beat.id}`) % candidates.length;
+      let event = candidates.find((candidate, offset) => !used.has(candidate.id) && (offset + candidates.length - start) % candidates.length === 0);
+      if (!event) event = candidates[(start + index) % candidates.length];
+      used.add(event.id);
+      return [beat.id, event.id];
+    }),
+  );
+}
+
+function ensureWorldState(state: State) {
+  const canonical = canonicalProfiles(state.profiles);
+  state.worldState ??= { relationships: emptyRelationships(canonical), flags: [], timeline: [], stats: { ...EMPTY_STATS }, usedLifeEventIds: [] };
+  state.worldState.relationships ??= emptyRelationships(canonical);
+  state.worldState.flags ??= [];
+  state.worldState.timeline ??= [];
+  state.worldState.stats = { ...EMPTY_STATS, ...(state.worldState.stats || {}) };
+  state.worldState.usedLifeEventIds ??= [];
+  for (const id of selectedIds(state)) state.worldState.relationships[id] ??= 0;
+  state.plannedLifeEventIds ??= plannedEvents(state.seed, state.backgroundId);
+  return state.worldState;
+}
+
+function bounded(value: number, min = -3, max = 8) {
+  return Math.max(min, Math.min(max, value));
+}
+
+export function lifeChoiceDelta(option: { strategyTag: string; tradeoff?: string }) {
+  const tag = option.strategyTag;
+  const delta: LifeStats = { courage: 0, rationality: 0, empathy: 0 };
+  if (/(公开|直接|机会|押注|迁移|转向|竞选|申诉|兴趣|主动|创业)/.test(tag)) delta.courage += 2;
+  if (/(证据|规则|程序|验证|信息|可信度|能力|结构化|契约|制度|透明|审计|正式)/.test(tag)) delta.rationality += 2;
+  if (/(共同|照护|陪伴|关系|协商|交换|友情|同情|家庭|远程|亲自|团队)/.test(tag)) delta.empathy += 2;
+  if (/(回避|掩盖|透支|隐性|短期服从|延期|延迟|现金换强度|退出)/.test(tag)) {
+    delta.courage -= 1;
+    delta.rationality -= 1;
+  }
+  if (!delta.courage && !delta.rationality && !delta.empathy) delta.rationality = 1;
+  return delta;
+}
+
+function affinityDelta(option: { strategyTag: string }, isCommon: boolean) {
+  if (isCommon) return 1;
+  if (/(共同|照护|陪伴|关系|协商|交换|友情|同情|家庭|远程|亲自|团队)/.test(option.strategyTag)) return 2;
+  if (/(回避|掩盖|隐性|短期服从|退出)/.test(option.strategyTag)) return 0;
+  return 1;
+}
+
+function applyLifeChoice(state: State, option: ReturnType<typeof optionForEvent>, target: string | null, isCommon: boolean) {
+  const world = ensureWorldState(state);
+  const delta = lifeChoiceDelta(option);
+  world.stats.courage = bounded(world.stats.courage + delta.courage);
+  world.stats.rationality = bounded(world.stats.rationality + delta.rationality);
+  world.stats.empathy = bounded(world.stats.empathy + delta.empathy);
+  const risk = /(回避|掩盖|透支|隐性|短期服从|延期|延迟|现金换强度|退出)/.test(option.strategyTag);
+  const flag = risk ? 'life-choice-risk' : 'life-choice-protected';
+  if (!world.flags.includes(flag)) world.flags.push(flag);
+  const deltaText = [`勇气${delta.courage >= 0 ? '+' : ''}${delta.courage}`, `理性${delta.rationality >= 0 ? '+' : ''}${delta.rationality}`, `共情${delta.empathy >= 0 ? '+' : ''}${delta.empathy}`].join('，');
+  world.timeline.push(`人生选择：${option.label}｜${option.strategyTag}｜${deltaText}`);
+  if (target) world.timeline.push(`关系回应：${target}承担了这次选择的后果`);
+}
+
+export function resolveEnding(state: State): EndingResolution {
+  const world = ensureWorldState(state);
+  const affinity = state.route ? world.relationships[state.route] ?? 0 : 0;
+  const { courage, rationality, empathy } = world.stats;
+  if (state.relationshipType === 'romance' && affinity >= 5 && courage >= 3 && empathy >= 3) return { id: 'mutual-commitment', label: '并肩向前', summary: '你们没有替彼此做决定，却在最难的选择里把未来写成了共同计划。', tone: 'bright' };
+  if (affinity >= 4 && rationality >= 4) return { id: 'steady-companions', label: '把答案留给明天', summary: '关系没有被一句承诺定格，但你们学会了用坦诚和行动继续靠近。', tone: 'warm' };
+  if (affinity >= 3 && empathy >= 3) return { id: 'shared-shelter', label: '留一盏灯', summary: '你们接住了彼此的脆弱，即使道路不同，也愿意为对方保留回来的位置。', tone: 'warm' };
+  if (world.flags.includes('life-choice-risk') && rationality < 2) return { id: 'costly-distance', label: '迟到的答案', summary: '有些代价来得比告白更早。你们仍然在意彼此，只是需要先学会对自己的选择负责。', tone: 'bittersweet' };
+  return { id: 'honest-beginning', label: '从诚实开始', summary: '这一次没有完美结局，但你终于把真正想要的人生和关系说清楚了。', tone: 'quiet' };
+}
+
 export function initial(profiles: CharacterProfile[] = defaultProfiles(), options: StartOptions = {}): State {
   const canonical = canonicalProfiles(profiles);
   const background = backgroundFor(options.backgroundId || defaultBackgroundId);
@@ -198,7 +291,8 @@ export function initial(profiles: CharacterProfile[] = defaultProfiles(), option
     pending: true,
     memory: { summary: '', facts: [] },
     profiles: canonical,
-    worldState: { relationships: emptyRelationships(canonical), flags: [], timeline: [], usedLifeEventIds: [] },
+    plannedLifeEventIds: plannedEvents(options.seed || 'preview-story', background.id),
+    worldState: { relationships: emptyRelationships(canonical), flags: [], timeline: [], stats: { ...EMPTY_STATS }, usedLifeEventIds: [] },
   };
 }
 
@@ -249,9 +343,7 @@ function lockRoute(state: State, target: Route) {
 
 export function choose(state: State, index: number, expected: number) {
   const routeIds = selectedIds(state);
-  state.worldState ??= { relationships: emptyRelationships(canonicalProfiles(state.profiles)), flags: [], timeline: [], usedLifeEventIds: [] };
-  state.worldState.usedLifeEventIds ??= [];
-  for (const id of routeIds) state.worldState.relationships[id] ??= 0;
+  ensureWorldState(state);
   if (expected !== state.nodes.length || state.pending || state.nodes.length >= totalForState(state)) throw new Error('剧情进度已变化，请刷新后继续。');
   const choices = state.nodes.at(-1)?.choices;
   const picked = choices?.[index];
@@ -260,16 +352,20 @@ export function choose(state: State, index: number, expected: number) {
   const completedLifeEvent = getNodeLifeEvent(state.nodes.at(-1));
   const evidenceOption = completedLifeEvent ? optionForEvent(completedLifeEvent, index) : null;
   const confidantId = picked.target || state.route;
-  const nextAffinity = confidantId ? (state.worldState.relationships[confidantId] ?? 0) + 1 : 0;
+  const routeOption = completedLifeEvent ? optionForEvent(completedLifeEvent, index) : null;
+  const selectedAffinityDelta = routeOption ? affinityDelta(routeOption, currentBeat.kind === 'common') : (picked.target ? 1 : 0);
+  const nextAffinity = confidantId ? (state.worldState.relationships[confidantId] ?? 0) + selectedAffinityDelta : 0;
   const disclosure = nextAffinity >= 3 ? 'co-decided' : nextAffinity >= 2 ? 'shared' : nextAffinity >= 1 ? 'confided' : 'private';
   state.selections.push({ node: state.nodes.length - 1, index, ...picked, eventId: completedLifeEvent?.id, optionId: evidenceOption?.id, evidence: evidenceOption ? structuredClone(evidenceOption.zhihuEvidence) : undefined, disclosure });
   if (picked.target) {
     if (!routeIds.includes(picked.target)) throw new Error('选项目标不属于当前角色。');
-    state.worldState.relationships[picked.target] += 1;
+    state.worldState.relationships[picked.target] = Math.max(0, state.worldState.relationships[picked.target] + selectedAffinityDelta);
   } else if (state.route) {
-    state.worldState.relationships[state.route] = (state.worldState.relationships[state.route] ?? 0) + 1;
+    state.worldState.relationships[state.route] = Math.max(0, (state.worldState.relationships[state.route] ?? 0) + selectedAffinityDelta);
   }
-  if (completedLifeEvent && !state.worldState.usedLifeEventIds.includes(completedLifeEvent.id)) state.worldState.usedLifeEventIds.push(completedLifeEvent.id);
+  if (routeOption) applyLifeChoice(state, routeOption, confidantId, currentBeat.kind === 'common');
+  const usedLifeEventIds = state.worldState.usedLifeEventIds || (state.worldState.usedLifeEventIds = []);
+  if (completedLifeEvent && !usedLifeEventIds.includes(completedLifeEvent.id)) usedLifeEventIds.push(completedLifeEvent.id);
   state.worldState.timeline.push(`第${state.nodes.length}段选择：${picked.text}`);
 
   if (currentBeat.kind === 'common') {
@@ -287,6 +383,7 @@ export function choose(state: State, index: number, expected: number) {
       }
     }
   }
+  if (currentBeat.kind === 'route' && beatForState(state).kind === 'ending') state.worldState.endingId = resolveEnding(state).id;
   state.pending = true;
 }
 
@@ -394,12 +491,15 @@ export function selectedModule(state: Pick<State, 'backgroundId' | 'seed' | 'rel
   return modules[stableHash(`${state.seed}:${beat.id}:${state.nodes.length}`) % modules.length];
 }
 
-export function selectedLifeEvent(state: Pick<State, 'backgroundId' | 'seed' | 'nodes' | 'worldState'>, beat: Beat): LifeEventTemplate | null {
+export function selectedLifeEvent(state: Pick<State, 'backgroundId' | 'seed' | 'nodes' | 'worldState' | 'plannedLifeEventIds'>, beat: Beat): LifeEventTemplate | null {
   if (beat.kind === 'ending') return null;
   const lifeEventStage = backgroundFor(state.backgroundId).lifeEventStage;
   if (!lifeEventStage) return null;
   const candidates = LIFE_EVENT_LIBRARY.events.filter((event) => event.lifeStages.includes(lifeEventStage));
   if (!candidates.length) return null;
+  const plannedId = state.plannedLifeEventIds?.[beat.id];
+  const planned = plannedId ? candidates.find((event) => event.id === plannedId) : undefined;
+  if (planned) return planned;
   const used = new Set(state.worldState?.usedLifeEventIds || []);
   const unused = candidates.filter((event) => !used.has(event.id));
   const pool = unused.length ? unused : candidates;
@@ -431,10 +531,12 @@ function listOrNone(items: string[]) {
 }
 
 function renderWorldState(state: State) {
+  ensureWorldState(state);
   const relationships = selectedCast(state).map((member) => `${member.id}(${member.name})=${state.worldState.relationships[member.id] ?? 0}`);
   const timeline = state.worldState.timeline.length ? state.worldState.timeline.map((entry, index) => `${index + 1}. ${entry}`).join('\n') : '暂无';
   return [
     `角色关系：${listOrNone(relationships)}`,
+    `人生能力（隐藏）：勇气=${state.worldState.stats.courage}，理性=${state.worldState.stats.rationality}，共情=${state.worldState.stats.empathy}`,
     `已记录事实：${listOrNone(state.worldState.flags)}`,
     `行动时间线：\n${timeline}`,
   ].join('\n');
@@ -662,17 +764,25 @@ export function messages(state: State) {
 }
 
 export function publicState(state: State) {
+  ensureWorldState(state);
   const background = backgroundFor(state.backgroundId);
   const route = state.relationshipType ? routeTemplates[state.relationshipType] : null;
   const currentBeat = beatForState(state);
   const visibleNode = state.nodes.at(-1);
   const event = getNodeLifeEvent(visibleNode) || selectedLifeEvent(state, currentBeat);
   const latestSelection = state.selections.at(-1);
-  const publicEvidence = (items: ZhihuEvidence[]) => items.map(({ contentId, title, author, url }) => ({ contentId, title, author, url }));
+  const ending = state.route ? resolveEnding(state) : null;
+  const publicEvidence = (items: ZhihuEvidence[]) => items.map(({ contentId, title, author, url, authorAvatarUrl, authorProfileUrl }) => ({ contentId, title, author, url, authorAvatarUrl, authorProfileUrl }));
   return {
     storyTitle: state.storyTitle,
     storyTone: state.storyTone,
-    worldState: state.worldState,
+    worldState: {
+      relationships: state.worldState.relationships,
+      flags: state.worldState.flags,
+      timeline: state.worldState.timeline,
+      endingId: state.worldState.endingId,
+    } satisfies PublicStoryState,
+    ending: ending ? { ...ending, id: state.worldState.endingId || ending.id } : null,
     lifeEvent: event ? { id: event.id, title: event.title, domain: event.domain, evidence: publicEvidence(event.zhihuEvidence), options: event.options.map((option) => ({ id: option.id, label: option.label, action: option.action, evidence: publicEvidence(option.zhihuEvidence) })), minimumEvidencePerOption: event.sourcePolicy.minimumAnswersPerOption } : null,
     relationshipProgress: selectedCast(state).map((member) => { const affinity = state.worldState.relationships[member.id] ?? 0; return { id: member.id, name: member.name, affinity, disclosure: affinity >= 3 ? '共同决策' : affinity >= 2 ? '完整分享' : affinity >= 1 ? '部分倾诉' : '尚未分享' }; }),
     selectedEvidence: publicEvidence(latestSelection?.evidence || []),

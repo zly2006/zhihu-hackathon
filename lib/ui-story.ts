@@ -12,7 +12,7 @@ export type SaveSlot = {version:1;mode:'demo'|'live';storyId?:string;state:Publi
 
 export const demoOpening:PublicState = {
   storyTitle:'留一盏灯', storyTone:'雨夜、未说出口的话，和刚刚好的相遇',
-  worldState:{relationships:{lin:0,tao:0,shen:0},flags:[],timeline:[]},
+  worldState:{relationships:{lin:0,tao:0,shen:0},flags:[],timeline:[],endingId:undefined},
   lifeEvent:null, relationshipProgress:[
     {id:'lin',name:'林见夏',affinity:0,disclosure:'尚未分享'},
     {id:'tao',name:'陶晚晴',affinity:0,disclosure:'尚未分享'},
@@ -28,7 +28,7 @@ export const demoOpening:PublicState = {
       {id:'shen',name:'沈知遥',gender:'女',age:26,identity:'摄影师',background:undefined,zhihuHandle:undefined},
     ],
   },
-  partial:null, route:null, relationshipType:null, routeLabel:null, stageId:'demo-opening', stageKind:'common', selections:[], pending:false, total:3, minTotal:3, maxTotal:3, complete:false,
+  partial:null, ending:null, route:null, relationshipType:null, routeLabel:null, stageId:'demo-opening', stageKind:'common', selections:[], pending:false, total:3, minTotal:3, maxTotal:3, complete:false,
   nodes:[{title:'雨声里的相遇',readingSeconds:45,lines:[
     {speaker:'旁白',text:'雨点轻轻敲着玻璃，工作室里只剩下暖黄的灯光。原本热闹的周年夜，忽然有了安静下来的理由。'},
     {speaker:'林见夏',text:'先别急着走。外面雨这么大……陪我把最后一张画收好吧。'},

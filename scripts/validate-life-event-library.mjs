@@ -1,10 +1,7 @@
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
 
-const sources = [
-  "content/life-events.v1.json",
-  "content/campus-life-events.v1.json",
-];
+const sources = ["content/campus-life-events.v1.json"];
 const sourceLibraries = await Promise.all(
   sources.map((source) =>
     readFile(resolve(process.cwd(), source), "utf8").then(JSON.parse),
@@ -62,6 +59,10 @@ function validateEvidence(evidence, path) {
       reject(`${itemPath}.url`, "必须是可追溯的知乎回答链接");
     if (!item.title?.trim() || !item.author?.trim() || !item.excerpt?.trim())
       reject(itemPath, "必须保留标题、作者和原始摘要");
+    if (item.authorAvatarUrl && !/^https:\/\/(?:[\w-]+\.)?zhimg\.com\//.test(item.authorAvatarUrl))
+      reject(`${itemPath}.authorAvatarUrl`, "头像必须来自知乎图片域名");
+    if (item.authorProfileUrl && !/^https:\/\/www\.zhihu\.com\/people\//.test(item.authorProfileUrl))
+      reject(`${itemPath}.authorProfileUrl`, "答主主页必须是知乎 people 链接");
   }
 }
 if (library.schemaVersion !== 2) reject("schemaVersion", "必须为 2");

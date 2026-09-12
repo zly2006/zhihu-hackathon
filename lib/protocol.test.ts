@@ -17,6 +17,8 @@ import {
   nodeSchema,
   publicBackgrounds,
   publicState,
+  resolveEnding,
+  lifeChoiceDelta,
   requiredCastCount,
   selectExamples,
   selectReferenceStory,
@@ -313,4 +315,37 @@ test('a repair after an empty partial explicitly requires the missing scene befo
   const state = initial(profiles, startOptions);
   assert.match(nextInstruction(state), /必须先输出scene标题/);
   assert.doesNotMatch(nextInstruction(state), /不能输出scene/);
+});
+
+test('life choices deterministically update hidden stats, consequences, and ending', () => {
+  const state = lockedState('m1');
+  const firstEvent = selectedLifeEvent(state, beatForState(state));
+  assert.ok(firstEvent);
+  const before = structuredClone(state.worldState.stats);
+  const delta = lifeChoiceDelta(firstEvent.options[0]);
+  advanceRoute(state, 0);
+  assert.deepEqual(state.worldState.stats, {
+    courage: before.courage + delta.courage,
+    rationality: before.rationality + delta.rationality,
+    empathy: before.empathy + delta.empathy,
+  });
+  assert.ok(state.worldState.timeline.some((entry) => entry.startsWith('人生选择：')));
+  assert.equal('stats' in publicState(state).worldState, false);
+  advanceRoute(state, 0);
+  advanceRoute(state, 0);
+  const ending = resolveEnding(state);
+  assert.equal(state.worldState.endingId, ending.id);
+  assert.ok(['bright', 'warm', 'bittersweet', 'quiet'].includes(ending.tone));
+  assert.equal(publicState(state).ending?.id, ending.id);
+});
+
+test('event planning is persisted per beat and does not drift after used-event changes', () => {
+  const state = initial(profiles, startOptions);
+  const firstBeat = beatForState(state);
+  const first = selectedLifeEvent(state, firstBeat);
+  assert.ok(first);
+  const planned = state.plannedLifeEventIds?.[firstBeat.id];
+  assert.equal(planned, first.id);
+  state.worldState.usedLifeEventIds?.push(first.id);
+  assert.equal(selectedLifeEvent(state, firstBeat)?.id, first.id);
 });
