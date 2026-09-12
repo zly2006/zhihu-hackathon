@@ -334,6 +334,18 @@ test('life choices deterministically record a result for the next model turn and
   assert.equal(publicState(state).ending?.id, ending.id);
 });
 
+test('route life choices expose three linked Zhihu answers for each option', () => {
+  const state = lockedState('m1');
+  const view = publicState(state);
+  assert.equal(view.stageKind, 'route');
+  assert.equal(view.lifeEvent?.options.length, 3);
+  for (const option of view.lifeEvent?.options || []) {
+    assert.equal(option.evidence.length, 3);
+    assert.ok(option.evidence.every((item) => /^https:\/\//.test(item.url)));
+    assert.ok(option.evidence.every((item) => item.author.trim().length > 0));
+  }
+});
+
 test('event planning is persisted per beat and does not drift after used-event changes', () => {
   const state = initial(profiles, startOptions);
   const firstBeat = beatForState(state);
