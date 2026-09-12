@@ -225,8 +225,17 @@ function affinityDelta(option: { strategyTag: string }, isCommon: boolean) {
   return 1;
 }
 
+function benefitForLifeChoice(option: ReturnType<typeof optionForEvent>) {
+  const tag = option.strategyTag;
+  if (/(证据|规则|程序|验证|信息|可信度|能力|结构化|契约|制度|透明|审计|正式)/.test(tag)) return '获得更清晰的信息、证据和可复盘的依据';
+  if (/(共同|照护|陪伴|关系|协商|交换|友情|同情|家庭|远程|亲自|团队)/.test(tag)) return '保留了沟通、协商和共同承担的空间';
+  if (/(公开|直接|机会|押注|迁移|转向|竞选|申诉|兴趣|主动|创业)/.test(tag)) return '把主动权握在自己手里，争取了一次明确机会';
+  if (/(回避|掩盖|透支|隐性|短期服从|延期|延迟|现金换强度|退出)/.test(tag)) return '先保护了当下的关系、资源或心理空间，争取到缓冲时间';
+  return '把模糊的困境变成了一次具体行动，获得继续判断的依据';
+}
+
 function resultForLifeChoice(option: ReturnType<typeof optionForEvent>) {
-  return `已执行“${option.action}”。当前结果：${option.tradeoff}`;
+  return `已执行“${option.action}”。收益：${benefitForLifeChoice(option)}。后续影响：${option.tradeoff}（这是需要观察的可能变化，不代表玩家做错了）。`;
 }
 
 export function resolveEnding(state: State): EndingResolution {
@@ -657,7 +666,7 @@ export function promptText(state: State) {
     `【已经发生的剧情｜不可改写】\n${history}`,
     `【上一段收尾】\n${previousTail}`,
     `【长期记忆】\n摘要：${state.memory.summary || '暂无'}\n事实：${listOrNone(state.memory.facts)}`,
-    '【因果闭环】每段都必须完成“选择 → 行动 → 即时结果 → NPC反应 → 新问题/关系变化”。有起因就必须写经过和结果，不能只写氛围或把结果留给下一段。结局段必须收束最后一个结果，并完成告白、关系确认或诚实告别。',
+    '【因果闭环】每段都必须完成“选择 → 行动 → 收益/即时结果 → NPC反应 → 新问题/关系变化”。先明确玩家通过这次选择获得了什么，再写需要观察的可能变化；不要把每个选择写成惩罚，也不要暗示玩家做错了。结局段必须收束最后一个结果，并完成告白、关系确认或诚实告别。',
   ].join('\n\n');
 }
 
@@ -691,7 +700,7 @@ export function protocolInstruction(state: State) {
 [EVIDENCE] {"ids":${JSON.stringify(requiredEvidenceIds(state))}}
 [MEMORY] {"summary":"累计事实","facts":["事实"]}
 [END]
-${targetRule}；只生成当前片段，不输出解释。每段必须写清上次选择的行动、结果、NPC反应和新的推进，不能只复述选择。`;
+${targetRule}；只生成当前片段，不输出解释。每段必须写清上次选择的行动、收益/结果、NPC反应和新的推进，不能只复述选择，也不能把人生选择写成单向惩罚。`;
 }
 
 export function nextInstruction(state: State) {

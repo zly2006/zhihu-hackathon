@@ -27,3 +27,4 @@ Original prompt: 能不能写一个简单的前端？把前后端统一成nextjs
 - Added `scripts/enrich-zhihu-avatars.mjs` for authenticated `zhurl` avatar/profile enrichment. Current local account is logged out, so no avatar URLs were fabricated or written.
 - Verification: `npm test` 23/23, campus event validation, `npx tsc --noEmit`, `npm run build`, and UI smoke passed. Screenshots were visually inspected.
 - Choice B is intentionally simple: each Zhihu event action records a deterministic action/result sentence in the server timeline, which is injected into the next generation prompt; no hidden attribute system is required.
+- Choice B result wording now leads with the player's benefit and frames the event tradeoff as a possible follow-up to observe, so choices do not read as punishment.

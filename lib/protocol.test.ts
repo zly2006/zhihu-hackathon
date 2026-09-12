@@ -322,9 +322,10 @@ test('life choices deterministically record a result for the next model turn and
   assert.ok(firstEvent);
   advanceRoute(state, 0);
   assert.match(state.selections.at(-1)?.outcome || '', /已执行/);
-  assert.match(state.selections.at(-1)?.outcome || '', /当前结果/);
-  assert.ok(state.worldState.timeline.some((entry) => entry.includes('当前结果')));
-  assert.match(messages(state)[1].content, /当前结果/);
+  assert.match(state.selections.at(-1)?.outcome || '', /收益：/);
+  assert.match(state.selections.at(-1)?.outcome || '', /后续影响：/);
+  assert.ok(state.worldState.timeline.some((entry) => entry.includes('收益：')));
+  assert.match(messages(state)[1].content, /收益：/);
   advanceRoute(state, 0);
   advanceRoute(state, 0);
   const ending = resolveEnding(state);
