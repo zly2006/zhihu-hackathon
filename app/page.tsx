@@ -8,10 +8,12 @@ type PoolMember={id:string;name:string;gender:Gender;age:number;identity:string}
 type ProfileEdit={background:string;zhihuHandle:string};
 type LiveCatalog={pool:PoolMember[];backgrounds:StoryBackground[];requiredCastCount:number;maxStages:number;defaultBackgroundId:string};
 const assetFor=(id:string,pose:CharacterPose='happy')=>`/art/${({lin:'f1',tao:'f2',shen:'f3'} as Record<string,string>)[id]||id}_${pose}.webp`;
-type CharacterPose='normal'|'happy'|'playful';
+type CharacterPose='normal'|'happy'|'playful'|'surprised'|'thinking';
 const poseForText=(speaker:string,text:string):CharacterPose=>{
   if(speaker==='旁白')return 'normal';
-  if(/[!！?？]|突然|竟然|真的吗|诶|啊/.test(text))return 'playful';
+  if(/[?？]|怎么|为什么|疑惑|思考|考虑/.test(text))return 'thinking';
+  if(/[!！]|突然|竟然|真的吗|诶|啊/.test(text))return 'surprised';
+  if(/嘿嘿|调皮|眨眼|开玩笑|耍赖/.test(text))return 'playful';
   if(/开心|高兴|谢谢|太好了|喜欢|愿意|好啊|没问题|成功|期待|笑|温暖|轻松/.test(text))return 'happy';
   return 'normal';
 };

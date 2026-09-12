@@ -2,12 +2,11 @@
 """Convert independent character PNGs to WebP, build an atlas, and clean legacy art.
 
 Usage: uv run --with pillow python scripts/art_pipeline.py --source-dir /path/to/pngs
-The source directory contains f1_normal.png ... m4_playful.png (24 files).
+The source directory contains f1_normal.png ... m4_thinking.png (40 files).
 PNG inputs are temporary build inputs; product assets are WebP only.
 """
 from __future__ import annotations
 import argparse, json, re, shutil
-from collections import deque
 from pathlib import Path
 from PIL import Image
 
@@ -15,41 +14,9 @@ ROOT = Path(__file__).resolve().parents[1]
 ART = ROOT / "public" / "art"
 TRASH = ART / "_trash"
 CHARS = [f"{g}{i}" for g in "fm" for i in range(1, 5)]
-EXPRS = ("normal", "happy", "playful")
+EXPRS = ("normal", "happy", "playful", "surprised", "thinking")
 EXPECTED = {f"{c}_{e}.png" for c in CHARS for e in EXPRS}
-ASSET_RE = re.compile(r"^(?:[fm][1-4](?:_(?:normal|happy|playful))?|player|cafe-rain|characters-atlas)\.(?:webp|json)$")
-
-
-def keep_largest_component(im: Image.Image) -> Image.Image:
-    """Remove detached neighboring sprite fragments from an alpha image."""
-    rgba = im.convert("RGBA")
-    alpha = rgba.getchannel("A")
-    width, height = rgba.size
-    pixels = alpha.load()
-    seen: set[tuple[int, int]] = set()
-    largest: list[tuple[int, int]] = []
-    for y in range(height):
-        for x in range(width):
-            if pixels[x, y] < 10 or (x, y) in seen:
-                continue
-            queue = deque([(x, y)])
-            seen.add((x, y))
-            component: list[tuple[int, int]] = []
-            while queue:
-                xx, yy = queue.popleft()
-                component.append((xx, yy))
-                for nx, ny in ((xx - 1, yy), (xx + 1, yy), (xx, yy - 1), (xx, yy + 1)):
-                    if 0 <= nx < width and 0 <= ny < height and (nx, ny) not in seen and pixels[nx, ny] >= 10:
-                        seen.add((nx, ny))
-                        queue.append((nx, ny))
-            if len(component) > len(largest):
-                largest = component
-    keep = set(largest)
-    cleaned = Image.new("RGBA", rgba.size, (0, 0, 0, 0))
-    source_pixels, target_pixels = rgba.load(), cleaned.load()
-    for x, y in keep:
-        target_pixels[x, y] = source_pixels[x, y]
-    return cleaned
+ASSET_RE = re.compile(r"^(?:[fm][1-4](?:_(?:normal|happy|playful|surprised|thinking))?|player|cafe-rain|characters-atlas)\.(?:webp|json)$")
 
 
 def convert(source_dir: Path) -> list[tuple[Path, Path, int, int]]:
@@ -60,16 +27,18 @@ def convert(source_dir: Path) -> list[tuple[Path, Path, int, int]]:
             raise FileNotFoundError(f"missing source PNG: {src}")
         dst = ART / f"{src.stem}.webp"
         with Image.open(src) as im:
-            rgba = keep_largest_component(im)
+            # Inputs are already standalone panels. Keep every connected mark,
+            # including the intentional !/? effects on the added poses.
+            rgba = im.convert("RGBA")
             if rgba.size != (512, 1024):
                 rgba = rgba.resize((512, 1024), Image.Resampling.LANCZOS)
-            rgba.save(dst, "WEBP", lossless=False, quality=80, method=6)
+            rgba.save(dst, "WEBP", lossless=False, quality=80, method=4)
         converted.append((src, dst, src.stat().st_size, dst.stat().st_size))
     return converted
 
 
 def build_atlas() -> tuple[Path, Path]:
-    cols, rows = 4, 6
+    cols, rows = 5, 8
     tile_w, tile_h = 512, 1024
     atlas = Image.new("RGBA", (cols * tile_w, rows * tile_h), (0, 0, 0, 0))
     frames = {}
@@ -81,7 +50,7 @@ def build_atlas() -> tuple[Path, Path]:
             atlas.alpha_composite(tile, (x, y))
             frames[name] = {"x": x, "y": y, "w": tile_w, "h": tile_h}
     atlas_path = ART / "characters-atlas.webp"
-    atlas.save(atlas_path, "WEBP", lossless=False, quality=80, method=6)
+    atlas.save(atlas_path, "WEBP", lossless=False, quality=80, method=4)
     meta_path = ART / "characters-atlas.json"
     meta_path.write_text(json.dumps({"tileSize": [tile_w, tile_h], "columns": cols, "rows": rows, "frames": frames}, ensure_ascii=False, indent=2) + "\n")
     return atlas_path, meta_path

@@ -1,7 +1,9 @@
+.DS_Store
 node_modules/
 .next/
 .data/
 .env*
+.idea
 !.env.example
 test-output/
 .tmp/
