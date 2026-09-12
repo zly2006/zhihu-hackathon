@@ -17,7 +17,7 @@ try {
 const nextBin = path.resolve("node_modules", "next", "dist", "bin", "next");
 const child = spawn(
   process.execPath,
-  ["--use-env-proxy", nextBin, ...process.argv.slice(2)],
+  [nextBin, ...process.argv.slice(2)],
   {
     env: { ...process.env, ...local },
     stdio: "inherit",
