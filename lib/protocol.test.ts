@@ -165,6 +165,20 @@ test('common choices cover all selected characters while route and ending choice
   assert.deepEqual(ending.choices, []);
 });
 
+test('common choices select a route without consuming a life-choice option', () => {
+  const state = initial(profiles, startOptions);
+  const common = validate(makeNode(state, commonChoices(state)), state);
+  assert.deepEqual(common.choices.map((choice) => choice.text), commonChoices(state).map((choice) => choice.text));
+  appendNode(state, common);
+  choose(state, 0, state.nodes.length);
+  const selection = state.selections.at(-1);
+  assert.equal(selection?.target, 'm1');
+  assert.equal(selection?.optionId, undefined);
+  assert.equal(selection?.outcome, undefined);
+  assert.equal(selection?.evidence, undefined);
+  assert.equal(state.worldState.relationships.m1, 1);
+});
+
 test('speakers are limited to narration, the named player, and the four selected characters', () => {
   const state = initial(profiles, startOptions);
   const outsider = castPool.find((member) => !selectedIdsForTest.includes(member.id))!;

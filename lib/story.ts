@@ -324,13 +324,15 @@ export function choose(state: State, index: number, expected: number) {
   if (!Number.isInteger(index) || !picked) throw new Error('无效的选项。');
   const currentBeat = beatAtNode(state, state.nodes.length - 1);
   const completedLifeEvent = getNodeLifeEvent(state.nodes.at(-1));
-  const evidenceOption = completedLifeEvent ? optionForEvent(completedLifeEvent, index) : null;
+  const lifeChoice = currentBeat.kind === 'route' && completedLifeEvent
+    ? optionForEvent(completedLifeEvent, index)
+    : null;
+  const evidenceOption = lifeChoice;
   const confidantId = picked.target || state.route;
-  const routeOption = completedLifeEvent ? optionForEvent(completedLifeEvent, index) : null;
-  const selectedAffinityDelta = routeOption ? affinityDelta(routeOption, currentBeat.kind === 'common') : (picked.target ? 1 : 0);
+  const selectedAffinityDelta = lifeChoice ? affinityDelta(lifeChoice, false) : (picked.target ? 1 : 0);
   const nextAffinity = confidantId ? (state.worldState.relationships[confidantId] ?? 0) + selectedAffinityDelta : 0;
   const disclosure = nextAffinity >= 3 ? 'co-decided' : nextAffinity >= 2 ? 'shared' : nextAffinity >= 1 ? 'confided' : 'private';
-  const outcome = routeOption ? resultForLifeChoice(routeOption) : undefined;
+  const outcome = lifeChoice ? resultForLifeChoice(lifeChoice) : undefined;
   state.selections.push({ node: state.nodes.length - 1, index, ...picked, eventId: completedLifeEvent?.id, optionId: evidenceOption?.id, evidence: evidenceOption ? structuredClone(evidenceOption.zhihuEvidence) : undefined, outcome, disclosure });
   if (picked.target) {
     if (!routeIds.includes(picked.target)) throw new Error('选项目标不属于当前角色。');
@@ -380,7 +382,11 @@ function normalizeChoices(state: State, input: StoryNode['choices']): StoryNode[
 
   if (beat.kind === 'common') {
     const members = selectedCast(state);
-    return members.map((member, index) => ({ text: `${member.name}：${optionForEvent(event, index).label}`.slice(0, 30), target: member.id }));
+    const byTarget = new Map(input.map((choice) => [choice.target, choice]));
+    return members.map((member, index) => {
+      const choice = byTarget.get(member.id) || commonFallback(member, index);
+      return { text: choice.text, target: member.id };
+    });
   }
   return event.options.slice(0, limits.routeChoiceMax).map((option) => ({ text: option.label, target: null }));
 }
