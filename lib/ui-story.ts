@@ -31,11 +31,11 @@ export const demoOpening:PublicState = {
   partial:null, ending:null, route:null, relationshipType:null, routeLabel:null, stageId:'demo-opening', stageKind:'common', selections:[], pending:false, total:3, minTotal:3, maxTotal:3, complete:false,
   nodes:[{title:'雨声里的相遇',readingSeconds:45,lines:[
     {speaker:'旁白',text:'雨点轻轻敲着玻璃，工作室里只剩下暖黄的灯光。原本热闹的周年夜，忽然有了安静下来的理由。'},
-    {speaker:'林见夏',text:'先别急着走。外面雨这么大……陪我把最后一张画收好吧。'},
+    {speaker:'林见夏',text:'（playful）先别急着走。外面雨这么大……陪我把最后一张画收好吧。'},
     {speaker:'许澄',text:'好。靠窗的画纸也要收起来吗？我来帮你。'},
-    {speaker:'林见夏',text:'嗯，小心右下角，那里还没干。今天的灯光很好，我有点舍不得收笔。'},
-    {speaker:'陶晚晴',text:'那就慢一点。我刚泡好茶，杯沿虽然有点歪，喝起来可不影响。'},
-    {speaker:'沈知遥',text:'你们站在灯下的样子很好看。不过，拍照之前，我想先问问你们的意见。'},
+    {speaker:'林见夏',text:'（happy）嗯，小心右下角，那里还没干。今天的灯光很好，我有点舍不得收笔。'},
+    {speaker:'陶晚晴',text:'（playful）那就慢一点。我刚泡好茶，杯沿虽然有点歪，喝起来可不影响。'},
+    {speaker:'沈知遥',text:'（surprised）你们站在灯下的样子很好看。不过，拍照之前，我想先问问你们的意见。'},
     {speaker:'旁白',text:'我放下雨伞。画纸、温热的杯子，还有尚未按下快门的相机，都在等一个小小的回应。'},
   ],choices:[{text:'陪见夏整理窗边的画纸'},{text:'帮晚晴摆好手工杯'},{text:'和知遥一起检查相机'}]}],
 };
