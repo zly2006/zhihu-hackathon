@@ -4,10 +4,13 @@ import {z} from 'zod';
 import {castPool,initial,choose,limits,publicBackgrounds,publicState,requiredCastCount,maxStages,defaultBackgroundId,type GameEvent,type CharacterProfile,type Gender} from '../../../lib/story';
 import {readState,saveState,saveJsonl,busy} from '../../../lib/storage';
 import {generate} from '../../../lib/generator';
+import {requireSession} from '../../../lib/zhihu-auth';
+import {recordInteraction,recordStorySnapshot} from '../../../lib/database';
 export const runtime='nodejs';
 export const maxDuration=600;
 export async function GET(req:NextRequest) {
  const id=req.nextUrl.searchParams.get('storyId')||'';
+ if(id&&!requireSession(req))return NextResponse.json({error:'请先登录知乎。'},{status:401,headers:{'Cache-Control':'no-store'}});
  const state=id?await readState(id):null;
  return NextResponse.json({
   storyId:id||null,
@@ -22,6 +25,7 @@ export async function GET(req:NextRequest) {
 const schema=z.object({storyId:z.string().uuid().optional(),action:z.enum(['start','choose','retry','restart']),choice:z.number().int().min(0).max(limits.totalChoiceMax-1).optional(),expected:z.number().int().optional(),profiles:z.array(z.object({id:z.string(),name:z.string(),gender:z.enum(['男','女']),background:z.string().max(300).optional(),zhihuHandle:z.string().max(80).optional()}).strict()).optional(),backgroundId:z.string().optional(),player:z.object({name:z.string().min(1).max(16),gender:z.enum(['男','女'])}).strict().optional()}).strict();
 export async function POST(req:NextRequest) {
  if(req.headers.get('origin') && new URL(req.headers.get('origin')!).host!==req.headers.get('host'))return NextResponse.json({error:'请求来源不匹配。'},{status:403});
+ if(!requireSession(req))return NextResponse.json({error:'请先登录知乎。'},{status:401});
  const parsed=schema.safeParse(await req.json().catch(()=>null));if(!parsed.success)return NextResponse.json({error:'请求格式不正确。'},{status:400});
  const {action,choice,expected,profiles,backgroundId,player}=parsed.data;
  let id=parsed.data.storyId;let state=id?await readState(id):null;
@@ -39,6 +43,8 @@ export async function POST(req:NextRequest) {
   if(action==='choose')choose(state,choice??-1,expected??-1);
   else if(!state.pending) {busy.delete(id);return NextResponse.json({state:publicState(state)});}
   await saveState(id,state);
+  void recordInteraction(req,{type:`story_${action}`,storyId:id,payload:{choice,expected,profiles,backgroundId,player}});
+  void recordStorySnapshot(req,id,state);
  } catch(e) {busy.delete(id);return NextResponse.json({error:e instanceof Error?e.message:'无法保存进度。'},{status:409});}
  const session=id,current=state;const journal:GameEvent[]=[];const encoder=new TextEncoder();
  const stream=new ReadableStream({start(controller){
@@ -47,6 +53,8 @@ export async function POST(req:NextRequest) {
   void (async()=>{try{
    const node=await generate(current,emit,()=>saveState(session,current));current.nodes.push(node);current.memory=node.memory;if(!current.storyTitle) current.storyTitle=node.title;current.pending=false;delete current.partial;
    await saveState(session,current);
+   void recordInteraction(req,{type:'story_generated',storyId:session,payload:{nodeIndex:current.nodes.length-1,node,choice,action}});
+   void recordStorySnapshot(req,session,current);
    emit({type:'done',state:publicState(current)});
   }catch(error){console.error('[story]',error instanceof Error?error.message:'generation failed');emit({type:'error',message:'这一段暂时没写好，进度已保存。请重试。'});}
   finally {await saveJsonl(session,current.nodes.length+(current.pending?1:0),journal).catch(e=>console.error('JSONL日志写入失败',e));clearInterval(heartbeat);busy.delete(session);if(open)try{controller.close();}catch{}}})();
