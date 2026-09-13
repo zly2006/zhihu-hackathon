@@ -24,9 +24,9 @@ export const demoOpening:PublicState = {
     background:{id:'rainy-studio',label:'雨夜工作室',ordinal:'00',kicker:'雨声把世界隔在窗外',summary:'共享工作室的开放夜被一场雨留住。',sceneAsset:'/art/cafe-rain.webp',lifeChoice:{title:'留在这里',question:'你想把这一晚交给谁？',pressure:'雨还没有停。',directions:['整理画纸','摆好杯子','检查相机']},constraints:[]},
     premise:'共享工作室的周年开放夜，一场突如其来的雨，让四个人的故事悄悄开始。', locations:['工作室前厅','门口雨棚'],
     cast:[
-      {id:'lin',name:'林见夏',gender:'女',age:25,identity:'插画师',background:undefined,zhihuHandle:undefined},
-      {id:'tao',name:'陶晚晴',gender:'女',age:24,identity:'陶艺师',background:undefined,zhihuHandle:undefined},
-      {id:'shen',name:'沈知遥',gender:'女',age:26,identity:'摄影师',background:undefined,zhihuHandle:undefined},
+      {id:'lin',name:'林见夏',gender:'女',age:25,identity:'插画师',kind:'preset-npc',background:undefined,zhihuHandle:undefined},
+      {id:'tao',name:'陶晚晴',gender:'女',age:24,identity:'陶艺师',kind:'preset-npc',background:undefined,zhihuHandle:undefined},
+      {id:'shen',name:'沈知遥',gender:'女',age:26,identity:'摄影师',kind:'preset-npc',background:undefined,zhihuHandle:undefined},
     ],
   },
   partial:null, ending:null, route:null, relationshipType:null, routeLabel:null, stageId:'demo-opening', stageKind:'common', selections:[], pending:false, total:3, minTotal:3, maxTotal:3, complete:false,

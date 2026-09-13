@@ -1,13 +1,31 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {randomUUID} from 'node:crypto';
+import path from 'node:path';
 import {z} from 'zod';
-import {castPool,initial,choose,limits,publicBackgrounds,publicState,requiredCastCount,maxStages,defaultBackgroundId,type GameEvent,type CharacterProfile,type Gender} from '../../../lib/story';
-import {readState,saveState,saveJsonl,busy} from '../../../lib/storage';
+import {authorSelectableCharacters,castPool,initial,choose,limits,publicBackgrounds,publicState,requiredCastCount,maxStages,defaultBackgroundId,type GameEvent,type CharacterProfile,type Gender} from '../../../lib/story';
+import {resolveAuthorAvatar} from '../../../lib/author-avatars';
+import {countAuthorCorpus} from '../../../lib/author-corpus';
+import {readState,saveState,saveJsonl,busy,acquireStoryLock} from '../../../lib/storage';
 import {generate} from '../../../lib/generator';
 import {requireSession} from '../../../lib/zhihu-auth';
 import {recordInteraction,recordStorySnapshot} from '../../../lib/database';
 export const runtime='nodejs';
 export const maxDuration=600;
+async function authorCatalog(){
+ return Promise.all(authorSelectableCharacters().map(async (author)=>{
+  const avatar=resolveAuthorAvatar(author.authorAvatarId);
+  let corpusCount=0;
+  if(avatar){
+   try{corpusCount=await countAuthorCorpus(path.join(process.cwd(),'.data','author-avatars',avatar.sourceAuthorUrlToken),avatar.sourceAuthorUrlToken);}catch{corpusCount=0;}
+  }
+  return {
+   id:author.id,name:author.name,kind:author.kind,gender:author.gender,
+   age:author.age,identity:author.identity,domains:author.domains,
+   personaStatus:author.personaStatus,corpusStatus:avatar?author.corpusStatus:'unavailable',
+   corpusCount,styleStatus:author.styleStatus,disclosure:author.disclosure,selectable:true,
+  };
+ }));
+}
 export async function GET(req:NextRequest) {
  const id=req.nextUrl.searchParams.get('storyId')||'';
  if(id&&!requireSession(req))return NextResponse.json({error:'请先登录知乎。'},{status:401,headers:{'Cache-Control':'no-store'}});
@@ -16,6 +34,7 @@ export async function GET(req:NextRequest) {
   storyId:id||null,
   state:state?publicState(state):null,
   pool:castPool,
+  authors:await authorCatalog(),
   backgrounds:publicBackgrounds,
   requiredCastCount,
   maxStages,
@@ -38,14 +57,16 @@ export async function POST(req:NextRequest) {
  if(!id||!state)return NextResponse.json({error:'存档不可用。'},{status:400});
  if(busy.has(id))return NextResponse.json({error:'这一段正在生成，请稍候再继续。'},{status:409});
  busy.add(id);
+ const releaseLock=await acquireStoryLock(id);let held=true;
+ const release=()=>{if(held){held=false;releaseLock();}};
  try {
   const latest=await readState(id);if(latest&&action!=='restart')state=latest;
   if(action==='choose')choose(state,choice??-1,expected??-1);
-  else if(!state.pending) {busy.delete(id);return NextResponse.json({state:publicState(state)});}
+  else if(!state.pending) {release();busy.delete(id);return NextResponse.json({state:publicState(state)});}
   await saveState(id,state);
   void recordInteraction(req,{type:`story_${action}`,storyId:id,payload:{choice,expected,profiles,backgroundId,player}});
   void recordStorySnapshot(req,id,state);
- } catch(e) {busy.delete(id);return NextResponse.json({error:e instanceof Error?e.message:'无法保存进度。'},{status:409});}
+ } catch(e) {release();busy.delete(id);return NextResponse.json({error:e instanceof Error?e.message:'无法保存进度。'},{status:409});}
  const session=id,current=state;const journal:GameEvent[]=[];const encoder=new TextEncoder();
  const stream=new ReadableStream({start(controller){
   let open=true;const emit=(event:GameEvent)=>{journal.push(event);if(open)try{controller.enqueue(encoder.encode(`data: ${JSON.stringify(event)}\n\n`));}catch{open=false;}};
@@ -57,7 +78,7 @@ export async function POST(req:NextRequest) {
    void recordStorySnapshot(req,session,current);
    emit({type:'done',state:publicState(current)});
   }catch(error){console.error('[story]',error instanceof Error?error.message:'generation failed');emit({type:'error',message:'这一段暂时没写好，进度已保存。请重试。'});}
-  finally {await saveJsonl(session,current.nodes.length+(current.pending?1:0),journal).catch(e=>console.error('JSONL日志写入失败',e));clearInterval(heartbeat);busy.delete(session);if(open)try{controller.close();}catch{}}})();
+  finally {await saveJsonl(session,current.nodes.length+(current.pending?1:0),journal).catch(e=>console.error('JSONL日志写入失败',e));clearInterval(heartbeat);busy.delete(session);release();if(open)try{controller.close();}catch{}}})();
  }});
  const res=new NextResponse(stream,{headers:{'Content-Type':'text/event-stream; charset=utf-8','Cache-Control':'no-cache, no-transform','X-Accel-Buffering':'no'}});
  res.headers.set('X-Story-Id',id);return res;
