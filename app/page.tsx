@@ -10,7 +10,10 @@ type LiveCatalog={pool:PoolMember[];backgrounds:StoryBackground[];requiredCastCo
 type AuthStatus={configured:boolean;authorized:boolean;profile:{name:string|null;avatarUrl:string|null;headline:string|null;url:string|null}|null;error:{code:string;message:string}|null};
 const assetFor=(id:string,pose:CharacterPose='happy')=>`/art/${({lin:'f1',tao:'f2',shen:'f3'} as Record<string,string>)[id]||id}_${pose}.webp`;
 type CharacterPose='normal'|'happy'|'playful'|'surprised'|'thinking';
+const explicitPose=(text:string):CharacterPose|undefined=>text.match(/^\s*[（(](happy|normal|playful|surprised|thinking)[）)]\s*/i)?.[1].toLowerCase() as CharacterPose|undefined;
+const visibleText=(text:string)=>text.replace(/^\s*[（(](happy|normal|playful|surprised|thinking)[）)]\s*/i,'');
 const poseForText=(speaker:string,text:string):CharacterPose=>{
+  const marked=explicitPose(text);if(marked)return marked;
   if(speaker==='旁白')return 'normal';
   if(/[?？]|怎么|为什么|疑惑|思考|考虑/.test(text))return 'thinking';
   if(/[!！]|突然|竟然|真的吗|诶|啊/.test(text))return 'surprised';
@@ -58,7 +61,7 @@ export default function Home(){
   const [setupStep,setSetupStep]=useState(0),[selectedIds,setSelectedIds]=useState<string[]>([]),[profiles,setProfiles]=useState<Record<string,ProfileEdit>>({});
   const [selectedBackgroundId,setSelectedBackgroundId]=useState('university'),[playerName,setPlayerName]=useState('许澄'),[playerGender,setPlayerGender]=useState<Gender>('女');
   const busyRef=useRef(false),storyId=useRef<string|undefined>(undefined),chatLock=useRef(false),dialogRef=useRef<HTMLDialogElement>(null),chatRef=useRef<HTMLDialogElement>(null),chatEnd=useRef<HTMLDivElement>(null);
-  const node=partial||state?.nodes.at(-1)||null,currentLine=node?.lines[line],text=currentLine?.text||'';
+  const node=partial||state?.nodes.at(-1)||null,currentLine=node?.lines[line],rawText=currentLine?.text||'',text=visibleText(rawText);
   const fullyShown=shown>=text.length,atEnd=!!node&&line>=node.lines.length-1;
   const waiting=!!partial||!!state?.pending,paused=!!panel||chatOpen||hidden||!pageVisible||!started;
   const liveCast=(state?.world.cast||[]).map((c)=>({id:c.id,name:c.name,job:c.identity,color:'#9a83ad',greeting:`${c.name}此刻安静地看着你。`,gender:c.gender}));
@@ -66,7 +69,7 @@ export default function Home(){
   const partner=uiCast.find(c=>c.name===currentLine?.speaker)||uiCast.find(c=>c.id===state?.route)||uiCast[0]||fallbackCharacter;
   const chatCharacter=uiCast.find(c=>c.id===chatPerson)||partner||fallbackCharacter;
   const showChoices=atEnd&&fullyShown&&!waiting&&!busy&&!!node?.choices.length;
-  const currentPose=poseForText(currentLine?.speaker||'旁白',text);
+  const currentPose=poseForText(currentLine?.speaker||'旁白',rawText);
   const segment=(state?.nodes.length||0)+(partial?1:0);
   function notify(message:string){setToast(message);}
   function persist(key:string,value:unknown){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{notify('浏览器存储空间不足，进度暂未保存。');return false;}}
