@@ -32,7 +32,7 @@ export const demoOpening:PublicState = {
   nodes:[{title:'雨声里的相遇',readingSeconds:45,lines:[
     {speaker:'旁白',text:'雨点轻轻敲着玻璃，工作室里只剩下暖黄的灯光。原本热闹的周年夜，忽然有了安静下来的理由。'},
     {speaker:'林见夏',text:'（playful）先别急着走。外面雨这么大……陪我把最后一张画收好吧。'},
-    {speaker:'许澄',text:'好。靠窗的画纸也要收起来吗？我来帮你。'},
+    {speaker:'许澄',text:'（thinking）好。靠窗的画纸也要收起来吗？我来帮你。'},
     {speaker:'林见夏',text:'（happy）嗯，小心右下角，那里还没干。今天的灯光很好，我有点舍不得收笔。'},
     {speaker:'陶晚晴',text:'（playful）那就慢一点。我刚泡好茶，杯沿虽然有点歪，喝起来可不影响。'},
     {speaker:'沈知遥',text:'（surprised）你们站在灯下的样子很好看。不过，拍照之前，我想先问问你们的意见。'},

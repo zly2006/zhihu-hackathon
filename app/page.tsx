@@ -28,6 +28,13 @@ const lastPoseForSpeaker=(lines:{speaker:string;text:string}[],speaker:string,in
   }
   return 'normal';
 };
+const isPlayerSpeaker=(speaker:string,playerName:string)=>speaker==='我'||speaker==='许澄'||speaker===playerName;
+const lastPoseForPlayer=(lines:{speaker:string;text:string}[],playerName:string,index:number):CharacterPose=>{
+  for(let cursor=Math.min(index,lines.length-1);cursor>=0;cursor-=1){
+    if(isPlayerSpeaker(lines[cursor]?.speaker||'',playerName))return poseForLine(lines[cursor]);
+  }
+  return 'normal';
+};
 const fallbackCharacter:UiCharacter={id:'lin',name:'林见夏',job:'插画师',color:'#bd7d91',greeting:'雨还没停。你想聊些什么？我在听。'};
 type Panel='menu'|'history'|'save'|'load'|'settings'|'title'|'skip'|'setup'|null;
 type Preferences={speed:number;delay:number;opacity:number;fontSize:number;motion:boolean};
@@ -76,9 +83,11 @@ export default function Home(){
   const partner=uiCast.find(c=>c.name===currentLine?.speaker)||uiCast.find(c=>c.id===state?.route)||uiCast[0]||fallbackCharacter;
   const chatCharacter=uiCast.find(c=>c.id===chatPerson)||partner||fallbackCharacter;
   const showChoices=atEnd&&fullyShown&&!waiting&&!busy&&!!node?.choices.length;
-  const speakingCharacter=uiCast.find(c=>c.name===currentLine?.speaker);
-  const stageCharacters=[speakingCharacter||partner, ...uiCast.filter(c=>c.id!==(speakingCharacter||partner).id)].slice(0,2);
-  const stagePoses=stageCharacters.map(character=>node?lastPoseForSpeaker(node.lines,character.name,line):'normal');
+  const partnerPose=partner&&node?lastPoseForSpeaker(node.lines,partner.name,line):'normal';
+  const activePlayerName=state?.world.player.name||'许澄';
+  const playerPose=node?lastPoseForPlayer(node.lines,activePlayerName,line):'normal';
+  const playerArtId=state?.world.player.gender==='女'?'f4':'m4';
+  const playerSpeaking=isPlayerSpeaker(currentLine?.speaker||'',activePlayerName);
   const segment=(state?.nodes.length||0)+(partial?1:0);
   function notify(message:string){setToast(message);}
   function persist(key:string,value:unknown){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{notify('浏览器存储空间不足，进度暂未保存。');return false;}}
@@ -168,7 +177,7 @@ export default function Home(){
     <div className="portrait-notice"><span>↻</span><h2>把屏幕横过来，故事就开始了。</h2><p>横屏体验 · 留一盏灯</p></div>
     <section className="game-stage" style={css} aria-label="留一盏灯，视觉小说舞台" onContextMenu={e=>{if(!(e.target instanceof HTMLElement&&e.target.closest('input,textarea'))){e.preventDefault();if(!chatOpen)setPanel(panel?null:'menu');}}}>
       <img className="background" src={sceneAsset} alt={state?.world.background.label||"雨夜场景"}/><div className="scene-vignette"/><div className="rain-light" aria-hidden="true"/>
-      <div className={`cast-stage ${started?'':'title-cast'}`} aria-hidden={!started}>{stageCharacters.map((character,index)=><img key={`${character.id}-${stagePoses[index]}`} className={`character ${index===0?'player':'partner'} pose-${stagePoses[index]} ${currentLine?.speaker===character.name?'speaking':''}`} src={assetFor(character.id,stagePoses[index])} alt={`${character.name}的立绘`}/>)}</div>
+      <div className={`cast-stage ${started?'':'title-cast'}`} aria-hidden={!started}><img key={`${playerArtId}-${playerPose}`} className={`character player pose-${playerPose} ${playerSpeaking?'speaking':''}`} src={assetFor(playerArtId,playerPose)} alt={`主角${activePlayerName}的立绘`}/><img key={`${partner.id}-${partnerPose}`} className={`character partner pose-${partnerPose} ${currentLine?.speaker===partner.name?'speaking':''}`} src={assetFor(partner.id,partnerPose)} alt={`${partner.name}的立绘`}/></div>
       {started&&!hidden&&<>
         <header className="stage-header"><div className="wordmark"><span className="zhihu-mark">知乎 <i>×</i> GALGAME</span><h1>留一盏灯<span>✧</span></h1><span className="wordmark-en">A LIGHT LEFT FOR YOU</span></div><div className="top-right"><span className="chapter-chip">{mode==='demo'?'体验篇':'故事篇'} · {String(segment||1).padStart(2,'0')} / {String(state?.total||7).padStart(2,'0')}</span><Control icon="menu" className="menu-trigger" aria-label="打开游戏菜单" onClick={()=>setPanel('menu')}/></div></header>
         <div className="location-chip"><Icon name="pin"/>{state?.world.locations[0]||'工作室前厅'}<span>雨夜</span></div><div className="chapter-side"><span>CHAPTER {String(segment||1).padStart(2,'0')}</span><i/>{node?.title||'故事即将开始'}</div>
