@@ -1,4 +1,5 @@
 import type {PublicState} from './story';
+import {validateAnswerSource,type AuthorSource} from './author-citations';
 
 export const cast = [
   {id:'lin', name:'林见夏', job:'插画师', color:'#bd7d91', greeting:'雨还没停。你想聊些什么？我在听。'},
@@ -6,7 +7,7 @@ export const cast = [
   {id:'shen', name:'沈知遥', job:'摄影师', color:'#889ec6', greeting:'先把相机放下。现在，我想听你说。'},
 ] as const;
 export type CastId = string;
-export type ChatMessage = {role:'user'|'assistant';text:string};
+export type ChatMessage = {role:'user'|'assistant';text:string;sources?:AuthorSource[];evidenceStatus?:'matched'|'no-match';avatar?:{id:string;displayName:string;styleStatus:'unreviewed'}};
 export type Chats = Partial<Record<CastId,ChatMessage[]>>;
 export type SaveSlot = {version:1;mode:'demo'|'live';storyId?:string;state:PublicState;line:number;chats:Chats;time:string;partner:CastId};
 
@@ -59,5 +60,17 @@ export function chooseDemo(state:PublicState, index:number):PublicState {
 export function isSaveSlot(value:unknown):value is SaveSlot {
   if(!value||typeof value!=='object')return false;
   const slot=value as SaveSlot;
-  return slot.version===1&&['demo','live'].includes(slot.mode)&&Number.isInteger(slot.line)&&slot.line>=0&&!!slot.state&&Array.isArray(slot.state.nodes)&&slot.state.nodes.every(n=>Array.isArray(n.lines)&&n.lines.every(l=>typeof l.speaker==='string'&&typeof l.text==='string')&&Array.isArray(n.choices))&&!!slot.chats&&typeof slot.partner==='string'&&slot.partner.length>0;
+  return slot.version===1&&['demo','live'].includes(slot.mode)&&Number.isInteger(slot.line)&&slot.line>=0&&!!slot.state&&Array.isArray(slot.state.nodes)&&slot.state.nodes.every(n=>Array.isArray(n.lines)&&n.lines.every(l=>typeof l.speaker==='string'&&typeof l.text==='string')&&Array.isArray(n.choices))&&!!slot.chats&&typeof slot.chats==='object'&&Object.values(slot.chats).every(messages=>Array.isArray(messages)&&messages.every(isChatMessage))&&typeof slot.partner==='string'&&slot.partner.length>0;
+}
+export function isChatMessage(value:unknown):value is ChatMessage {
+  if(!value||typeof value!=='object')return false;
+  const message=value as ChatMessage;
+  if(!['user','assistant'].includes(message.role)||typeof message.text!=='string')return false;
+  if(message.evidenceStatus!==undefined&&!['matched','no-match'].includes(message.evidenceStatus))return false;
+  if(message.avatar!==undefined&&(!message.avatar||message.avatar.id!=='zhao-ling'||typeof message.avatar.displayName!=='string'||message.avatar.styleStatus!=='unreviewed'))return false;
+  if(message.sources!==undefined){
+    if(!Array.isArray(message.sources)||message.sources.length>3)return false;
+    for(const source of message.sources){try{if(!source||typeof source.answerId!=='string'||typeof source.title!=='string'||typeof source.author!=='string'||source.authorUrlToken!=='MarryMea'||typeof source.completeness!=='string')return false;validateAnswerSource(source.url,source.answerId);}catch{return false;}}
+  }
+  return true;
 }

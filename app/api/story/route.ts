@@ -22,7 +22,7 @@ export async function GET(req:NextRequest) {
   defaultBackgroundId,
  },{headers:{'Cache-Control':'no-store'}});
 }
-const schema=z.object({storyId:z.string().uuid().optional(),action:z.enum(['start','choose','retry','restart']),choice:z.number().int().min(0).max(limits.totalChoiceMax-1).optional(),expected:z.number().int().optional(),profiles:z.array(z.object({id:z.string(),name:z.string(),gender:z.enum(['男','女']),background:z.string().max(300).optional(),zhihuHandle:z.string().max(80).optional()}).strict()).optional(),backgroundId:z.string().optional(),player:z.object({name:z.string().min(1).max(16),gender:z.enum(['男','女'])}).strict().optional()}).strict();
+const schema=z.object({storyId:z.string().uuid().optional(),action:z.enum(['start','choose','retry','restart']),choice:z.number().int().min(0).max(limits.totalChoiceMax-1).optional(),expected:z.number().int().optional(),profiles:z.array(z.object({id:z.string(),name:z.string(),gender:z.enum(['男','女']),background:z.string().max(300).optional(),zhihuHandle:z.string().max(80).optional(),authorAvatarId:z.literal('zhao-ling').optional()}).strict()).optional(),backgroundId:z.string().optional(),player:z.object({name:z.string().min(1).max(16),gender:z.enum(['男','女'])}).strict().optional()}).strict();
 export async function POST(req:NextRequest) {
  if(req.headers.get('origin') && new URL(req.headers.get('origin')!).host!==req.headers.get('host'))return NextResponse.json({error:'请求来源不匹配。'},{status:403});
  if(!requireSession(req))return NextResponse.json({error:'请先登录知乎。'},{status:401});

@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import {resolveAuthorAvatar} from './author-avatars';
 import config from './story-config.json';
 import storyPublic from './story-public.json';
 import examples from './story-examples.json';
@@ -13,9 +14,9 @@ export type StageKind = 'common' | 'route' | 'ending';
 export type RelationshipType = 'romance' | 'friendship';
 export type Beat = { id: string; kind: StageKind; task: string };
 export type PublicCastMember = { id: string; name: string; gender: Gender; age: number; identity: string };
-export type CharacterProfile = { id: string; name: string; gender: Gender; background?: string; zhihuHandle?: string };
+export type CharacterProfile = { id: string; name: string; gender: Gender; background?: string; zhihuHandle?: string; authorAvatarId?: string };
 export type CastDetails = { voice: string; desire: string; object: string; route_event: string; payoff: string };
-export type CastMember = PublicCastMember & CastDetails & { background?: string; zhihuHandle?: string };
+export type CastMember = PublicCastMember & CastDetails & { background?: string; zhihuHandle?: string; authorAvatarId?: string };
 export type Route = string;
 export type EndingResolution = { id: string; label: string; summary: string; tone: 'bright' | 'warm' | 'bittersweet' | 'quiet' };
 export type StoryState = {
@@ -148,12 +149,14 @@ export function canonicalProfiles(input: CharacterProfile[] = defaultProfiles())
     seen.add(profile.id);
     const member = castPool.find((candidate) => candidate.id === profile.id);
     if (!member || member.gender !== profile.gender) throw new Error('角色资料与当前角色池不一致。');
+    if(profile.authorAvatarId&&!resolveAuthorAvatar(profile.authorAvatarId))throw new Error('答主化身未注册。');
     return {
       id: member.id,
       name: member.name,
       gender: member.gender,
       background: profile.background?.trim().slice(0, 300) || undefined,
       zhihuHandle: profile.zhihuHandle?.trim().slice(0, 80) || undefined,
+      authorAvatarId: resolveAuthorAvatar(profile.authorAvatarId||profile.zhihuHandle)?.id,
     };
   });
 }
@@ -171,6 +174,7 @@ export function selectedCast(state: Pick<State, 'profiles' | 'backgroundId'>): C
       ...privateCast[member.id],
       background: profile.background,
       zhihuHandle: profile.zhihuHandle,
+      authorAvatarId: profile.authorAvatarId,
     };
   });
 }
@@ -781,7 +785,7 @@ export function publicState(state: State) {
       },
       premise: background.premise,
       locations: background.locations,
-      cast: selectedCast(state).map(({ id, name, gender, age, identity, background: profileBackground, zhihuHandle }) => ({ id, name, gender, age, identity, background: profileBackground, zhihuHandle })),
+      cast: selectedCast(state).map(({ id, name, gender, age, identity, background: profileBackground, zhihuHandle, authorAvatarId }):PublicCastMember & {background?:string;zhihuHandle?:string;authorAvatarId?:string} => ({ id, name, gender, age, identity, background: profileBackground, zhihuHandle, ...(authorAvatarId?{authorAvatarId}:{}) })),
     },
     partial: state.partial ? {
       title: state.partial.title,
