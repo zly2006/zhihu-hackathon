@@ -1,31 +1,16 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {randomUUID} from 'node:crypto';
-import path from 'node:path';
 import {z} from 'zod';
-import {authorSelectableCharacters,castPool,initial,choose,limits,publicBackgrounds,publicState,requiredCastCount,maxStages,defaultBackgroundId,type GameEvent,type CharacterProfile,type Gender} from '../../../lib/story';
-import {resolveAuthorAvatar} from '../../../lib/author-avatars';
-import {countAuthorCorpus} from '../../../lib/author-corpus';
+import {castPool,initial,choose,limits,publicBackgrounds,publicState,requiredCastCount,maxStages,defaultBackgroundId,type GameEvent,type CharacterProfile,type Gender} from '../../../lib/story';
+import {buildAuthorCatalog} from '../../../lib/author-catalogue';
+import {defaultAuthorRegistryRoot,invitedAuthorProfileBinding,readInvitedAuthor} from '../../../lib/author-registry';
+import {AUTHOR_CAST_ID_PATTERN} from '../../../lib/author-identity';
 import {readState,saveState,saveJsonl,busy,acquireStoryLock} from '../../../lib/storage';
 import {generate} from '../../../lib/generator';
 import {requireSession} from '../../../lib/zhihu-auth';
 import {recordInteraction,recordStorySnapshot} from '../../../lib/database';
 export const runtime='nodejs';
 export const maxDuration=600;
-async function authorCatalog(){
- return Promise.all(authorSelectableCharacters().map(async (author)=>{
-  const avatar=resolveAuthorAvatar(author.authorAvatarId);
-  let corpusCount=0;
-  if(avatar){
-   try{corpusCount=await countAuthorCorpus(path.join(process.cwd(),'.data','author-avatars',avatar.sourceAuthorUrlToken),avatar.sourceAuthorUrlToken);}catch{corpusCount=0;}
-  }
-  return {
-   id:author.id,name:author.name,kind:author.kind,gender:author.gender,
-   age:author.age,identity:author.identity,domains:author.domains,
-   personaStatus:author.personaStatus,corpusStatus:avatar?author.corpusStatus:'unavailable',
-   corpusCount,styleStatus:author.styleStatus,disclosure:author.disclosure,selectable:true,
-  };
- }));
-}
 export async function GET(req:NextRequest) {
  const id=req.nextUrl.searchParams.get('storyId')||'';
  if(id&&!requireSession(req))return NextResponse.json({error:'知乎登录已失效，请重新登录后继续。'},{status:401,headers:{'Cache-Control':'no-store'}});
@@ -34,14 +19,33 @@ export async function GET(req:NextRequest) {
   storyId:id||null,
   state:state?publicState(state):null,
   pool:castPool,
-  authors:await authorCatalog(),
+  authors:await buildAuthorCatalog(),
   backgrounds:publicBackgrounds,
   requiredCastCount,
   maxStages,
   defaultBackgroundId,
  },{headers:{'Cache-Control':'no-store'}});
 }
-const schema=z.object({storyId:z.string().uuid().optional(),action:z.enum(['start','choose','retry','restart']),choice:z.number().int().min(0).max(limits.totalChoiceMax-1).optional(),expected:z.number().int().optional(),profiles:z.array(z.object({id:z.string(),name:z.string(),gender:z.enum(['男','女']),background:z.string().max(300).optional(),zhihuHandle:z.string().max(80).optional(),authorAvatarId:z.literal('zhao-ling').optional()}).strict()).optional(),backgroundId:z.string().optional(),player:z.object({name:z.string().min(1).max(16),gender:z.enum(['男','女'])}).strict().optional()}).strict();
+const authorBindingSchema=z.object({
+ authorRef:z.object({provider:z.literal('zhihu'),urlToken:z.string().trim().min(1).max(100),profileUrl:z.string().trim().max(200)}).strict(),
+ authorSnapshot:z.object({authorUrlToken:z.string().trim().min(1).max(100),profileHash:z.string().trim().min(1).max(64),corpusVersion:z.string().max(80).optional(),capturedAt:z.string().trim().min(1).max(40)}).strict(),
+ domains:z.array(z.string().trim().min(1).max(40)).min(1).max(3),
+ capabilities:z.object({canChat:z.boolean(),canEnterStory:z.boolean(),canEnterRomance:z.boolean()}).strict(),
+}).strict();
+const schema=z.object({storyId:z.string().uuid().optional(),action:z.enum(['start','choose','retry','restart']),choice:z.number().int().min(0).max(limits.totalChoiceMax-1).optional(),expected:z.number().int().optional(),profiles:z.array(z.object({id:z.string().trim().min(1).max(80),name:z.string().trim().min(1).max(80),gender:z.enum(['男','女']),background:z.string().max(300).optional(),zhihuHandle:z.string().max(80).optional(),authorAvatarId:z.string().max(80).optional(),author:authorBindingSchema.optional()}).strict()).optional(),backgroundId:z.string().optional(),player:z.object({name:z.string().min(1).max(16),gender:z.enum(['男','女'])}).strict().optional()}).strict();
+
+/** 邀请答主的作者绑定只从服务端注册表读取，忽略客户端提交的 author 字段。 */
+async function bindServerAuthorRefs(requested:z.infer<typeof schema>['profiles']){
+ if(!requested)return requested;
+ const registryRoot=defaultAuthorRegistryRoot();
+ const bound=await Promise.all(requested.map(async (profile)=>{
+  if(!AUTHOR_CAST_ID_PATTERN.test(profile.id))return {id:profile.id,name:profile.name,gender:profile.gender,background:profile.background,zhihuHandle:profile.zhihuHandle,authorAvatarId:profile.authorAvatarId};
+  const entry=await readInvitedAuthor(registryRoot,profile.id);
+  if(!entry)throw new Error('这位答主还没有完成邀请，请重新邀请后再开始。');
+  return {id:entry.castId,name:profile.name,gender:profile.gender,background:profile.background,authorAvatarId:'',author:invitedAuthorProfileBinding(entry)};
+ }));
+ return bound;
+}
 export async function POST(req:NextRequest) {
  if(req.headers.get('origin') && new URL(req.headers.get('origin')!).host!==req.headers.get('host'))return NextResponse.json({error:'请求来源不匹配。'},{status:403});
  if(!requireSession(req))return NextResponse.json({error:'知乎登录已失效，请重新登录后继续。'},{status:401});
@@ -52,7 +56,7 @@ export async function POST(req:NextRequest) {
   if(!['start','restart'].includes(action))return NextResponse.json({error:'请先开始故事。'},{status:400});
   if(!profiles||!backgroundId||!player)return NextResponse.json({error:`请先选择${requiredCastCount}位角色、人生阶段和玩家资料。`},{status:400});
   id=randomUUID();
-  try{state=initial(profiles as CharacterProfile[],{backgroundId,playerName:player.name,playerGender:player.gender as Gender,seed:id});}catch(error){return NextResponse.json({error:error instanceof Error?error.message:'开局选择无效。'},{status:400});}
+  try{const bound=await bindServerAuthorRefs(profiles);state=initial(bound as CharacterProfile[],{backgroundId,playerName:player.name,playerGender:player.gender as Gender,seed:id});}catch(error){return NextResponse.json({error:error instanceof Error?error.message:'开局选择无效。'},{status:400});}
  }
  if(!id||!state)return NextResponse.json({error:'存档不可用。'},{status:400});
  if(busy.has(id))return NextResponse.json({error:'这一段正在生成，请稍候再继续。'},{status:409});

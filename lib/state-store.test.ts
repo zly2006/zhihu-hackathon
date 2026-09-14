@@ -63,13 +63,15 @@ test('interleaved story generation and chat updates preserve every field', async
   assert.deepEqual(final.worldState.processedChatExchangeIds,[exchangeId]);
 });
 
-test('generation busy refuses author chat and allows it again after release', async()=>{
+test('generation busy refuses both author and npc chat and allows them again after release', async()=>{
   const store=await freshStore();
   const exchangeId=randomUUID();
   let blockedStatus=0;
   await withStoryLock(storyId,async()=>{
     blockedStatus=authorChatGate({storyId,kind:'zhihu-author',busy:true,exchangeId}).ok?200:409;
-    assert.deepEqual(authorChatGate({storyId,kind:'preset-npc',busy:true,exchangeId}),{ok:true});
+    const npcGate=authorChatGate({storyId,kind:'preset-npc',busy:true,exchangeId});
+    assert.equal(npcGate.ok,false);
+    if(!npcGate.ok)assert.equal(npcGate.code,'STORY_GENERATION_IN_PROGRESS');
   });
   assert.equal(blockedStatus,409);
   const before=await store.read(storyId);

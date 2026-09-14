@@ -1,4 +1,4 @@
-import type {AuthorAnswer} from './author-corpus';
+import type {AuthorAnswer} from './author-provider';
 
 export type AuthorEvidence={id:string;answerId:string;authorName:string;authorUrlToken:string;title:string;sourceUrl:string;text:string;completeness:string};
 type Options={authorUrlToken:string;query:string;sizeBudget:number;budgetUnit:'utf8-bytes'|'tokens';measureInput?: (serialized:string)=>number;maxItems?:number};
@@ -31,7 +31,7 @@ export function retrieveAuthorEvidence(answers:readonly AuthorAnswer[],options:O
       const text=paragraphs[i];const bodyTerms=terms(text);const titleTerms=terms(answer.questionTitle);
       let score=0;let matches=0;for(const term of queryTerms){const inBody=bodyTerms.has(term);const inTitle=titleTerms.has(term);if(inBody||inTitle)matches+=1;score+=(inBody?2:0)+(inTitle?1:0);}
       if(matches<requiredMatches)continue;
-      ranked.push({score,item:{id:`${answer.answerId}:p${i+1}`,answerId:answer.answerId,authorName:answer.authorName,authorUrlToken:answer.authorUrlToken,title:answer.questionTitle,sourceUrl:answer.sourceUrl,text,completeness:answer.completeness}});
+      ranked.push({score,item:{id:`${answer.answerId}:p${i+1}`,answerId:answer.answerId,authorName:answer.authorName??'答主',authorUrlToken:answer.authorUrlToken,title:answer.questionTitle,sourceUrl:answer.sourceUrl,text,completeness:answer.completeness}});
     }
   }
   ranked.sort((a,b)=>b.score-a.score||a.item.id.localeCompare(b.item.id));

@@ -2,62 +2,93 @@ import assert from 'node:assert/strict';
 import {readFileSync} from 'node:fs';
 import path from 'node:path';
 import test from 'node:test';
-import {MAX_AGENT_TURNS, MAX_TOOL_CALLS, AuthorToolSession, parseAuthorToolDecision} from './author-tools';
-import type {AuthorAnswer} from './author-corpus';
+import {AUTHOR_INPUT_BYTE_LIMIT, CONVERSATION_REPLY_LIMIT, authorSerializeBytes, buildConversationMessages, parseConversationEnvelope, sanitizeReplyText} from './author-conversation';
+import {EVIDENCE_BYTE_BUDGET, EVIDENCE_ITEM_LIMIT} from './author-evidence';
 
 const runtimeModules = [
   'author-chat.ts',
-  'author-tools.ts',
-  'author-agent.ts',
+  'author-conversation.ts',
+  'author-evidence.ts',
+  'author-intent.ts',
   'author-retrieval.ts',
   'author-corpus.ts',
   'author-citations.ts',
   'author-style.ts',
   'author-avatars.ts',
   'author-errors.ts',
+  'author-provider.ts',
+  'author-provider-official.ts',
+  'author-cache.ts',
+  'author-identity.ts',
 ];
 
-function moduleSource(name: string): string {
-  return readFileSync(path.join(process.cwd(), 'lib', name), 'utf8');
-}
+const devOnlyModules = ['author-provider-zhurl.ts'];
+
+const moduleSource = (name: string): string => readFileSync(path.join(process.cwd(), 'lib', name), 'utf8');
 
 test('runtime author modules never spawn zhurl or the shell', () => {
   for (const name of runtimeModules) {
     const source = moduleSource(name);
-    assert.ok(!source.includes('child_process'), name);
     assert.ok(!source.includes('execFileSync'), name);
     assert.ok(!source.includes('execSync'), name);
-    assert.ok(!source.includes('zhurl'), name);
+    assert.ok(!source.includes('node:child_process'), name);
+    assert.ok(!source.includes('spawn('), name);
+    assert.ok(!source.includes('ZHURL_BIN'), name);
   }
+  const zhurl = moduleSource('author-provider-zhurl.ts');
+  assert.ok(zhurl.includes("from 'node:child_process'"));
+  assert.ok(zhurl.includes('ZHURL_BIN'));
 });
 
-test('the only runtime network call is the model endpoint in author chat', () => {
+test('the zhurl provider is only reachable through a production-guarded dynamic import', () => {
+  const live = moduleSource('author-live-provider.ts');
+  assert.ok(live.includes("import('./author-provider-zhurl')"));
+  assert.ok(live.includes('NODE_ENV'));
+  assert.ok(live.includes("'production'"));
+  for (const name of runtimeModules) assert.ok(!moduleSource(name).includes('author-provider-zhurl'), `${name} must not import zhurl`);
+});
+
+test('the only runtime network calls are the provider fetch and the model endpoint', () => {
   const fetchers = runtimeModules.filter((name) => moduleSource(name).includes('fetch('));
   assert.deepEqual(fetchers, ['author-chat.ts']);
-  const tools = moduleSource('author-tools.ts');
-  assert.ok(!tools.includes('http://'));
-  assert.ok(!tools.includes('https://www.zhihu.com/api'));
-  const agent = moduleSource('author-agent.ts');
-  assert.ok(!agent.includes('http://'));
-  assert.ok(!agent.includes('https://'));
+  const official = moduleSource('author-provider-official.ts');
+  assert.ok(official.includes('fetchImpl'));
+  assert.ok(!official.includes('console.log'));
+  assert.ok(!moduleSource('author-conversation.ts').includes('http://'));
+  assert.ok(!moduleSource('author-evidence.ts').includes('http://'));
 });
 
-test('the bounded loop keeps its documented budgets', () => {
-  assert.equal(MAX_TOOL_CALLS, 2);
-  assert.equal(MAX_AGENT_TURNS, 6);
+test('the conversation framework keeps its documented budgets', () => {
+  assert.equal(AUTHOR_INPUT_BYTE_LIMIT, 6000);
+  assert.equal(CONVERSATION_REPLY_LIMIT, 600);
+  assert.equal(EVIDENCE_ITEM_LIMIT, 5);
+  assert.equal(EVIDENCE_BYTE_BUDGET, 3000);
 });
 
-test('read_answer still rejects paths and never leaves the searched answer set', () => {
-  const answer: AuthorAnswer = {
-    answerId: '1001', authorName: '合成作者', authorUrlToken: 'MarryMea',
-    questionTitle: '合成问题', sourceUrl: 'https://www.zhihu.com/answer/1001',
-    body: '合成正文。', completeness: 'fetched_api_content_unverified',
-  };
-  for (const bad of ['../secret', '/etc/passwd', 'answer-1001.json']) {
-    assert.throws(() => parseAuthorToolDecision(JSON.stringify({tool: 'read_answer', args: {answerId: bad}})), /工具调用/);
+test('the model is no longer forced through a json tool protocol', () => {
+  for (const name of ['author-conversation.ts', 'author-evidence.ts', 'author-chat.ts']) {
+    const source = moduleSource(name);
+    assert.ok(!source.includes('search_local_cache'), name);
+    assert.ok(!source.includes('search_author_online'), name);
+    assert.ok(!source.includes('read_author_answer'), name);
+    assert.ok(!source.includes('finish'), name);
   }
-  const session = new AuthorToolSession([answer], 'MarryMea');
-  const blocked = session.execute(parseAuthorToolDecision(JSON.stringify({tool: 'read_answer', args: {answerId: '1001'}})));
-  assert.equal(blocked.ok, false);
-  if (!blocked.ok) assert.equal(blocked.error.code, 'ANSWER_NOT_SEARCHED');
+  assert.ok(!moduleSource('author-conversation.ts').includes('citationIds'));
+});
+
+test('prompt messages stay string-encoded and inside the byte budget', () => {
+  const history = Array.from({length: 20}, (_, index) => ({role: index % 2 ? 'user' as const : 'assistant' as const, text: '合成历史'.repeat(120)}));
+  const messages = buildConversationMessages({story: '摘要'.repeat(200), history: [...history, {role: 'user', text: '远程工作怎么休息？'}], persona: {displayName: '林泠', domains: ['职业规划']}});
+  assert.ok(messages.every((message) => typeof message.content === 'string'));
+  assert.ok(authorSerializeBytes(messages) >= 0);
+  assert.equal(messages.at(-1)?.role, 'user');
+  assert.ok(messages[0].content.includes('职业规划'));
+});
+
+test('free-form replies are accepted and unsafe urls are stripped', () => {
+  assert.deepEqual(parseConversationEnvelope('{"reply":"我在呢。","usedEvidenceIds":["1001:p1"]}'), {reply: '我在呢。', usedEvidenceIds: ['1001:p1']});
+  assert.deepEqual(parseConversationEnvelope('```json\n{"reply":"好呀"}\n```'), {reply: '好呀', usedEvidenceIds: []});
+  assert.deepEqual(parseConversationEnvelope('我直接说话也可以。'), {reply: '我直接说话也可以。', usedEvidenceIds: []});
+  assert.equal(sanitizeReplyText('看这里 https://evil.test/x 就好').includes('evil.test'), false);
+  assert.equal([...sanitizeReplyText('超长'.repeat(400))].length, CONVERSATION_REPLY_LIMIT);
 });

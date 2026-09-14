@@ -20,7 +20,7 @@ test('exchange ids require a UUID and are trimmed before validation', () => {
   assert.equal(isValidExchangeId(42),false);
 });
 
-test('author chat during generation is refused while NPC chat stays available', () => {
+test('story chat during generation is refused for答主 and预设 NPC alike', () => {
   const exchangeId='2bd61ff8-e71c-4a81-b342-3569f66233cc';
   const gateOf=(input:Parameters<typeof authorChatGate>[0])=>{
     const result=authorChatGate(input);
@@ -29,12 +29,14 @@ test('author chat during generation is refused while NPC chat stays available', 
   assert.deepEqual(gateOf({storyId:'11111111-1111-4111-8111-111111111111',kind:'zhihu-author',busy:true,exchangeId}),{
     ok:false,status:409,code:'STORY_GENERATION_IN_PROGRESS',error:'剧情正在生成，这条消息先留着，稍后再发。',
   });
-  assert.deepEqual(gateOf({storyId:'11111111-1111-4111-8111-111111111111',kind:'preset-npc',busy:true,exchangeId}),{ok:true});
+  assert.deepEqual(gateOf({storyId:'11111111-1111-4111-8111-111111111111',kind:'preset-npc',busy:true,exchangeId}),{
+    ok:false,status:409,code:'STORY_GENERATION_IN_PROGRESS',error:'剧情正在生成，这条消息先留着，稍后再发。',
+  });
   assert.deepEqual(gateOf({storyId:'11111111-1111-4111-8111-111111111111',kind:'zhihu-author',busy:false,exchangeId}),{ok:true});
   assert.deepEqual(gateOf({kind:'zhihu-author',busy:true}),{ok:true});
-  const missing=gateOf({storyId:'11111111-1111-4111-8111-111111111111',kind:'zhihu-author',busy:false});
+  const missing=gateOf({storyId:'11111111-1111-4111-8111-111111111111',kind:'preset-npc',busy:false});
   assert.equal(missing.ok?undefined:missing.code,'EXCHANGE_ID_REQUIRED');
-  const invalid=gateOf({storyId:'11111111-1111-4111-8111-111111111111',kind:'zhihu-author',busy:false,exchangeId:'nope'});
+  const invalid=gateOf({storyId:'11111111-1111-4111-8111-111111111111',kind:'preset-npc',busy:false,exchangeId:'nope'});
   assert.equal(invalid.ok?undefined:invalid.code,'INVALID_EXCHANGE_ID');
 });
 

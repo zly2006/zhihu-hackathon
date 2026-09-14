@@ -5,6 +5,7 @@ import {
   resolveAuthorCastRegistration,
   authorCastBackgroundRole,
 } from './author-cast';
+import {resolveAuthorAvatar} from './author-avatars';
 import {
   authorSelectableCharacters,
   canonicalProfiles,
@@ -68,7 +69,7 @@ test('ling is registered as a fictional zhihu author with stable contract', () =
   assert.equal(registration?.corpusStatus, 'evidence-only');
   assert.equal(registration?.authorAvatarId, 'zhao-ling');
   assert.ok(registration?.disclosure.includes('虚构'));
-  assert.deepEqual(AUTHOR_CAST_REGISTRATIONS.map((entry) => entry.castId), ['ling']);
+  assert.ok(AUTHOR_CAST_REGISTRATIONS.some((entry) => entry.castId === 'ling'));
   for (const backgroundId of ['high-school', 'university', 'graduate', 'early-career']) {
     assert.ok(authorCastBackgroundRole(registration!, backgroundId)?.identity);
   }
@@ -78,10 +79,27 @@ test('ling is registered as a fictional zhihu author with stable contract', () =
   assert.ok(!userVisible.includes('知乎答主'));
 });
 
+test('the default author roster keeps one romance route and covers every life stage', () => {
+  const romance = AUTHOR_CAST_REGISTRATIONS.filter((entry) => entry.canEnterRomance);
+  assert.deepEqual(romance.map((entry) => entry.castId), ['ling']);
+  const names = AUTHOR_CAST_REGISTRATIONS.map((entry) => entry.displayName);
+  assert.equal(new Set(names).size, names.length);
+  assert.equal(AUTHOR_CAST_REGISTRATIONS.length, 8);
+  for (const registration of AUTHOR_CAST_REGISTRATIONS) {
+    assert.ok(registration.domains.length >= 1 && registration.domains.length <= 3, registration.castId);
+    assert.ok(resolveAuthorAvatar(registration.authorAvatarId)?.id === registration.authorAvatarId, registration.castId);
+    for (const backgroundId of ['high-school', 'university', 'graduate', 'early-career']) {
+      const role = authorCastBackgroundRole(registration, backgroundId);
+      assert.ok(role?.identity, `${registration.castId}/${backgroundId}`);
+      assert.ok(role!.age >= 16 && role!.age <= 40, `${registration.castId}/${backgroundId}`);
+    }
+  }
+});
+
 test('preset pool stays eight characters and author ids never enter it', () => {
   assert.equal(castPool.length, 8);
   assert.ok(!castPool.some((member) => member.id === 'ling'));
-  assert.equal(selectableCharacters().length, 9);
+  assert.equal(selectableCharacters().length, 16);
   assert.equal(authorSelectableCharacters()[0].name, '林泠');
 });
 

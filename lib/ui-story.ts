@@ -7,7 +7,7 @@ export const cast = [
   {id:'shen', name:'沈知遥', job:'摄影师', color:'#889ec6', greeting:'先把相机放下。现在，我想听你说。'},
 ] as const;
 export type CastId = string;
-export type ChatMessage = {role:'user'|'assistant';text:string;sources?:AuthorSource[];evidenceStatus?:'matched'|'no-match';avatar?:{id:string;displayName:string;styleStatus:'unreviewed'}};
+export type ChatMessage = {role:'user'|'assistant';text:string;sources?:AuthorSource[];evidenceStatus?:'matched'|'no-match'|'unverified'|'persona';avatar?:{id:string;displayName:string;styleStatus:'unreviewed'|'auto'|'reviewed'}};
 export type Chats = Partial<Record<CastId,ChatMessage[]>>;
 export type SaveSlot = {version:1;mode:'demo'|'live';storyId?:string;state:PublicState;line:number;chats:Chats;time:string;partner:CastId};
 
@@ -57,6 +57,8 @@ export function chooseDemo(state:PublicState, index:number):PublicState {
   return next;
 }
 
+export const ACTOR_ID_PATTERN=/^[A-Za-z0-9_-]{1,80}$/;
+export const AUTHOR_URL_TOKEN_PATTERN=/^[A-Za-z0-9_-]{1,100}$/;
 export function isSaveSlot(value:unknown):value is SaveSlot {
   if(!value||typeof value!=='object')return false;
   const slot=value as SaveSlot;
@@ -66,11 +68,11 @@ export function isChatMessage(value:unknown):value is ChatMessage {
   if(!value||typeof value!=='object')return false;
   const message=value as ChatMessage;
   if(!['user','assistant'].includes(message.role)||typeof message.text!=='string')return false;
-  if(message.evidenceStatus!==undefined&&!['matched','no-match'].includes(message.evidenceStatus))return false;
-  if(message.avatar!==undefined&&(!message.avatar||message.avatar.id!=='zhao-ling'||typeof message.avatar.displayName!=='string'||message.avatar.styleStatus!=='unreviewed'))return false;
+  if(message.evidenceStatus!==undefined&&!['matched','no-match','unverified','persona'].includes(message.evidenceStatus))return false;
+  if(message.avatar!==undefined&&(!message.avatar||!ACTOR_ID_PATTERN.test(message.avatar.id)||typeof message.avatar.displayName!=='string'||!['unreviewed','auto','reviewed'].includes(message.avatar.styleStatus)))return false;
   if(message.sources!==undefined){
     if(!Array.isArray(message.sources)||message.sources.length>3)return false;
-    for(const source of message.sources){try{if(!source||typeof source.answerId!=='string'||typeof source.title!=='string'||typeof source.author!=='string'||source.authorUrlToken!=='MarryMea'||typeof source.completeness!=='string')return false;validateAnswerSource(source.url,source.answerId);}catch{return false;}}
+    for(const source of message.sources){try{if(!source||typeof source.answerId!=='string'||typeof source.title!=='string'||typeof source.author!=='string'||!AUTHOR_URL_TOKEN_PATTERN.test(source.authorUrlToken)||typeof source.completeness!=='string')return false;validateAnswerSource(source.url,source.answerId);}catch{return false;}}
   }
   return true;
 }

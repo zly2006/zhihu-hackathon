@@ -1,6 +1,19 @@
 import { z } from 'zod';
 import {resolveAuthorAvatar} from './author-avatars';
 import {AUTHOR_CAST_REGISTRATIONS,authorCastBackgroundRole,resolveAuthorCastRegistration,type AuthorCastRegistration} from './author-cast';
+import {
+  AUTHOR_CAST_ID_PATTERN,
+  AUTHOR_URL_TOKEN_PATTERN,
+  authorBindingHash,
+  authorProfileUrl,
+  deriveAuthorCastId,
+  fictionalAuthorName,
+  genderForCastId,
+  invitedAuthorCapabilitiesFor,
+  invitedAuthorDetails,
+  invitedAuthorStageRole,
+  normalizeAuthorDomain,
+} from './author-identity';
 import config from './story-config.json';
 import storyPublic from './story-public.json';
 import examples from './story-examples.json';
@@ -16,7 +29,18 @@ export type RelationshipType = 'romance' | 'friendship';
 export type CharacterKind = 'preset-npc' | 'zhihu-author';
 export type Beat = { id: string; kind: StageKind; task: string };
 export type PublicCastMember = { id: string; name: string; gender: Gender; age: number; identity: string };
-export type CharacterProfile = { id: string; name: string; gender: Gender; background?: string; zhihuHandle?: string; authorAvatarId?: string };
+export type CharacterCapabilities = { canChat: boolean; canEnterStory: boolean; canEnterRomance: boolean };
+export type AuthorRefBinding = { provider: 'zhihu'; urlToken: string; profileUrl: string };
+export type AuthorSnapshot = { authorUrlToken: string; profileHash: string; corpusVersion?: string; capturedAt: string };
+export type CharacterProfile = {
+  id: string;
+  name: string;
+  gender: Gender;
+  background?: string;
+  zhihuHandle?: string;
+  authorAvatarId?: string;
+  author?: { authorRef: AuthorRefBinding; authorSnapshot: AuthorSnapshot; domains: string[]; capabilities: CharacterCapabilities };
+};
 export type CastDetails = { voice: string; desire: string; object: string; route_event: string; payoff: string };
 export type SelectableCharacter = PublicCastMember & {
   kind: CharacterKind;
@@ -26,6 +50,9 @@ export type SelectableCharacter = PublicCastMember & {
   styleStatus?: string;
   disclosure?: string;
   authorAvatarId?: string;
+  capabilities?: CharacterCapabilities;
+  profileUrl?: string;
+  sourceDisplayName?: string;
   voice?: string;
   desire?: string;
   object?: string;
@@ -38,6 +65,9 @@ export type CastMember = PublicCastMember & CastDetails & {
   zhihuHandle?: string;
   authorAvatarId?: string;
   domains?: string[];
+  capabilities?: CharacterCapabilities;
+  authorRef?: AuthorRefBinding;
+  authorSnapshot?: AuthorSnapshot;
 };
 export type Route = string;
 export type EndingResolution = { id: string; label: string; summary: string; tone: 'bright' | 'warm' | 'bittersweet' | 'quiet' };
@@ -47,7 +77,12 @@ export type StoryState = {
   timeline: string[];
   usedLifeEventIds?: string[];
   endingId?: string;
+  /** 剧情外聊天的有效互动得分（预设 NPC 与答主共用）。 */
   authorChatGains?: Record<string, number>;
+  /** 每位角色上次通过聊天得分的时间，用于冷却判定。 */
+  chatGainAt?: Record<string, string>;
+  /** 已计分过的玩家消息哈希，防止复读刷分（不保存明文）。 */
+  processedChatMessageHashes?: string[];
   processedChatExchangeIds?: string[];
 };
 export type PublicStoryState = Omit<StoryState, 'usedLifeEventIds'>;
@@ -138,6 +173,7 @@ function authorSelectableCharacter(registration: AuthorCastRegistration): Select
     styleStatus: registration.styleStatus,
     disclosure: registration.disclosure,
     authorAvatarId: registration.authorAvatarId,
+    capabilities: {canChat: true, canEnterStory: true, canEnterRomance: registration.canEnterRomance},
   };
 }
 
@@ -150,6 +186,119 @@ export function resolveSelectableCharacter(id: string): SelectableCharacter | un
 
 export function authorSelectableCharacters(): SelectableCharacter[] {
   return AUTHOR_CAST_REGISTRATIONS.map(authorSelectableCharacter);
+}
+
+export const REGISTERED_AUTHOR_SNAPSHOT_AT = '2026-01-01T00:00:00.000Z';
+
+export function authorRefBinding(urlToken: string): AuthorRefBinding {
+  if (!AUTHOR_URL_TOKEN_PATTERN.test(urlToken)) throw new Error('知乎主页标识不合法。');
+  return {provider: 'zhihu', urlToken, profileUrl: authorProfileUrl(urlToken)};
+}
+
+type AuthorBinding = NonNullable<CharacterProfile['author']>;
+
+function normalizeBindingDomains(domains: readonly string[], requireWhitelist: boolean): string[] {
+  const normalized: string[] = [];
+  for (const domain of domains) {
+    const value: string | undefined = requireWhitelist ? normalizeAuthorDomain(domain) : String(domain).trim().slice(0, 40);
+    if (!value) throw new Error('答主领域标签不合法。');
+    if (!normalized.includes(value)) normalized.push(value);
+  }
+  if (!normalized.length || normalized.length > 3) throw new Error('答主领域标签不合法。');
+  return normalized;
+}
+
+function registeredAuthorBinding(registration: AuthorCastRegistration): AuthorBinding {
+  const avatar = resolveAuthorAvatar(registration.authorAvatarId);
+  if (!avatar) throw new Error('答主化身未注册。');
+  const urlToken = avatar.sourceAuthorUrlToken;
+  return {
+    authorRef: authorRefBinding(urlToken),
+    authorSnapshot: {authorUrlToken: urlToken, profileHash: authorBindingHash(urlToken), capturedAt: REGISTERED_AUTHOR_SNAPSHOT_AT},
+    domains: normalizeBindingDomains(registration.domains, false),
+    capabilities: {canChat: true, canEnterStory: true, canEnterRomance: registration.canEnterRomance},
+  };
+}
+
+/** 邀请答主的作者绑定与快照必须由服务端再次推导，客户端不能自证。 */
+function invitedAuthorBinding(profile: CharacterProfile): AuthorBinding {
+  const idGender = genderForCastId(profile.id);
+  if (!idGender) throw new Error('答主角色 ID 不合法。');
+  const binding = profile.author;
+  if (!binding) throw new Error('答主角色缺少作者绑定。');
+  const ref = binding.authorRef;
+  if (!ref || ref.provider !== 'zhihu' || !AUTHOR_URL_TOKEN_PATTERN.test(ref.urlToken) || ref.profileUrl !== authorProfileUrl(ref.urlToken)) {
+    throw new Error('答主作者绑定不合法。');
+  }
+  if (deriveAuthorCastId(ref.urlToken, idGender) !== profile.id) throw new Error('答主角色与作者标识不一致。');
+  const snapshot = binding.authorSnapshot;
+  if (!snapshot || snapshot.authorUrlToken !== ref.urlToken || snapshot.profileHash !== authorBindingHash(ref.urlToken)) throw new Error('答主快照校验失败。');
+  if (!Number.isFinite(Date.parse(snapshot.capturedAt))) throw new Error('答主快照时间不合法。');
+  const domains = normalizeBindingDomains(binding.domains ?? [], true);
+  const expected = invitedAuthorCapabilitiesFor(ref.urlToken);
+  const capabilities = binding.capabilities;
+  if (!capabilities || capabilities.canChat !== expected.canChat || capabilities.canEnterStory !== expected.canEnterStory || capabilities.canEnterRomance !== expected.canEnterRomance) {
+    throw new Error('答主能力配置不合法。');
+  }
+  return {
+    authorRef: ref,
+    authorSnapshot: {authorUrlToken: ref.urlToken, profileHash: snapshot.profileHash, capturedAt: snapshot.capturedAt},
+    domains,
+    capabilities: expected,
+  };
+}
+
+function canonicalRegisteredAuthor(profile: CharacterProfile, registration: AuthorCastRegistration): CharacterProfile {
+  const member = authorSelectableCharacter(registration);
+  if (member.gender !== profile.gender) throw new Error('角色资料与当前角色池不一致。');
+  if (profile.authorAvatarId && profile.authorAvatarId !== member.authorAvatarId) throw new Error('答主化身未注册。');
+  return {
+    id: member.id,
+    name: member.name,
+    gender: member.gender,
+    background: profile.background?.trim().slice(0, 300) || undefined,
+    authorAvatarId: member.authorAvatarId,
+    author: registeredAuthorBinding(registration),
+  };
+}
+
+function canonicalInvitedAuthor(profile: CharacterProfile): CharacterProfile {
+  const idGender = genderForCastId(profile.id);
+  if (!idGender) throw new Error('答主角色 ID 不合法。');
+  const binding = invitedAuthorBinding(profile);
+  const gender: Gender = idGender === '男' ? '男' : '女';
+  if (profile.gender !== gender) throw new Error('答主角色性别与标识不一致。');
+  return {
+    id: profile.id,
+    name: fictionalAuthorName(binding.authorRef.urlToken),
+    gender,
+    background: profile.background?.trim().slice(0, 300) || undefined,
+    authorAvatarId: profile.id,
+    author: binding,
+  };
+}
+
+export function canonicalProfiles(input: CharacterProfile[] = defaultProfiles()): CharacterProfile[] {
+  if (input.length !== requiredCastCount) throw new Error(`必须选择${requiredCastCount}位角色。`);
+  const seen = new Set<string>();
+  return input.map((profile) => {
+    if (seen.has(profile.id)) throw new Error('角色不能重复选择。');
+    seen.add(profile.id);
+    const registration = resolveAuthorCastRegistration(profile.id);
+    if (registration) return canonicalRegisteredAuthor(profile, registration);
+    if (AUTHOR_CAST_ID_PATTERN.test(profile.id)) return canonicalInvitedAuthor(profile);
+    const member = castPool.find((candidate) => candidate.id === profile.id);
+    if (!member || member.gender !== profile.gender) throw new Error('角色资料与当前角色池不一致。');
+    if (profile.authorAvatarId && !resolveAuthorAvatar(profile.authorAvatarId)) throw new Error('答主化身未注册。');
+    return {
+      id: member.id,
+      name: member.name,
+      gender: member.gender,
+      background: profile.background?.trim().slice(0, 300) || undefined,
+      zhihuHandle: profile.zhihuHandle?.trim().slice(0, 80) || undefined,
+      authorAvatarId: resolveAuthorAvatar(profile.authorAvatarId || profile.zhihuHandle)?.id,
+    };
+  });
 }
 
 export function selectableCharacters(): SelectableCharacter[] {
@@ -204,37 +353,6 @@ function defaultProfiles(): CharacterProfile[] {
   });
 }
 
-export function canonicalProfiles(input: CharacterProfile[] = defaultProfiles()): CharacterProfile[] {
-  if (input.length !== requiredCastCount) throw new Error(`必须选择${requiredCastCount}位角色。`);
-  const seen = new Set<string>();
-  return input.map((profile) => {
-    if (seen.has(profile.id)) throw new Error('角色不能重复选择。');
-    seen.add(profile.id);
-    const member = resolveSelectableCharacter(profile.id);
-    if (!member || member.gender !== profile.gender) throw new Error('角色资料与当前角色池不一致。');
-    if (member.kind === 'zhihu-author') {
-      if (!resolveAuthorAvatar(member.authorAvatarId)) throw new Error('答主化身未注册。');
-      if (profile.authorAvatarId && profile.authorAvatarId !== member.authorAvatarId) throw new Error('答主化身未注册。');
-      return {
-        id: member.id,
-        name: member.name,
-        gender: member.gender,
-        background: profile.background?.trim().slice(0, 300) || undefined,
-        authorAvatarId: member.authorAvatarId,
-      };
-    }
-    if (profile.authorAvatarId && !resolveAuthorAvatar(profile.authorAvatarId)) throw new Error('答主化身未注册。');
-    return {
-      id: member.id,
-      name: member.name,
-      gender: member.gender,
-      background: profile.background?.trim().slice(0, 300) || undefined,
-      zhihuHandle: profile.zhihuHandle?.trim().slice(0, 80) || undefined,
-      authorAvatarId: resolveAuthorAvatar(profile.authorAvatarId || profile.zhihuHandle)?.id,
-    };
-  });
-}
-
 export function selectedCast(state: Pick<State, 'profiles' | 'backgroundId'>): CastMember[] {
   const background = backgroundFor(state.backgroundId);
   return canonicalProfiles(state.profiles).map((profile) => {
@@ -242,6 +360,7 @@ export function selectedCast(state: Pick<State, 'profiles' | 'backgroundId'>): C
     if (author) {
       const stageRole = authorCastBackgroundRole(author, background.id);
       if (!stageRole) throw new Error('答主角色资料不存在。');
+      const binding = profile.author ?? registeredAuthorBinding(author);
       return {
         id: author.castId,
         name: author.displayName,
@@ -253,6 +372,28 @@ export function selectedCast(state: Pick<State, 'profiles' | 'backgroundId'>): C
         background: profile.background,
         authorAvatarId: author.authorAvatarId,
         domains: [...author.domains],
+        capabilities: {...binding.capabilities},
+        authorRef: {...binding.authorRef},
+        authorSnapshot: {...binding.authorSnapshot},
+      };
+    }
+    if (profile.author && AUTHOR_CAST_ID_PATTERN.test(profile.id)) {
+      const binding = profile.author;
+      const role = invitedAuthorStageRole(background.id, binding.domains, binding.authorRef.urlToken);
+      return {
+        id: profile.id,
+        name: fictionalAuthorName(binding.authorRef.urlToken),
+        gender: profile.gender,
+        age: role.age,
+        identity: role.identity,
+        kind: 'zhihu-author' as const,
+        ...invitedAuthorDetails(binding.domains),
+        background: profile.background,
+        authorAvatarId: profile.id,
+        domains: [...binding.domains],
+        capabilities: {...binding.capabilities},
+        authorRef: {...binding.authorRef},
+        authorSnapshot: {...binding.authorSnapshot},
       };
     }
     const member = castPool.find((candidate) => candidate.id === profile.id);
@@ -407,7 +548,8 @@ function lockRoute(state: State, target: Route) {
   if (!member) throw new Error('锁定角色不存在。');
   state.route = target;
   state.needsTiebreak = false;
-  state.relationshipType = state.player.gender === member.gender ? 'friendship' : 'romance';
+  const romanceAllowed = member.kind !== 'zhihu-author' || member.capabilities?.canEnterRomance === true;
+  state.relationshipType = romanceAllowed && state.player.gender !== member.gender ? 'romance' : 'friendship';
   state.worldState.timeline.push(`锁定${member.name}，进入${routeTemplates[state.relationshipType].label}`);
 }
 
@@ -880,7 +1022,7 @@ export function publicState(state: State) {
       },
       premise: background.premise,
       locations: background.locations,
-      cast: selectedCast(state).map(({ id, name, gender, age, identity, kind, domains, background: profileBackground, zhihuHandle, authorAvatarId }):PublicCastMember & {kind:CharacterKind;domains?:string[];background?:string;zhihuHandle?:string;authorAvatarId?:string} => ({ id, name, gender, age, identity, kind, ...(domains?{domains}:{}), background: profileBackground, zhihuHandle, ...(authorAvatarId?{authorAvatarId}:{}) })),
+      cast: selectedCast(state).map(({ id, name, gender, age, identity, kind, domains, background: profileBackground, zhihuHandle, authorAvatarId, capabilities }):PublicCastMember & {kind:CharacterKind;domains?:string[];background?:string;zhihuHandle?:string;authorAvatarId?:string;capabilities?:CharacterCapabilities} => ({ id, name, gender, age, identity, kind, ...(domains?{domains}:{}), background: profileBackground, zhihuHandle, ...(authorAvatarId?{authorAvatarId}:{}), ...(capabilities?{capabilities}:{}) })),
     },
     partial: state.partial ? {
       title: state.partial.title,
