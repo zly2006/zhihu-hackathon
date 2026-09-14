@@ -10,6 +10,7 @@
 .author-avatar-mark{display:grid;place-items:center;width:100%;height:100%;background:#ede2f3;color:#846493;font:clamp(20px,2.4cqw,34px) serif}
 .author-trial-note{margin:.5cqw 1.6cqw;padding:.75cqw 1cqw;border:1px solid #d9c8e0;border-radius:.6cqw;background:#f8f2fb;color:#80668c;font-size:clamp(11px,.72cqw,14px);line-height:1.7}
 .chat-sources{margin-top:.65em;padding-top:.5em;border-top:1px solid #d9c8e0;font-size:.86em;line-height:1.6}
+.panel-music .modal-card{width:min(40cqw,520px)}.music-choice{justify-content:center}.music-choice button{min-width:8cqw}.music-choice button.primary{background:#a47eb0;color:#fff;border-color:#a47eb0}
 .chat-sources summary{cursor:pointer;color:#735685}.chat-sources a{display:flex;flex-direction:column;gap:.2em;color:#654c80;margin:.65em 0;text-decoration:none}.chat-sources a:hover strong{text-decoration:underline}.chat-sources a span,.chat-sources small,.chat-evidence-empty{display:block;color:#8c7996;font-size:.9em}.chat-evidence-empty{margin-top:.5em}
 .character-placeholder{display:flex;flex-direction:column;align-items:center;justify-content:flex-end;gap:.4cqw;padding-bottom:2cqw;background:linear-gradient(170deg,#f4ecf7,#dcc9e6 60%,#c9b2d8);border-radius:5cqw 5cqw 0 0;box-shadow:inset 0 0 3cqw #fff9;color:#6d5379;font-family:"Noto Serif SC",serif;transition:filter .3s;animation:character .5s ease-out}
 .character-placeholder.speaking{filter:brightness(1.06) saturate(1.05) drop-shadow(0 12px 20px #fff0ce44)}
