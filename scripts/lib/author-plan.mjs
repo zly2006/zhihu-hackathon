@@ -1,3 +1,4 @@
+import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {planQueriesDeterministic} from './author-collect.mjs';
 
@@ -28,10 +29,49 @@ export function buildPlannerMessages({gaps, corpusTitles = [], maxQueries}) {
   ];
 }
 
+export function extractJsonObject(text) {
+  const start = text.indexOf('{');
+  if (start < 0) return null;
+  let depth = 0;
+  let inString = false;
+  let escaped = false;
+  for (let index = start; index < text.length; index += 1) {
+    const char = text[index];
+    if (inString) {
+      if (escaped) escaped = false;
+      else if (char === '\\') escaped = true;
+      else if (char === '"') inString = false;
+      continue;
+    }
+    if (char === '"') inString = true;
+    else if (char === '{') depth += 1;
+    else if (char === '}') {
+      depth -= 1;
+      if (depth === 0) return text.slice(start, index + 1);
+    }
+  }
+  return null;
+}
+
+function parseJsonLoose(raw) {
+  const text = String(raw).trim().replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, '');
+  try {
+    return JSON.parse(text);
+  } catch {
+    const extracted = extractJsonObject(text);
+    if (!extracted) throw new Error('规划器输出不是有效 JSON。');
+    try {
+      return JSON.parse(extracted);
+    } catch {
+      throw new Error('规划器输出不是有效 JSON。');
+    }
+  }
+}
+
 export function parsePlannerReply(raw, {topics, maxQueries}) {
   let parsed;
   try {
-    parsed = JSON.parse(String(raw).replace(/^```(?:json)?\s*/, '').replace(/\s*```$/, ''));
+    parsed = parseJsonLoose(raw);
   } catch {
     throw new Error('规划器输出不是有效 JSON。');
   }
@@ -76,14 +116,40 @@ export async function planQueries({gaps, topics, corpusTitles, maxQueries, plann
   };
 }
 
+export function resolvePlannerCredentials(env = process.env) {
+  const deepseekKey = (env.DEEPSEEK_API_KEY || '').trim();
+  if (deepseekKey) {
+    return {
+      key: deepseekKey,
+      endpoint: (env.DEEPSEEK_ENDPOINT || '').trim() || 'https://api.deepseek.com/v1/chat/completions',
+      model: (env.DEEPSEEK_MODEL || '').trim() || 'deepseek-chat',
+    };
+  }
+  const opencodeKey = ((env.OPENCODE_API_KEY || env.CPA_API_KEY) || '').trim();
+  if (opencodeKey) {
+    return {
+      key: opencodeKey,
+      endpoint: (env.OPENCODE_ENDPOINT || '').trim() || 'https://opencode.ai/zen/go/v1/chat/completions',
+      model: (env.OPENCODE_MODEL || '').trim() || 'deepseek-flash',
+    };
+  }
+  return undefined;
+}
+
+export function createPlannerFromEnv(env = process.env) {
+  const credentials = resolvePlannerCredentials(env);
+  return credentials ? createDeepseekPlanner(credentials) : undefined;
+}
+
 export function createDeepseekPlanner({key, endpoint, model, timeoutMs = 30_000} = {}) {
   if (!key) return undefined;
   const target = endpoint || 'https://api.deepseek.com/v1/chat/completions';
+  const session = randomUUID();
   return async (messages) => {
     const response = await fetch(target, {
       method: 'POST',
-      headers: {Authorization: `Bearer ${key}`, 'Content-Type': 'application/json'},
-      body: JSON.stringify({model: model || 'deepseek-chat', temperature: 0.2, max_tokens: 500, messages}),
+      headers: {Authorization: `Bearer ${key}`, 'Content-Type': 'application/json', 'x-opencode-session': session},
+      body: JSON.stringify({model: model || 'deepseek-chat', temperature: 0, max_tokens: 500, messages}),
       signal: AbortSignal.timeout(timeoutMs),
     });
     if (!response.ok) throw new Error(`规划器模型 HTTP ${response.status}`);

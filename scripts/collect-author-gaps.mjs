@@ -19,7 +19,7 @@ import {
   writeCollectionReport,
 } from './lib/author-collect.mjs';
 import {AUTHOR_TOPICS, topicById} from './lib/author-topics.mjs';
-import {createDeepseekPlanner, planQueries} from './lib/author-plan.mjs';
+import {createPlannerFromEnv, planQueries} from './lib/author-plan.mjs';
 
 function arg(name, fallback) {
   const index = process.argv.indexOf(`--${name}`);
@@ -81,8 +81,7 @@ if (dryRun) {
 
 const envApplied = loadProjectEnv();
 if (envApplied.length) console.log(`env-loaded=${envApplied.join(',')} (values hidden)`);
-const plannerKey = process.env.DEEPSEEK_API_KEY?.trim();
-const callModel = plannerMode === 'model' ? createDeepseekPlanner({key: plannerKey, endpoint: process.env.DEEPSEEK_ENDPOINT, model: process.env.DEEPSEEK_MODEL}) : undefined;
+const callModel = plannerMode === 'model' ? createPlannerFromEnv() : undefined;
 const planning = await planQueries({gaps, topics: selectedTopics, corpusTitles: corpusTexts.map((entry) => entry.title), maxQueries, planner: plannerMode, callModel});
 console.log(`planner=${planning.planner}${planning.plannerError ? ` (${planning.plannerError})` : ''} queries=${planning.queries.length}`);
 for (const query of planning.queries) console.log(`plan\t${query.topic}\t${query.query}\t${query.source}`);

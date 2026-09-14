@@ -19,7 +19,7 @@ import {
   planQueriesDeterministic,
   validateAnswerId,
 } from '../scripts/lib/author-collect.mjs';
-import {buildPlannerMessages, createDeepseekPlanner, parsePlannerReply, planQueries, planQueriesWithModel} from '../scripts/lib/author-plan.mjs';
+import {buildPlannerMessages, createDeepseekPlanner, createPlannerFromEnv, parsePlannerReply, planQueries, planQueriesWithModel, resolvePlannerCredentials} from '../scripts/lib/author-plan.mjs';
 import {flattenAccount, prepareZhurlEnv} from '../scripts/lib/zhurl-compat.mjs';
 import {loadAuthorCorpus} from './author-corpus';
 
@@ -117,6 +117,8 @@ test('planner reply validation enforces topics, characters and caps', () => {
   assert.throws(() => parsePlannerReply(JSON.stringify({queries: [{topic: 'biology', query: '见 https://evil.test'}]}), {topics, maxQueries: 5}), /非法字符/);
   assert.throws(() => parsePlannerReply(JSON.stringify({queries: [{topic: 'biology', query: 'C:\\secret'}]}), {topics, maxQueries: 5}), /非法字符/);
   assert.throws(() => parsePlannerReply('不是 JSON', {topics, maxQueries: 5}), /JSON/);
+  const messy = `好的，这是计划：\n\`\`\`json\n${JSON.stringify({queries: [{topic: 'biology', query: '基因 科普'}]})}\n\`\`\`\n希望有帮助。`;
+  assert.equal(parsePlannerReply(messy, {topics, maxQueries: 5})[0].query, '基因 科普');
   const deduped = parsePlannerReply(JSON.stringify({queries: [{topic: 'biology', query: '生物学 学习'}, {topic: 'biology', query: '生物学 学习'}]}), {topics, maxQueries: 5});
   assert.equal(deduped.length, 1);
   const capped = parsePlannerReply(JSON.stringify({queries: [{topic: 'biology', query: 'a1'}, {topic: 'biology', query: 'a2'}, {topic: 'career', query: 'a3'}]}), {topics, maxQueries: 2});
@@ -204,6 +206,18 @@ test('member-scoped search URLs carry the restricted member parameters', () => {
   assert.ok(url.includes('offset=20'));
   assert.ok(url.includes(encodeURIComponent('研究生 导师')));
   assert.ok(generalSearchUrl('远程工作', 0, 20).includes('t=general'));
+});
+
+test('planner credentials fall back from deepseek to opencode', () => {
+  const envOf = (value: Record<string, string>) => value as NodeJS.ProcessEnv;
+  assert.equal(resolvePlannerCredentials(envOf({})), undefined);
+  const opencode = resolvePlannerCredentials(envOf({OPENCODE_API_KEY: 'k', OPENCODE_MODEL: 'deepseek-v4.1-flash'}));
+  assert.equal(opencode?.model, 'deepseek-v4.1-flash');
+  assert.ok(opencode?.endpoint.includes('opencode.ai'));
+  const deepseek = resolvePlannerCredentials(envOf({DEEPSEEK_API_KEY: 'd', OPENCODE_API_KEY: 'k'}));
+  assert.ok(deepseek?.endpoint.includes('deepseek.com'));
+  assert.equal(createPlannerFromEnv(envOf({})), undefined);
+  assert.equal(typeof createPlannerFromEnv(envOf({OPENCODE_API_KEY: 'k'})), 'function');
 });
 
 const mockZhurl = `import process from 'node:process';

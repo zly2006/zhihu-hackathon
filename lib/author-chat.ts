@@ -1,4 +1,5 @@
 import path from 'node:path';
+import {randomUUID} from 'node:crypto';
 import {readFile} from 'node:fs/promises';
 import {AuthorChatError} from './author-errors';
 import {resolveAuthorAvatar} from './author-avatars';
@@ -58,12 +59,13 @@ export async function replyAsAuthor(
     if((error as NodeJS.ErrnoException).code!=='ENOENT')console.warn('[author-chat]',{code:'STYLE_CARD_UNAVAILABLE'});
   }
   const credentials=getCredentials();
+  const session=randomUUID();
   const callModel=async(messages:readonly AuthorModelMessage[]):Promise<string>=>{
     let response:Response;
     try{
       response=await fetch(credentials.endpoint,{
         method:'POST',
-        headers:{Authorization:`Bearer ${credentials.key}`,'Content-Type':'application/json'},
+        headers:{Authorization:`Bearer ${credentials.key}`,'Content-Type':'application/json','x-opencode-session':session},
         body:JSON.stringify({model:credentials.model,temperature:.3,max_tokens:900,messages}),
         signal:AbortSignal.timeout(45_000),
       });
