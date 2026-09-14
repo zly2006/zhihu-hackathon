@@ -1,7 +1,7 @@
 import {NextRequest,NextResponse} from 'next/server';
 import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
-import {castPool,initial,choose,limits,publicBackgrounds,publicState,requiredCastCount,maxStages,defaultBackgroundId,type GameEvent,type CharacterProfile,type Gender} from '../../../lib/story';
+import {castPool,initial,choose,limits,publicBackgrounds,publicState,recoverStoryProgress,requiredCastCount,maxStages,defaultBackgroundId,type GameEvent,type CharacterProfile,type Gender} from '../../../lib/story';
 import {buildAuthorCatalog} from '../../../lib/author-catalogue';
 import {defaultAuthorRegistryRoot,invitedAuthorProfileBinding,readInvitedAuthor} from '../../../lib/author-registry';
 import {AUTHOR_CAST_ID_PATTERN} from '../../../lib/author-identity';
@@ -65,6 +65,7 @@ export async function POST(req:NextRequest) {
  const release=()=>{if(held){held=false;releaseLock();}};
  try {
   const latest=await readState(id);if(latest&&action!=='restart')state=latest;
+  recoverStoryProgress(state);
   if(action==='choose')choose(state,choice??-1,expected??-1);
   else if(!state.pending) {release();busy.delete(id);return NextResponse.json({state:publicState(state)});}
   await saveState(id,state);

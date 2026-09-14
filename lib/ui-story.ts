@@ -9,7 +9,7 @@ export const cast = [
 export type CastId = string;
 export type ChatMessage = {role:'user'|'assistant';text:string;sources?:AuthorSource[];evidenceStatus?:'matched'|'no-match'|'unverified'|'persona';avatar?:{id:string;displayName:string;styleStatus:'unreviewed'|'auto'|'reviewed'}};
 export type Chats = Partial<Record<CastId,ChatMessage[]>>;
-export type SaveSlot = {version:1;mode:'demo'|'live';storyId?:string;state:PublicState;line:number;chats:Chats;time:string;partner:CastId};
+export type SaveSlot = {version:1;mode:'demo'|'live';storyId?:string;state:PublicState;line:number;chats:Chats;time:string;partner:CastId;bgm?:string};
 
 export const demoOpening:PublicState = {
   storyTitle:'假如我们的人生', storyTone:'雨夜、未说出口的话，和刚刚好的相遇',
