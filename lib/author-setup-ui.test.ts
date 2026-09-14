@@ -14,25 +14,35 @@ const page = () => readFileSync(path.join(process.cwd(), 'app', 'page.tsx'), 'ut
 
 test('the setup screen starts from a two panel board with the author panel as the primary one', () => {
   const source = page();
-  assert.ok(source.includes("useState<'board'|'author'|'preset'>('board')"), 'the board must be the default view');
+  assert.ok(source.includes("useState<'board'|'author'>('board')"), 'the board must be the default view');
   assert.ok(source.includes('className="cast-board"'), 'the board grid must exist');
   assert.ok(source.includes('cast-panel cast-panel-primary'), 'the author panel must be the primary panel');
   assert.ok(source.includes('你可以邀请 AI 答主参与'), 'left panel title');
   assert.ok(source.includes('选择默认 NPC 参与'), 'right panel title');
   assert.ok(source.includes('＋ 邀请其他答主'), 'the invite entry must stay at the bottom of the left panel');
-  assert.ok(source.includes("setSetupFocus('preset')"), 'the right panel must open the npc picker');
   assert.ok(source.includes("setupFocus==='author'"), 'the author focus view must exist');
-  assert.ok(source.includes('className="cast-focus"'), 'focus views share one container');
-  assert.ok(source.includes('className="setup-cast-grid"'), 'the npc picker must still render inside the focus view');
-  assert.ok(source.includes('← 返回双板块'), 'focus views must be able to return to the board');
+  assert.ok(source.includes('className="cast-focus"'), 'the invite view keeps its own container');
+  assert.ok(source.includes('← 返回选择'), 'the invite view must be able to return to the board');
+});
+
+test('preset npcs are selectable on the board itself and scroll inside their own panel', () => {
+  const source = page();
+  assert.ok(!source.includes('进入选择'), 'the old two-step npc picker entry must be gone');
+  assert.ok(!source.includes('cast-panel-preview'), 'the read-only preview list must be gone');
+  assert.ok(source.includes('cast-panel-scroll cast-panel-scroll-presets'), 'the preset panel needs its own scroll container');
+  assert.ok(source.includes('{liveCatalog.pool.map((member)=>'), 'all eight presets render on the board');
+  assert.ok(source.includes('cast-panel-scroll'), 'panels scroll internally so the footer never moves');
+  assert.ok(source.includes('setup-cast-compact'), 'preset rows use the compact card style');
+  assert.ok(source.includes('slice(0,3)'), 'the author panel lists three cards and moves the rest into the invite view');
+  assert.ok(source.includes('位可邀请与选择'), 'the invite entry hints how many authors are left');
 });
 
 test('both panels share one four slot selection and switching focus never clears it', () => {
   const source = page();
   assert.ok(source.includes('function toggleMember(id:string)'), 'one toggle handler for both panels');
   assert.ok(source.includes('const setupMembers:SetupMember[]=[...liveCatalog.authors'), 'one shared member list');
-  const focusSwitches = source.match(/setSetupFocus\('(?:board|author|preset)'\)/g) || [];
-  assert.ok(focusSwitches.length >= 4);
+  const focusSwitches = source.match(/setSetupFocus\('(?:board|author)'\)/g) || [];
+  assert.ok(focusSwitches.length >= 3);
   for (const handler of focusSwitches) assert.ok(!handler.includes('setSelectedIds'), 'focus changes must not reset selections');
   assert.ok(!source.includes('setSelectedIds([])'), 'selection is only cleared by explicit restart');
 });
@@ -85,7 +95,7 @@ test('an invited author appears in the catalogue with derived fiction and no rom
     const profile: AuthorProfile = {
       urlToken: token, profileUrl: `https://www.zhihu.com/people/${token}`, displayName: '公开昵称',
       avatarUrl: 'https://pic1.zhimg.com/synthetic_avatar.jpg',
-      headline: '聊聊考研与学习方法', gender: '女', fetchedAt: '2026-03-01T00:00:00.000Z', source: 'zhurl',
+      headline: '聊聊考研与学习方法', gender: '女', fetchedAt: '2026-03-01T00:00:00.000Z', source: 'web',
     };
     const invited = await inviteAuthor({
       input: token,

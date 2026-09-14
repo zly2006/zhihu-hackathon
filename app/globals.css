@@ -100,3 +100,32 @@
 .cast-focus{display:flex;flex-direction:column;gap:.6cqw;margin:1cqw 0 .6cqw}
 .cast-focus-back{align-self:flex-start;padding:.35cqw .9cqw;border:1px solid #d9cae0;border-radius:999px;background:#fff8;color:#7c6688;font-size:.72cqw}
 @media(max-width:1000px) and (orientation:landscape){.cast-board{grid-template-columns:1fr;gap:1.2cqw}.cast-panel-cards{display:grid;grid-template-columns:1fr 1fr;gap:.7cqw}.cast-panel-action,.cast-panel-head p{font-size:.95cqw}.cast-card-avatar{width:5cqw;height:5cqw}.cast-card-body strong{font-size:1.15cqw}.cast-card-body small,.cast-panel-preview span{font-size:.9cqw}.cast-panel-preview b{font-size:1cqw}.cast-panel-head h3{font-size:1.3cqw}.cast-panel-kicker{font-size:.85cqw}}
+
+/* 选人页：整页不滚动，只允许面板内部滚动，底部的「继续」始终可见。 */
+.panel-setup .modal-card{display:flex;flex-direction:column;overflow:hidden}
+.panel-setup .modal-card>h2,.panel-setup .modal-description,.panel-setup .setup-selection-status,.panel-setup .setup-footer{flex:none}
+.panel-setup .modal-description{margin-bottom:.9cqw}
+.cast-board{display:grid;grid-template-columns:1.12fr 1fr;gap:1.1cqw;margin:0 0 .4cqw;align-items:stretch;flex:1;min-height:0;height:30cqw}
+.cast-panel{min-height:0}
+.cast-panel-scroll{display:flex;flex-direction:column;gap:.55cqw;flex:1;min-height:0;overflow-y:auto;overflow-x:hidden;padding-right:.35cqw;scrollbar-width:thin;scrollbar-color:#c3a8d0 transparent}
+.cast-panel-scroll::-webkit-scrollbar{width:.32cqw}
+.cast-panel-scroll::-webkit-scrollbar-thumb{background:#c3a8d0;border-radius:1em}
+.cast-panel-action-hint{margin-left:.5em;font-size:.62cqw;color:#a48fae}
+.setup-cast-compact{padding:.5cqw .6cqw;min-height:5.4cqw}
+.setup-cast-compact strong{font-size:.86cqw}
+.setup-cast-compact small{font-size:.64cqw}
+.setup-cast-compact em{font-size:.62cqw}
+@media(max-width:1000px) and (orientation:landscape){.panel-setup .modal-card{overflow:auto}.cast-board{height:auto;grid-template-columns:1fr}.cast-panel-scroll{overflow:visible;max-height:none}.setup-cast-compact{min-height:0}.cast-panel-action-hint{font-size:.85cqw}}
+
+/* 双板块里的答主卡压缩到一行摘要，保证 3 张卡 + 邀请按钮在面板内完整可见。 */
+.cast-card-board{padding:.55cqw .65cqw;gap:.6cqw;border-radius:.6cqw}
+.cast-card-board .cast-card-avatar{width:2.7cqw;height:2.7cqw}
+.cast-card-board .cast-card-body{gap:.12cqw}
+.cast-card-board .cast-card-body strong{font-size:.84cqw}
+.cast-card-board .cast-card-body small{font-size:.6cqw;display:-webkit-box;-webkit-line-clamp:1;-webkit-box-orient:vertical;overflow:hidden}
+.cast-card-board .cast-domains{font-size:.6cqw;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.cast-card-board .cast-status em{font-size:.56cqw;padding:.1cqw .45cqw}
+.cast-panel-head{gap:.15cqw}
+.cast-panel-head h3{font-size:1cqw}
+.cast-panel-head p{font-size:.64cqw;line-height:1.55}
+.cast-panel-action{padding:.5cqw 1cqw;font-size:.72cqw}
