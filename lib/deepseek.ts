@@ -1,8 +1,8 @@
-import 'server-only';
+/** @deprecated Use modelCredentials from ./model-config. Kept for legacy callers. */
+import { modelCredentials } from './model-config';
 
-export const deepseekModel=process.env.DEEPSEEK_MODEL||'deepseek-chat';
-export function deepseekCredentials(){
- const key=process.env.DEEPSEEK_API_KEY;
- if(!key)throw new Error('服务端尚未配置 DEEPSEEK_API_KEY');
- return {key,endpoint:process.env.DEEPSEEK_ENDPOINT||'https://api.deepseek.com/v1/chat/completions'};
+export const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
+export function deepseekCredentials() {
+  const config = modelCredentials();
+  return { key: config.key, endpoint: config.endpoint, model: config.model, provider: config.provider };
 }

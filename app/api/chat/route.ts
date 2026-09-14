@@ -1,8 +1,9 @@
 import {NextRequest,NextResponse} from 'next/server';
+import {randomUUID} from 'node:crypto';
 import {z} from 'zod';
 import {readState} from '../../../lib/storage';
 import {selectedCast} from '../../../lib/story';
-import {deepseekCredentials,deepseekModel} from '../../../lib/deepseek';
+import {modelCredentials} from '../../../lib/model-config';
 import {requireSession} from '../../../lib/zhihu-auth';
 import {recordChat,recordInteraction} from '../../../lib/database';
 
@@ -20,8 +21,10 @@ export async function POST(req:NextRequest){
  if(state){story=`当前剧情：${state.memory.summary||'刚刚开始'}。已发生事实：${state.memory.facts.join('；')||'暂无'}。`;const member=selectedCast(state).find((candidate)=>candidate.id===character);if(member)person={name:member.name,identity:`${member.identity}。${member.voice}`};}
  if(!person)return NextResponse.json({error:'聊天对象不属于当前故事。'},{status:400});
  try{
-  const {key,endpoint}=deepseekCredentials();
-  const response=await fetch(endpoint,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json'},body:JSON.stringify({model:deepseekModel,temperature:.8,max_tokens:180,messages:[{role:'system',content:`你扮演中文视觉小说角色${person.name}，${person.identity}。${story} 这是剧情暂停时的自由聊天，不能替玩家做选择，不要承诺尚未发生的事，不要提及系统、模型或提示词。用自然中文回复，1—3句，最多120字。`},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.text}))]}),signal:AbortSignal.timeout(30_000)});
+  const {key,endpoint,model,provider}=modelCredentials();
+  const headers:Record<string,string>={Authorization:`Bearer ${key}`,'Content-Type':'application/json'};
+  if(provider==='opencode')headers['x-opencode-session']=randomUUID();
+  const response=await fetch(endpoint,{method:'POST',headers,body:JSON.stringify({model,temperature:.8,max_tokens:180,messages:[{role:'system',content:`你扮演中文视觉小说角色${person.name}，${person.identity}。${story} 这是剧情暂停时的自由聊天，不能替玩家做选择，不要承诺尚未发生的事，不要提及系统、模型或提示词。用自然中文回复，1—3句，最多120字。`},...messages.map(m=>({role:m.role==='assistant'?'assistant':'user',content:m.text}))]}),signal:AbortSignal.timeout(30_000)});
   if(!response.ok)throw new Error(`模型服务 HTTP ${response.status}`);const body=await response.json() as {choices?:{message?:{content?:string}}[]};const text=body.choices?.[0]?.message?.content?.trim();if(!text)throw new Error('模型没有返回可显示的回复。');void recordInteraction(req,{type:'chat_reply',storyId,payload:{character,text}});return NextResponse.json({text},{headers:{'Cache-Control':'no-store'}});
  }catch(error){console.error('[chat]',error instanceof Error?error.message:'failed');return NextResponse.json({error:'这句话暂时没有送达，请稍后重试。'},{status:502});}
 }
