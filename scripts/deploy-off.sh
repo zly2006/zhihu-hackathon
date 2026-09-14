@@ -114,7 +114,8 @@ ssh off "cd '${release_dir}' && sudo env DOCKER_BUILDKIT=0 HTTP_PROXY= HTTPS_PRO
 
 echo "[seed] author corpora"
 if [[ -d .data/author-avatars ]]; then
-  tar -C .data -czf - author-avatars | ssh off "mkdir -p '${data_dir}' && tar -xzf - -C '${data_dir}'"
+  # 数据卷里的 author-avatars 由容器（root）创建，seed 必须用 sudo 才能写入既有目录。
+  tar -C .data -czf - author-avatars | ssh off "sudo mkdir -p '${data_dir}' && sudo tar -xzf - -C '${data_dir}'"
   echo "[seed] uploaded .data/author-avatars to ${data_dir} (merge, runtime caches kept)"
 else
   echo "[seed] no local .data/author-avatars; skipping" >&2
