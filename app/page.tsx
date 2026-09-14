@@ -62,7 +62,11 @@ const defaults:Preferences={speed:35,delay:3,opacity:86,fontSize:25,motion:true,
 const paths:Record<string,ReactNode>={menu:<path d="M4 6h16M4 12h16M4 18h16"/>,save:<><path d="M5 3h12l4 4v14H3V3z"/><path d="M7 3v6h9V3M7 21v-8h10v8"/></>,load:<path d="M3 19V5h6l2 3h10v3M3 19l3-8h16l-3 8z"/>,history:<><path d="M3 10a9 9 0 1 1 1 8M3 4v6h6"/><path d="M12 7v5l3 2"/></>,play:<path d="m8 4 12 8-12 8z"/>,pause:<path d="M8 5v14M16 5v14"/>,fast:<path d="m3 5 9 7-9 7zM13 5l9 7-9 7z"/>,skip:<path d="m4 5 11 7-11 7zM19 5v14"/>,chat:<path d="M21 11a9 8 0 0 1-9 8H5l-4 3 2-7a8 8 0 0 1 0-8 9 8 0 0 1 18 4ZM7 10h.01M12 10h.01M17 10h.01"/>,settings:<><path d="m10 3-1 3-3 1-3-1-1 4 3 2v3l-2 2 3 3 3-1 3 2 3-1 2-3 3-1v-4l-3-2-1-3-4-1z"/><circle cx="12" cy="12" r="3"/></>,close:<path d="m6 6 12 12M18 6 6 18"/>,full:<path d="M3 9V3h6M15 3h6v6M21 15v6h-6M9 21H3v-6"/>,heart:<path d="M12 21 3 12C-2 5 7 0 12 7c5-7 14-2 9 5z"/>,pin:<><path d="M19 9c0 5-7 12-7 12S5 14 5 9a7 7 0 1 1 14 0Z"/><circle cx="12" cy="9" r="2"/></>,arrow:<path d="M4 12h16m-6-6 6 6-6 6"/>,eye:<><path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12Z"/><circle cx="12" cy="12" r="3"/></>};
 function Icon({name}:{name:string}){return <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]||paths.menu}</svg>;}
 function Control({icon,children,...props}:{icon:string;children?:ReactNode}&React.ButtonHTMLAttributes<HTMLButtonElement>){return <button {...props}><Icon name={icon}/>{children}</button>;}
-function readLocal(key:string){try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}}
+function getBrowserStorage():Storage|null{
+  if(typeof window==='undefined')return null;
+  try{return window.localStorage||null;}catch{return null;}
+}
+function readLocal(key:string){const storage=getBrowserStorage();if(!storage)return null;try{return JSON.parse(storage.getItem(key)||'null');}catch{return null;}}
 async function readResponseJson(response:Response):Promise<Record<string,any>>{
   const raw=await response.text();
   if(!raw.trim())return {};
@@ -147,7 +151,7 @@ export default function Home(){
   function pickBgm(){const preferred=preferences.bgm;const selected=preferred==='random'?(()=>{const choices=bgmTracks.filter(track=>track.id!==bgmTrack);const pool=choices.length?choices:bgmTracks;return pool[Math.floor(Math.random()*pool.length)].id;})():preferred;setBgmTrack(selected);return selected;}
   function restartBgm(trackId?:BgmId,volume=preferences.bgmVolume){const id=trackId||bgmTrack;if(!id)return;const audio=audioRef.current;bgmHoldUntil.current=Date.now()+180;if(audio){audio.pause();audio.currentTime=0;}window.setTimeout(()=>{if(Date.now()>=bgmHoldUntil.current)playBgm(id,volume);},190);}
   function requireLogin(){setAuth((current)=>current?{...current,authorized:false,profile:null}:current);setChatOpen(false);setStarted(false);setPanel(null);setError('');notify(LOGIN_REQUIRED);}
-  function persist(key:string,value:unknown){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{notify('浏览器存储空间不足，进度暂未保存。');return false;}}
+  function persist(key:string,value:unknown){const storage=getBrowserStorage();if(!storage)return false;try{storage.setItem(key,JSON.stringify(value));return true;}catch{notify('浏览器存储空间不足，进度暂未保存。');return false;}}
   useEffect(()=>{
     const p=readLocal('lamplight_preferences');
     const savedBgm=typeof p?.bgm==='string'&&(['random',...bgmTracks.map(track=>track.id)] as string[]).includes(p.bgm)?p.bgm:'random';
@@ -160,7 +164,7 @@ export default function Home(){
     const trial=readLocal('lamplight_author_trial');if(Array.isArray(trial)&&trial.every(isChatMessage))setChats(current=>({...current,'author:zhao-ling':trial}));
     const auto=readLocal('lamplight_resume');
     if(isSaveSlot(auto)){setState(auto.state);setLine(Math.min(auto.line,Math.max(0,(auto.state.nodes.at(-1)?.lines.length||1)-1)));setMode(auto.mode);setChats(current=>({...current,...auto.chats}));storyId.current=auto.storyId;setBgmTrack(typeof auto.bgm==='string'&&bgmIds.has(auto.bgm)?auto.bgm as BgmId:initialTrack);setSelectedIds(auto.state.world.cast.map((member)=>member.id));setSelectedBackgroundId(auto.state.world.background.id);setPlayerName(auto.state.world.player.name);setPlayerGender(auto.state.world.player.gender);}
-    else{const oldId=localStorage.getItem('lamplight_story_id');if(oldId){storyId.current=oldId;void fetch(`/api/story?storyId=${encodeURIComponent(oldId)}`).then(r=>r.json()).then(d=>{if(d.state){setState(d.state);setPartial(d.state.partial);setMode('live');}}).catch(()=>setError('旧存档读取失败，请稍后重试。'));}}
+    else{const oldId=getBrowserStorage()?.getItem('lamplight_story_id');if(oldId){storyId.current=oldId;void fetch(`/api/story?storyId=${encodeURIComponent(oldId)}`).then(r=>r.json()).then(d=>{if(d.state){setState(d.state);setPartial(d.state.partial);setMode('live');}}).catch(()=>setError('旧存档读取失败，请稍后重试。'));}}
     void fetch('/api/story').then(r=>r.json()).then(d=>{const authors:AuthorMember[]=Array.isArray(d.authors)?d.authors:[];const catalog={pool:d.pool||[],authors,backgrounds:d.backgrounds||[],requiredCastCount:d.requiredCastCount||4,maxStages:d.maxStages||7,defaultBackgroundId:d.defaultBackgroundId||'university'};const available=new Set([...catalog.pool.map((member:PoolMember)=>member.id),...authors.map((author)=>author.id)]);setLiveCatalog(catalog);setSelectedBackgroundId(catalog.defaultBackgroundId);setSelectedIds((current)=>{if(current.length){const valid=current.filter((id)=>available.has(id));return valid.length===current.length?valid:[];}const authorIds=authors.filter((author)=>author.selectable!==false).map((author)=>author.id).slice(0,1);const presetIds=['m1','m3','f2','f4'].filter((id)=>catalog.pool.some((member:PoolMember)=>member.id===id));return [...authorIds,...presetIds].slice(0,catalog.requiredCastCount);});setCatalogReady(catalog.pool.length+authors.length>=catalog.requiredCastCount);}).catch(()=>setCatalogReady(false));
     const oauth=new URLSearchParams(window.location.search).get('oauth');
     void fetch('/api/auth/me',{cache:'no-store'}).then(r=>r.json()).then((payload:AuthStatus)=>{setAuth(payload);if(oauth==='success'){notify('知乎登录成功，可以开始故事了。');if(payload.authorized)setPanel('music');}if(oauth==='error')notify(payload.error?.message||'知乎登录没有完成，请重新登录。');}).catch(()=>setAuth({configured:false,authorized:false,profile:null,error:{code:'AUTH_UNAVAILABLE',message:'知乎登录状态暂时无法读取。'}}));
@@ -196,7 +200,7 @@ export default function Home(){
         selectedProfiles=profilesForStart;
       }
       const response=await fetch('/api/story',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:action==='start'||action==='restart'?undefined:storyId.current,action,...(choice!==undefined?{choice,expected:state?.nodes.length}:{}),...(['start','restart'].includes(action)?{profiles:selectedProfiles,backgroundId:selectedBackgroundId,player:{name:playerName.trim(),gender:playerGender}}:{})})});
-      const id=response.headers.get('X-Story-Id');if(id){storyId.current=id;localStorage.setItem('lamplight_story_id',id);}
+      const id=response.headers.get('X-Story-Id');if(id){storyId.current=id;const storage=getBrowserStorage();if(storage)try{storage.setItem('lamplight_story_id',id);}catch{/* WebView storage can be unavailable or read-only. */}}
       if(response.status===401){requireLogin();return;}
       if(!response.ok){const d=await readResponseJson(response);throw new Error(d.error||d.message||`故事接口返回 HTTP ${response.status}。`);}
       if(!response.headers.get('content-type')?.includes('text/event-stream')){const d=await readResponseJson(response);setState(d.state);setPartial(d.state?.partial||null);return;}
