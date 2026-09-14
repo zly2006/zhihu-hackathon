@@ -17,6 +17,7 @@ import {
   nodeSchema,
   publicBackgrounds,
   publicState,
+  recoverStoryProgress,
   resolveEnding,
   requiredCastCount,
   selectExamples,
@@ -129,6 +130,36 @@ test('a two-round tie adds a third common choice and same-gender lock enters the
   assert.equal(state.relationshipType, 'friendship');
   assert.equal(state.commonRounds, 3);
   assert.equal(totalForState(state), 7);
+});
+
+test('the final common node remains renderable before its tie-break choice', () => {
+  const state = initial(profiles, startOptions);
+  chooseTarget(state, 'm1');
+  chooseTarget(state, 'f2');
+  const finalCommon = validate(makeNode(state, commonChoices(state), '第三段'), state);
+  appendNode(state, finalCommon);
+  assert.equal(state.route, null);
+  assert.doesNotThrow(() => publicState(state));
+  assert.equal(publicState(state).stageKind, 'common');
+  assert.equal(publicState(state).stageId, 'common-3');
+  assert.doesNotThrow(() => buildModelMessages(state));
+});
+
+test('an exhausted legacy common state recovers into a route and can finish', () => {
+  const state = initial(profiles, startOptions);
+  chooseTarget(state, 'm1');
+  chooseTarget(state, 'f2');
+  chooseTarget(state, 'f2');
+  state.route = null;
+  state.relationshipType = null;
+  assert.equal(recoverStoryProgress(state), true);
+  assert.equal(state.route, 'f2');
+  assert.equal(state.relationshipType, 'friendship');
+  advanceRoute(state);
+  advanceRoute(state);
+  advanceRoute(state);
+  appendNode(state, validate(makeNode(state, [], '结局'), state));
+  assert.equal(publicState(state).complete, true);
 });
 
 test('later route choices cannot change the locked character or relationship type', () => {
