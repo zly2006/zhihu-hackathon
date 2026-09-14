@@ -1,0 +1,95 @@
+{
+  "schemaVersion": 1,
+  "batchId": "batch-004",
+  "authorUrlToken": "MarryMea",
+  "recordCount": 10,
+  "source": "zhurl-web-api",
+  "collectedAt": "2026-09-14T02:28:02.418Z",
+  "collection": {
+    "method": "profile-search",
+    "query": null,
+    "queries": [
+      {
+        "topic": "finance",
+        "query": "年轻人 理财",
+        "source": "deterministic"
+      },
+      {
+        "topic": "finance",
+        "query": "房租 压力",
+        "source": "deterministic"
+      },
+      {
+        "topic": "graduate",
+        "query": "研究生 导师",
+        "source": "deterministic"
+      },
+      {
+        "topic": "graduate",
+        "query": "读研 体验",
+        "source": "deterministic"
+      },
+      {
+        "topic": "high-school",
+        "query": "高中 分科",
+        "source": "deterministic"
+      }
+    ],
+    "sort": "search_v3",
+    "collectedAt": "2026-09-14T02:28:02.418Z",
+    "completeness": "fetched_api_content_unverified",
+    "note": "接口正文未与在线网页逐项比对。"
+  },
+  "records": [
+    {
+      "answerId": "2057528074632221731",
+      "inputFile": "answer-2057528074632221731.json",
+      "sha256": "62f3d5504998284ded204dfa93f6081b39f360eb84b30b66eb230b070fec5b16"
+    },
+    {
+      "answerId": "2061117555280982464",
+      "inputFile": "answer-2061117555280982464.json",
+      "sha256": "06eb7181f66e5b56dc4aea7522afaf62a4d5809060afd42539637d0a87f7ede7"
+    },
+    {
+      "answerId": "2061500427942769726",
+      "inputFile": "answer-2061500427942769726.json",
+      "sha256": "b1a927ad89615908db97658714f1e0ac6b3407e2bb54f0387525b5a6eb723e4a"
+    },
+    {
+      "answerId": "2060097394784604475",
+      "inputFile": "answer-2060097394784604475.json",
+      "sha256": "4f9b05eae998a2a403de043cdad459ee0418e6ac9114590eb1c06f1588e21ab1"
+    },
+    {
+      "answerId": "2055770669728768849",
+      "inputFile": "answer-2055770669728768849.json",
+      "sha256": "c0ecd9fe6df06a9b89020fb101508799f5f6e07123e0a15e5146c3d3a41c4ace"
+    },
+    {
+      "answerId": "2047094448320935663",
+      "inputFile": "answer-2047094448320935663.json",
+      "sha256": "e4a816475926f9abbd6de7ad104521907dd485dbbaad67578d49904115a391a8"
+    },
+    {
+      "answerId": "2032068347538448552",
+      "inputFile": "answer-2032068347538448552.json",
+      "sha256": "cfd1c9f03f77aa024fde733adc6c5f1ad0e071a78951823618a9ed6a54dea4f2"
+    },
+    {
+      "answerId": "2022823394777776632",
+      "inputFile": "answer-2022823394777776632.json",
+      "sha256": "07ebf44d893c61cad043df3f381fc0700abf2c5d33e1e28606fc594b1ad29e78"
+    },
+    {
+      "answerId": "2015066983868147606",
+      "inputFile": "answer-2015066983868147606.json",
+      "sha256": "bed622643a42c539bbe26eb42804bf2843dae30aed4cfd2b14b84afc877ea137"
+    },
+    {
+      "answerId": "1998354312405997156",
+      "inputFile": "answer-1998354312405997156.json",
+      "sha256": "0799126ee98d0c3758d45b8b56eafaa8c05b214ef3f78cca89305ae28a1d92ad"
+    }
+  ]
+}

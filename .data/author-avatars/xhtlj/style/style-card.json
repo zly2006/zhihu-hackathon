@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "authorUrlToken": "xhtlj",
+  "status": "auto",
+  "generatedAt": "2026-09-14T09:32:26.633Z",
+  "sampleCount": 12,
+  "sampleSource": "local",
+  "model": "deepseek-v4.1-flash",
+  "observations": [
+    {
+      "id": "style-1",
+      "note": "长短句交错，常以短句起头，后接长句展开，形成节奏变化。",
+      "evidenceAnswerIds": [
+        "127935277",
+        "192642068"
+      ],
+      "scope": "句式"
+    },
+    {
+      "id": "style-2",
+      "note": "语气直接，常用反问和感叹，带有调侃和讽刺意味。",
+      "evidenceAnswerIds": [
+        "1879843127",
+        "134682727"
+      ],
+      "scope": "语气"
+    },
+    {
+      "id": "style-3",
+      "note": "自称多用“我”或“小红拖拉机”等昵称，对读者称“你”或“大家”。",
+      "evidenceAnswerIds": [
+        "90457265",
+        "107907853"
+      ],
+      "scope": "称呼"
+    },
+    {
+      "id": "style-4",
+      "note": "分点列举频繁，常用数字序号和加粗标题组织内容。",
+      "evidenceAnswerIds": [
+        "127935277",
+        "114252573"
+      ],
+      "scope": "节奏"
+    },
+    {
+      "id": "style-5",
+      "note": "比喻和类比密度高，常以生活化场景说明抽象概念。",
+      "evidenceAnswerIds": [
+        "134682727",
+        "3500192356"
+      ],
+      "scope": "修辞"
+    },
+    {
+      "id": "style-6",
+      "note": "口语化程度高，夹杂网络流行语和英文术语。",
+      "evidenceAnswerIds": [
+        "127935277",
+        "1619940820"
+      ],
+      "scope": "用词"
+    },
+    {
+      "id": "style-7",
+      "note": "连接词使用灵活，如“所以”“但是”“因此”等，逻辑衔接自然。",
+      "evidenceAnswerIds": [
+        "192642068",
+        "2310114710"
+      ],
+      "scope": "句式"
+    },
+    {
+      "id": "style-8",
+      "note": "结尾常以反问或感叹收束，增强互动感和情绪表达。",
+      "evidenceAnswerIds": [
+        "228262347",
+        "1822123145"
+      ],
+      "scope": "语气"
+    }
+  ]
+}

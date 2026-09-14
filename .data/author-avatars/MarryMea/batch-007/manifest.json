@@ -1,0 +1,70 @@
+{
+  "schemaVersion": 1,
+  "batchId": "batch-007",
+  "authorUrlToken": "MarryMea",
+  "recordCount": 8,
+  "source": "zhurl-web-api",
+  "collectedAt": "2026-09-14T02:39:59.101Z",
+  "collection": {
+    "method": "profile-search",
+    "query": null,
+    "queries": [
+      {
+        "topic": "high-school",
+        "query": "高中阶段最焦虑的事",
+        "source": "model"
+      },
+      {
+        "topic": "high-school",
+        "query": "高中时候的学习压力",
+        "source": "model"
+      }
+    ],
+    "sort": "search_v3",
+    "collectedAt": "2026-09-14T02:39:59.101Z",
+    "completeness": "fetched_api_content_unverified",
+    "note": "接口正文未与在线网页逐项比对。"
+  },
+  "records": [
+    {
+      "answerId": "1133851070",
+      "inputFile": "answer-1133851070.json",
+      "sha256": "3611b6af6a8ba806af6b85816ca42f7b0d7294da5447ff764aeab9a794385113"
+    },
+    {
+      "answerId": "2069066270465697120",
+      "inputFile": "answer-2069066270465697120.json",
+      "sha256": "b7217a67fadf8c0d0fd34d9469dbd0b8c5813e1aba2db0ed4e749a6db569edce"
+    },
+    {
+      "answerId": "1131697466",
+      "inputFile": "answer-1131697466.json",
+      "sha256": "f944161e006391b40870d7c189dab88b89c74c10a48f91c03a93a9a1c218fb19"
+    },
+    {
+      "answerId": "2044343629813221189",
+      "inputFile": "answer-2044343629813221189.json",
+      "sha256": "f8a7c261cea32677b9e7456d20278f620543763f84c12265c8c0e326e544a8d5"
+    },
+    {
+      "answerId": "2030977455104771736",
+      "inputFile": "answer-2030977455104771736.json",
+      "sha256": "18f9969d62e5a754ab31f4dbb7cef7a5ca8b5006856ea1f0dc8d0d7f44082c34"
+    },
+    {
+      "answerId": "2027008544122094889",
+      "inputFile": "answer-2027008544122094889.json",
+      "sha256": "03f418251578b05f2d2005f0dae367befb17a9a5275d4f8ee8b7e92720ee7c0b"
+    },
+    {
+      "answerId": "2005250915041564332",
+      "inputFile": "answer-2005250915041564332.json",
+      "sha256": "de5493625155219f79c9c566288b5d077b2441a7a9fbc2535a12e6401efad305"
+    },
+    {
+      "answerId": "1978469480779753438",
+      "inputFile": "answer-1978469480779753438.json",
+      "sha256": "87f2d6c842b47853f18d79e5c71193d4aaefc19f513db9cfcb8ef6b01d3e760d"
+    }
+  ]
+}

@@ -116,7 +116,16 @@
 | 席南 | Sean Ye | 求职方法 / 简历与面试 / 职场适应 | 15 条 | ✗ |
 
 - 选人来源：知乎话题「优秀回答者」（考研 / 科研 / 求职 / 学习方法 / 大学 / 专业选择 / 心理学 / 职业规划 / 高考），再逐个验证主页可读与回答量。
-- 语料用现有在线采集脚本补齐（`--mode top --limit 15`），保存在 gitignore 的 `.data/author-avatars/<token>/`，不随仓库提交；换机器时名册仍在，语料显示「资料待补充」，引用走在线来源。
+- 语料用现有在线采集脚本补齐（`--mode top --limit 15`），保存在 `.data/author-avatars/<token>/`。
+- **公开语料快照已随仓库提交**（按产品要求）：`batch-*/answer-*.json` + `manifest.json`（139 条回答 + 14 份清单）、`style/style-card.json`（8 份自动风格卡）、`avatar/avatar.*`（8 张主页头像缓存）。`.data/` 仍在 `.gitignore` 中，新增这些文件用显式白名单强制加入：
+
+  ```powershell
+  git add -f ".data/author-avatars/*/batch-*/answer-*.json" ".data/author-avatars/*/batch-*/manifest.json" `
+             ".data/author-avatars/*/style/style-card.json" ".data/author-avatars/*/avatar/avatar.*"
+  ```
+
+- 运行时缓存（`runtime-cache/`：profile、检索缓存、负缓存、回答缓存）、`.data/sessions/`、`.data/requests/`、`.env`、`.tmp/`、`localdata/`、`narrative-kb/` 仍然排除在外，不做提交。
+- 语料为公开回答的接口快照，`completeness=fetched_api_content_unverified`（未与在线网页逐项比对、未经人工审核）；引用时只作为可追溯来源，不复制全文到回复里。
 - 除林泠外全部默认关闭恋爱线；化名的性别与人生身份是虚构设定，卡片上以「性别与人生身份为虚构设定」标注。
 
 ```text
@@ -281,7 +290,7 @@ https://evil.test/… → 400 AUTHOR_INPUT_UNSUPPORTED_URL
 - 未创建任何 commit（本轮未收到提交指令），因此 **无 commit hash**。
 - **明确没有 push**，也没有 fetch/rebase。
 - 未回滚、未删除任何既有未跟踪目录（`localdata/`、`narrative-kb/`、`.superpowers/`、`.workbuddy/`、`docs/superpowers/`、`zhihu-cli-skill-*`、`知乎 Galgame设计/`）。
-- 未提交 `.env`、cookie、真实语料、`.data/`、临时目录或本地资料；新增的注册表运行时数据只写入 gitignore 的 `.data/author-cast/`，本轮测试使用临时目录并已清理。
+- 未提交 `.env`、cookie、App Key、Access Secret、API key；`.data/author-cast/`（邀请注册表）、`.data/sessions/`、`.data/requests/`、`.tmp/`、`localdata/`、`narrative-kb/` 保持不提交；**已按产品要求提交**：8 位答主的公开语料快照、8 份自动风格卡与 8 张主页头像缓存（见 5.1 节的显式白名单命令）。
 - 修改文件（17 个已跟踪）：`app/api/chat/route.ts`、`app/api/story/route.ts`、`app/globals.css`、`app/page.tsx`、`lib/author-{avatars,cast,chat,retrieval,style}.ts` 及对应测试、`lib/chat-request.ts`、`lib/portraits.ts`、`lib/story.ts`、`lib/ui-story.ts`、`.env.example`。
 - 删除文件（4 个已跟踪）：`lib/author-tools.ts`、`lib/author-agent.ts` 及其测试（被预检索 + 单次自由回答框架取代）。
 - 新增文件（24 个，含 10 个测试）：`app/api/authors/invite/route.ts`、`lib/author-cache.ts`、`lib/author-catalogue.ts`、`lib/author-conversation.ts`、`lib/author-evidence.ts`、`lib/author-identity.ts`、`lib/author-intent.ts`、`lib/author-invite.ts`、`lib/author-live-provider.ts`、`lib/author-provider.ts`、`lib/author-provider-official.ts`、`lib/author-provider-zhurl.ts`、`lib/author-registry.ts`、`lib/author-runtime-config.ts` 与 `lib/author-{cache,conversation,evidence,invite,oauth-boundary,portraits-invited,provider,provider-zhurl,setup-ui}.test.ts`。

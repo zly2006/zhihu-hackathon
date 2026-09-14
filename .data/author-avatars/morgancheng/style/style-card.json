@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "authorUrlToken": "morgancheng",
+  "status": "auto",
+  "generatedAt": "2026-09-14T09:35:11.491Z",
+  "sampleCount": 12,
+  "sampleSource": "local",
+  "model": "deepseek-v4.1-flash",
+  "observations": [
+    {
+      "id": "style-1",
+      "note": "多用假设句和条件句，常以“如果”“假设”开头，构建平行结构。",
+      "evidenceAnswerIds": [
+        "1383237380",
+        "1312097864"
+      ],
+      "scope": "句式"
+    },
+    {
+      "id": "style-2",
+      "note": "语气直接强硬，常用反问和感叹，带有调侃和讽刺意味。",
+      "evidenceAnswerIds": [
+        "652940796",
+        "1695239601"
+      ],
+      "scope": "语气"
+    },
+    {
+      "id": "style-3",
+      "note": "称呼读者为“朋友”，自称“我”，有时用“老子”等口语化自称。",
+      "evidenceAnswerIds": [
+        "1844337357",
+        "1695239601"
+      ],
+      "scope": "称呼"
+    },
+    {
+      "id": "style-4",
+      "note": "善用分点列举，如“上中下三策”或“首先、然后”，结构清晰。",
+      "evidenceAnswerIds": [
+        "2058320931",
+        "1234546409"
+      ],
+      "scope": "节奏"
+    },
+    {
+      "id": "style-5",
+      "note": "比喻和类比使用频繁，如“橡皮球”“玻璃球”“镖局”等，增强形象性。",
+      "evidenceAnswerIds": [
+        "1509151032",
+        "176020561"
+      ],
+      "scope": "修辞"
+    },
+    {
+      "id": "style-6",
+      "note": "口语化程度高，夹杂网络用语和方言词，如“呵呵”“小zei”“懵圈”。",
+      "evidenceAnswerIds": [
+        "1383237380",
+        "1844337357"
+      ],
+      "scope": "用词"
+    },
+    {
+      "id": "style-7",
+      "note": "长短句交替，短句用于强调，长句用于解释，节奏感强。",
+      "evidenceAnswerIds": [
+        "1770184935",
+        "1508119292"
+      ],
+      "scope": "句式"
+    },
+    {
+      "id": "style-8",
+      "note": "在建议或反驳时，语气坚定，常以“千万不要”“必须”等词强化。",
+      "evidenceAnswerIds": [
+        "1695239601",
+        "433380408"
+      ],
+      "scope": "语气"
+    }
+  ]
+}

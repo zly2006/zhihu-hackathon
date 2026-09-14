@@ -1,0 +1,21 @@
+{
+  "snapshotId": "ebd03c7b-f5d5-4ac7-8e41-fe1f7a189276",
+  "answerId": "2047591815319181103",
+  "canonicalUrl": "https://www.zhihu.com/answer/2047591815319181103",
+  "authorName": "赵泠",
+  "authorUrlToken": "MarryMea",
+  "authorProfileUrl": "https://www.zhihu.com/people/MarryMea",
+  "questionTitle": "长期远程工作将对人的心理产生什么影响啊？",
+  "sourceUrl": "https://www.zhihu.com/answer/2047591815319181103",
+  "bodyFormat": "HTML",
+  "body": "远程工作对人心理健康的影响建立在现代雇佣劳动普遍存在的身心压力背景上。无论是在办公室、出租屋还是在热闹的家里，劳动者都面临异化、身心压力、重复劳动等结构性损害。\n远程工作可能通过延长独居者的独处时间带来额外的孤独感，参与引发一些人的焦虑、抑郁。这种效应是有限的、不稳定的，可以随着时间流逝被许多人适应。\nBenjamin Cowan 等发表的 NBER 工作论文 34914 号指出，英国家庭纵向调查（UKHLS）数据显示，新冠疫情期间远程工作带来的负面心理影响（孤独感、心理困扰）是短暂的，到 2023 年就消失了。\n远程工作可能导致工作时间延长、工作强度增加、工作与生活边界模糊，在一些人身上引发疲劳和压力。看起来，社会需要引导人们不做太多工作、给自己设定明确的开始工作仪式、停止工作仪式和时间表。\n远程工作节省通勤时间、提高工作灵活性、降低社交负荷，这些优点可能在很大程度上抵消孤独带来的净损害。对于和家人同住的远程工作者，孤独的损害更不显著。长期远程工作的总体心理效应可能是微弱、异质乃至中性的。\nGajendran & Harrison (2007) 的分析显示，远程工作与工作满意度正相关，与角色压力负相关，效应量小。高强度远程工作（超过每周 2.5 天）对同事关系有负面影响。\n更新的分析（例如 De Vincenzi et al., 2022）显示，远程工作的影响高度依赖工作强度、个人偏好、家庭支持。\n单程 40 分钟以上的长时间通勤是工作中最令人不愉快的部分，一些劳动者在抵达工位前就晕车了。Chatterjee et al. (2020) 等研究发现，通勤时间缩短与生活满意度增加相关，居家办公与工作满意度增加和休闲时间满意度增加相关。\n养宠物、利用视频电话与亲友互动、使用语音控制人工智能助手等行为对独居远程工作者的孤独感的影响有待研究。统计显示，许多独居远程工作者在休息日并未“报复性社交”，现在也不清楚鼓励他们在休息日更多地与人进行互动的心理后果。一些人偏好低社交，容易发生社交倦怠、耗竭，降低休息日的心理恢复质量。",
+  "capturedAt": "2026-08-21 09:24:27.810576+00:00",
+  "sourceCreatedAt": "2026-06-09 00:12:11+00:00",
+  "upstreamContentHash": "e785d714ee95931c47e9503bb9f021cd65fc7804a68f4db32d425bc2c97e1fa4",
+  "upstreamReviewStatus": "UNREVIEWED",
+  "schemaVersion": 1,
+  "acquisitionMethod": "readonly_postgresql_content_snapshot",
+  "completeness": "stored_body_unverified_against_live_page",
+  "bodyCharacters": 872,
+  "bodySha256": "71ffb66b9fc5b602c0a8466ce8ccfb02c2fbd81fe687b66b59a344237c4a270d"
+}
