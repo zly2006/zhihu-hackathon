@@ -149,3 +149,6 @@
 .game-shell.viewport-portrait .portrait-auto-rotate{padding:12px 22px;border:2px solid #fff4bd;border-radius:999px;background:#fff0a8;color:#392d45;box-shadow:0 8px 28px #150f2077;font-size:18px;letter-spacing:.04em}
 .game-shell.viewport-portrait .portrait-notice h2{font-size:21px;line-height:1.8}
 .game-shell.viewport-portrait .portrait-notice p{font-size:12px;letter-spacing:3px;color:#bfa9c9}
+
+/* Native dialog percentages also resolve against the broken 0px viewport. */
+.game-dialog,.chat-dialog{position:fixed;inset:0 auto auto 0;width:100vw;height:var(--app-height);max-width:none;max-height:none;margin:0}
