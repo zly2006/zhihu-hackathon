@@ -1,0 +1,45 @@
+{
+  "schemaVersion": 1,
+  "batchId": "batch-006",
+  "authorUrlToken": "MarryMea",
+  "recordCount": 1,
+  "source": "zhurl-web-api",
+  "collectedAt": "2026-09-14T02:38:42.566Z",
+  "collection": {
+    "method": "profile-search",
+    "query": null,
+    "queries": [
+      {
+        "topic": "high-school",
+        "query": "高中 分科",
+        "source": "deterministic"
+      },
+      {
+        "topic": "high-school",
+        "query": "艺考 经验",
+        "source": "deterministic"
+      },
+      {
+        "topic": "romance",
+        "query": "异地恋 经验",
+        "source": "deterministic"
+      },
+      {
+        "topic": "romance",
+        "query": "表白 建议",
+        "source": "deterministic"
+      }
+    ],
+    "sort": "search_v3",
+    "collectedAt": "2026-09-14T02:38:42.566Z",
+    "completeness": "fetched_api_content_unverified",
+    "note": "接口正文未与在线网页逐项比对。"
+  },
+  "records": [
+    {
+      "answerId": "2029979090002895123",
+      "inputFile": "answer-2029979090002895123.json",
+      "sha256": "6e6298eb138ef7ff5c2e79c66c9ddc53af00e72cff69ea21378510109bc4d110"
+    }
+  ]
+}

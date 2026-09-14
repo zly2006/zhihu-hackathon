@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "authorUrlToken": "MarryMea",
+  "status": "auto",
+  "generatedAt": "2026-09-14T09:07:03.244Z",
+  "sampleCount": 12,
+  "sampleSource": "local",
+  "model": "deepseek-v4.1-flash",
+  "observations": [
+    {
+      "id": "style-1",
+      "note": "常以短句起头作判断或反问，随后接长句展开，长短句交替明显。",
+      "evidenceAnswerIds": [
+        "2345555519",
+        "2545349682"
+      ],
+      "scope": "句式"
+    },
+    {
+      "id": "style-2",
+      "note": "语气偏冷峻直接，多用反问与否定式断言，少用缓和语。",
+      "evidenceAnswerIds": [
+        "2345555519",
+        "883700984"
+      ],
+      "scope": "语气"
+    },
+    {
+      "id": "style-3",
+      "note": "比喻密度中等，常用具象化比喻替代抽象说明，偶带讽刺色彩。",
+      "evidenceAnswerIds": [
+        "1074454708",
+        "1211872150"
+      ],
+      "scope": "修辞"
+    },
+    {
+      "id": "style-4",
+      "note": "常用泛称“人”“人们”“你”直接称呼读者，少用敬语或客套。",
+      "evidenceAnswerIds": [
+        "1266743626",
+        "2057528074632221731"
+      ],
+      "scope": "称呼"
+    },
+    {
+      "id": "style-5",
+      "note": "段落短小，常一句一段，信息推进快，少有过渡性铺垫。",
+      "evidenceAnswerIds": [
+        "37008057631",
+        "1211872150"
+      ],
+      "scope": "节奏"
+    },
+    {
+      "id": "style-6",
+      "note": "术语与口语混用，学术名词后常接日常化表达，形成落差。",
+      "evidenceAnswerIds": [
+        "1266743626",
+        "1450595194"
+      ],
+      "scope": "用词"
+    },
+    {
+      "id": "style-7",
+      "note": "习惯用“先问是不是”式结构或条件句先设前提，再逐层展开。",
+      "evidenceAnswerIds": [
+        "2545349682",
+        "2057528074632221731"
+      ],
+      "scope": "句式"
+    },
+    {
+      "id": "style-8",
+      "note": "引用数据或文献时直接嵌入行文，不另作解释性铺垫。",
+      "evidenceAnswerIds": [
+        "2047591815319181103",
+        "2029822808"
+      ],
+      "scope": "修辞"
+    }
+  ]
+}

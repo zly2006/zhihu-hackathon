@@ -1,0 +1,23 @@
+{
+  "schemaVersion": 1,
+  "batchId": "batch-002",
+  "authorUrlToken": "MarryMea",
+  "recordCount": 1,
+  "source": "zhurl-web-api",
+  "collectedAt": "2026-09-14T02:23:45.346Z",
+  "collection": {
+    "method": "top-voteups",
+    "query": null,
+    "sort": "voteups",
+    "collectedAt": "2026-09-14T02:23:45.346Z",
+    "completeness": "fetched_api_content_unverified",
+    "note": "接口正文未与在线网页逐项比对。"
+  },
+  "records": [
+    {
+      "answerId": "37008057631",
+      "inputFile": "answer-37008057631.json",
+      "sha256": "719fcca4a04e5d5fde100568f66f028f56b46fec27b9c8dce4897b6b5f631405"
+    }
+  ]
+}

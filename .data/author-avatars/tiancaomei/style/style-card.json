@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "authorUrlToken": "tiancaomei",
+  "status": "auto",
+  "generatedAt": "2026-09-14T09:34:15.301Z",
+  "sampleCount": 12,
+  "sampleSource": "local",
+  "model": "deepseek-v4.1-flash",
+  "observations": [
+    {
+      "id": "style-1",
+      "note": "长短句交替，常用短句独立成段，如“很难。”，也常见复杂长句，结构灵活。",
+      "evidenceAnswerIds": [
+        "705748718",
+        "2855851057"
+      ],
+      "scope": "句式"
+    },
+    {
+      "id": "style-2",
+      "note": "语气直接肯定，常用“我觉得”“我认为”等主观表达，态度鲜明，有时带调侃。",
+      "evidenceAnswerIds": [
+        "1919790852",
+        "1225454712"
+      ],
+      "scope": "语气"
+    },
+    {
+      "id": "style-3",
+      "note": "善用比喻和类比，如“配方还原机”“自毁长城”，修辞密度中等，增强解释力。",
+      "evidenceAnswerIds": [
+        "498939249",
+        "698962880"
+      ],
+      "scope": "修辞"
+    },
+    {
+      "id": "style-4",
+      "note": "常用“大家”“各位”“我们”等称呼，拉近与读者距离，营造交流感。",
+      "evidenceAnswerIds": [
+        "1683261139",
+        "561740085"
+      ],
+      "scope": "称呼"
+    },
+    {
+      "id": "style-5",
+      "note": "常分点列举，使用数字、项目符号或“首先”“另外”等连接词，节奏清晰。",
+      "evidenceAnswerIds": [
+        "487319575",
+        "1919790852"
+      ],
+      "scope": "节奏"
+    },
+    {
+      "id": "style-6",
+      "note": "口语化明显，夹杂网络用语如“贼长”“吃瓜”，同时穿插专业术语，风格混搭。",
+      "evidenceAnswerIds": [
+        "2855851057",
+        "1338620902"
+      ],
+      "scope": "用词"
+    },
+    {
+      "id": "style-7",
+      "note": "多用括号补充说明或插入注释，如“（仅代表个人观点）”，增加信息量。",
+      "evidenceAnswerIds": [
+        "2855851057",
+        "1683261139"
+      ],
+      "scope": "句式"
+    },
+    {
+      "id": "style-8",
+      "note": "在论述中常带反问或设问，如“为什么美国会落后？”，引导读者思考。",
+      "evidenceAnswerIds": [
+        "705748718",
+        "1919790852"
+      ],
+      "scope": "语气"
+    }
+  ]
+}

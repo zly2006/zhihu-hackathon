@@ -1,0 +1,78 @@
+{
+  "schemaVersion": 1,
+  "batchId": "batch-001",
+  "authorUrlToken": "morgancheng",
+  "recordCount": 12,
+  "source": "zhurl-web-api",
+  "collectedAt": "2026-09-14T09:32:05.907Z",
+  "collection": {
+    "method": "top-voteups",
+    "query": null,
+    "sort": "voteups",
+    "collectedAt": "2026-09-14T09:32:05.907Z",
+    "completeness": "fetched_api_content_unverified",
+    "note": "接口正文未与在线网页逐项比对。"
+  },
+  "records": [
+    {
+      "answerId": "1383237380",
+      "inputFile": "answer-1383237380.json",
+      "sha256": "181138bbde4e7b391df8fb30436debff5b84bc994a2609c08a430054e5178d4c"
+    },
+    {
+      "answerId": "2058320931",
+      "inputFile": "answer-2058320931.json",
+      "sha256": "d052a64785cfb674ae35a64f1e0215c220ba3c0fe1233bfcb532677102afda13"
+    },
+    {
+      "answerId": "1509151032",
+      "inputFile": "answer-1509151032.json",
+      "sha256": "a81bb90b943f2cc435c2af0298c4284c520f4510e79ad58d10ed26512c49588f"
+    },
+    {
+      "answerId": "1844337357",
+      "inputFile": "answer-1844337357.json",
+      "sha256": "72f4b2d315b4b2856b05d3d22680faaf729ec4f411ef7217232f8621d3da432a"
+    },
+    {
+      "answerId": "176020561",
+      "inputFile": "answer-176020561.json",
+      "sha256": "2b49884d1ffa790a78e35f4b6ee8dcd0010509d8eb869a9cd56e1d4abbc3d597"
+    },
+    {
+      "answerId": "652940796",
+      "inputFile": "answer-652940796.json",
+      "sha256": "096827d2a8b3c848c470e8907d0151651b32b698ddd8b9d06d06e6d69f40ef88"
+    },
+    {
+      "answerId": "1695239601",
+      "inputFile": "answer-1695239601.json",
+      "sha256": "925dd23dd365c47f51f152737ca6f1e98dd56af43c253bcfcf515801b1a9a750"
+    },
+    {
+      "answerId": "1312097864",
+      "inputFile": "answer-1312097864.json",
+      "sha256": "bc0eb9e1687812143a4438cbbff84b08b6b4669d627d5929496a0213ce4dd88c"
+    },
+    {
+      "answerId": "1770184935",
+      "inputFile": "answer-1770184935.json",
+      "sha256": "5ce22890c90f4572605f3b16cbef2b24cdefe187876fcd79f1d1d0e18cfea8e4"
+    },
+    {
+      "answerId": "433380408",
+      "inputFile": "answer-433380408.json",
+      "sha256": "5e66ab8848768b8983a6b539b712ae51d94e7f9b8e831430937eebfda42f58ff"
+    },
+    {
+      "answerId": "1508119292",
+      "inputFile": "answer-1508119292.json",
+      "sha256": "3a0f13b87be2293cb0296b437500710ca05961efecb9071d0b97e669b47d649e"
+    },
+    {
+      "answerId": "1234546409",
+      "inputFile": "answer-1234546409.json",
+      "sha256": "549a6fe211531d1e25167b8679ccacb9c0da23c351d7c9072ef5a0d1ea575a96"
+    }
+  ]
+}

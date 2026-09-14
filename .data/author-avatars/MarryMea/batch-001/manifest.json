@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "batchId": "MarryMea-batch-001",
+  "authorUrlToken": "MarryMea",
+  "sourceAuthorName": "赵泠",
+  "userConfirmedProfileUrl": "https://www.zhihu.com/people/MarryMea",
+  "generatedAt": "2026-09-13T12:53:03.936664+00:00",
+  "recordCount": 1,
+  "inputTokens": null,
+  "tokenCountStatus": "not_measured_no_model_processing_performed",
+  "modelProcessingAllowed": false,
+  "corpusStatus": "single_topic_evidence_only_style_not_validated",
+  "records": [
+    {
+      "answerId": "2047591815319181103",
+      "inputFile": "answer-2047591815319181103.json",
+      "sourceUrl": "https://www.zhihu.com/answer/2047591815319181103",
+      "title": "长期远程工作将对人的心理产生什么影响啊？",
+      "bodyCharacters": 872,
+      "inputBytes": 3322,
+      "sha256": "6d28f49573f7caf6edc8130a3378112249616fbe5cc538bb921a745f03d8a7c8",
+      "authorIdentityEvidence": [
+        "user_provided_profile_token",
+        "database_snapshot_author_url_token"
+      ],
+      "completeness": "stored_body_unverified_against_live_page",
+      "recordStatus": "exported_not_style_reviewed"
+    }
+  ],
+  "discovery": {
+    "localEventLibraryTargetAnswers": 0,
+    "databaseTargetAnswers": 1,
+    "hackathonKnowledgeListCount": 10,
+    "hackathonMatchingMetadataCount": 0,
+    "officialSearchCalls": 2,
+    "officialSearchResultCount": 20,
+    "officialSearchTargetAuthorCount": 0
+  }
+}

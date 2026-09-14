@@ -1,0 +1,83 @@
+{
+  "version": 1,
+  "authorUrlToken": "rq-cen",
+  "status": "auto",
+  "generatedAt": "2026-09-14T09:32:26.170Z",
+  "sampleCount": 12,
+  "sampleSource": "local",
+  "model": "deepseek-v4.1-flash",
+  "observations": [
+    {
+      "id": "style-1",
+      "note": "多用短句和分点罗列，常以数字或序数词领起并列结构，句子简短直接。",
+      "evidenceAnswerIds": [
+        "725351058",
+        "781497520"
+      ],
+      "scope": "句式"
+    },
+    {
+      "id": "style-2",
+      "note": "语气自信甚至略带调侃，常用感叹号和反问句强化态度，偶尔自嘲。",
+      "evidenceAnswerIds": [
+        "777463775",
+        "907317759"
+      ],
+      "scope": "语气"
+    },
+    {
+      "id": "style-3",
+      "note": "比喻和类比密度较高，常用生活化或学科化的比喻说明抽象道理。",
+      "evidenceAnswerIds": [
+        "2985284898",
+        "781497520"
+      ],
+      "scope": "修辞"
+    },
+    {
+      "id": "style-4",
+      "note": "常以“你”“同学”“朋友”等第二人称直接称呼读者，拉近距离。",
+      "evidenceAnswerIds": [
+        "725351058",
+        "777463775"
+      ],
+      "scope": "称呼"
+    },
+    {
+      "id": "style-5",
+      "note": "段落短小，常以单句成段制造停顿和强调，节奏明快。",
+      "evidenceAnswerIds": [
+        "1626970939",
+        "908221226"
+      ],
+      "scope": "节奏"
+    },
+    {
+      "id": "style-6",
+      "note": "口语化程度高，夹杂网络用语和英文缩写，用词直白不避俚俗。",
+      "evidenceAnswerIds": [
+        "907317759",
+        "877366817"
+      ],
+      "scope": "用词"
+    },
+    {
+      "id": "style-7",
+      "note": "善用“不是……而是……”“与其……不如……”等对比句式突出观点。",
+      "evidenceAnswerIds": [
+        "2985284898",
+        "781497520"
+      ],
+      "scope": "句式"
+    },
+    {
+      "id": "style-8",
+      "note": "在叙述个人经历时语气轻松幽默，常以自嘲或反讽收束段落。",
+      "evidenceAnswerIds": [
+        "908221226",
+        "1106415205"
+      ],
+      "scope": "语气"
+    }
+  ]
+}
