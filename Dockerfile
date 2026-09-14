@@ -24,6 +24,8 @@ COPY --from=builder /app/.next/static ./.next/static
 COPY --from=builder /app/public ./public
 COPY --from=builder /app/scripts/db-migrate.mjs ./scripts/db-migrate.mjs
 COPY --from=builder /app/db ./db
+# 答主语料/风格卡/头像不进镜像：部署脚本会把 .data/author-avatars 同步到宿主机数据卷，
+# 再以 /app/.data 挂载进来（见 scripts/deploy-off.sh 的 [seed] 步骤）。
 
 EXPOSE 3000
 CMD ["node", "server.js"]

@@ -112,6 +112,14 @@ echo "[build] ${image_tag}"
 ssh off "cd '${release_dir}' && sudo env DOCKER_BUILDKIT=0 HTTP_PROXY= HTTPS_PROXY= ALL_PROXY= \\
   docker build --pull=false --network host -t '${image_tag}' ."
 
+echo "[seed] author corpora"
+if [[ -d .data/author-avatars ]]; then
+  tar -C .data -czf - author-avatars | ssh off "mkdir -p '${data_dir}' && tar -xzf - -C '${data_dir}'"
+  echo "[seed] uploaded .data/author-avatars to ${data_dir} (merge, runtime caches kept)"
+else
+  echo "[seed] no local .data/author-avatars; skipping" >&2
+fi
+
 echo "[db] migrate"
 ssh off "sudo docker run --rm --add-host host.docker.internal:host-gateway --env-file '${remote_env_file}' '${image_tag}' node scripts/db-migrate.mjs"
 

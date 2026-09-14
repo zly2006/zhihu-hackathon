@@ -19,7 +19,7 @@ const inviteBinding = invitedAuthorProfileBinding({
   personaStatus: 'fictional',
   disclosure: '基于知乎公开内容改编的虚构 AI 角色',
   authorSnapshot: {authorUrlToken: token, profileHash: authorBindingHash(token), capturedAt: '2026-03-01T00:00:00.000Z'},
-  source: {displayName: '公开昵称', headline: '聊聊职业规划', profileUrl: `https://www.zhihu.com/people/${token}`, fetchedAt: '2026-03-01T00:00:00.000Z', kind: 'zhurl'},
+  source: {displayName: '公开昵称', headline: '聊聊职业规划', profileUrl: `https://www.zhihu.com/people/${token}`, fetchedAt: '2026-03-01T00:00:00.000Z', kind: 'web'},
   invitedAt: '2026-03-01T00:00:00.000Z',
 } satisfies InvitedAuthor);
 
@@ -27,7 +27,7 @@ const source = (file: string) => readFileSync(path.join(process.cwd(), 'lib', fi
 const appSource = (file: string) => readFileSync(path.join(process.cwd(), 'app', ...file.split('/')), 'utf8');
 
 test('oauth credentials never enter author runtime modules', () => {
-  const modules = ['author-conversation.ts', 'author-evidence.ts', 'author-intent.ts', 'author-chat.ts', 'author-provider.ts', 'author-provider-official.ts', 'author-provider-zhurl.ts', 'author-live-provider.ts', 'author-invite.ts', 'author-registry.ts', 'author-catalogue.ts', 'author-runtime-config.ts'];
+  const modules = ['author-conversation.ts', 'author-evidence.ts', 'author-intent.ts', 'author-chat.ts', 'author-provider.ts', 'author-provider-official.ts', 'author-provider-zhihu-web.ts', 'author-web-credentials.ts', 'author-rate-limit.ts', 'author-live-provider.ts', 'author-invite.ts', 'author-registry.ts', 'author-catalogue.ts', 'author-runtime-config.ts'];
   for (const file of modules) {
     const text = source(file);
     for (const forbidden of ['authorization_code', 'access_token', 'app_key', 'app_secret', 'refresh_token']) {

@@ -10,7 +10,7 @@ const now = Date.parse('2026-03-01T00:00:00.000Z');
 const ref = (urlToken: string): AuthorRef => ({provider: 'zhihu', urlToken, profileUrl: `https://www.zhihu.com/people/${urlToken}`});
 const profile = (urlToken: string): AuthorProfile => ({
   urlToken, profileUrl: `https://www.zhihu.com/people/${urlToken}`, displayName: '合成答主',
-  gender: '女', fetchedAt: new Date(now).toISOString(), source: 'zhurl',
+  gender: '女', fetchedAt: new Date(now).toISOString(), source: 'web',
 });
 const summary = (urlToken: string, answerId = '1001'): AnswerSummary => ({
   answerId, authorUrlToken: urlToken, questionTitle: '合成问题',

@@ -15,7 +15,7 @@ export const EVIDENCE_EXCERPT_CHARS = 160;
 export const EVIDENCE_DETAIL_PARAGRAPHS = 6;
 export const EVIDENCE_DETAIL_BYTES = 1200;
 
-export type AuthorProviderStatus = 'unused' | 'used' | 'no-match' | 'auth-required' | 'rate-limited' | 'unsupported' | 'unavailable' | 'invalid';
+export type AuthorProviderStatus = 'unused' | 'used' | 'no-match' | 'auth-required' | 'rate-limited' | 'unsupported' | 'unavailable' | 'invalid' | 'source-unconfigured';
 
 export type EvidenceOrigin = 'local' | 'online-search' | 'online-detail';
 
@@ -45,6 +45,7 @@ export function providerErrorStatus(error: unknown): {status: AuthorProviderStat
     if (error.code === 'AUTHOR_RATE_LIMITED') return {status: 'rate-limited', code: error.code};
     if (error.code === 'AUTHOR_CONTENT_UNSUPPORTED') return {status: 'unsupported', code: error.code};
     if (error.code === 'AUTHOR_EVIDENCE_INVALID') return {status: 'invalid', code: error.code};
+    if (error.code === 'AUTHOR_SOURCE_UNCONFIGURED') return {status: 'source-unconfigured', code: error.code};
     return {status: 'unavailable', code: error.code};
   }
   return {status: 'unavailable', code: 'AUTHOR_PROVIDER_UNAVAILABLE'};

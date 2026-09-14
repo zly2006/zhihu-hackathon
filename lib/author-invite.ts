@@ -37,7 +37,8 @@ export type AuthorInviteErrorCode =
   | 'AUTHOR_RATE_LIMITED'
   | 'AUTHOR_NOT_FOUND'
   | 'AUTHOR_CONTENT_UNSUPPORTED'
-  | 'AUTHOR_EVIDENCE_INVALID';
+  | 'AUTHOR_EVIDENCE_INVALID'
+  | 'AUTHOR_SOURCE_UNCONFIGURED';
 
 export class AuthorInviteError extends Error {
   constructor(message: string, readonly code: AuthorInviteErrorCode, readonly status = 400) {
@@ -150,7 +151,7 @@ export async function inviteAuthor(options: InviteAuthorOptions): Promise<Invite
       ...(profile.avatarUrl ? {avatarUrl: profile.avatarUrl} : {}),
       profileUrl: authorProfileUrl(ref.urlToken),
       fetchedAt: profile.fetchedAt,
-      kind: profile.source === 'official' ? 'official' : 'zhurl',
+      kind: profile.source === 'official' ? 'official' : 'web',
     },
     invitedAt: capturedAt,
   };

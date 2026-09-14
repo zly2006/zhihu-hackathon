@@ -11,7 +11,7 @@ import type {Gender} from './story';
  * - AuthorRef 只表示玩家想邀请哪一位答主；
  * - AuthorProvider 才负责获取该答主的公开资料和回答。
  *
- * RAG、Agent 和 UI 都只依赖这一层，不直接依赖 zhurl、OAuth 或文件系统。
+ * RAG、Agent 和 UI 都只依赖这一层，不直接依赖具体内容来源、OAuth 或文件系统。
  */
 
 export type AuthorRef = {
@@ -26,7 +26,8 @@ export type AuthorProviderErrorCode =
   | 'AUTHOR_RATE_LIMITED'
   | 'AUTHOR_NOT_FOUND'
   | 'AUTHOR_CONTENT_UNSUPPORTED'
-  | 'AUTHOR_EVIDENCE_INVALID';
+  | 'AUTHOR_EVIDENCE_INVALID'
+  | 'AUTHOR_SOURCE_UNCONFIGURED';
 
 export class AuthorProviderError extends Error {
   constructor(message: string, readonly code: AuthorProviderErrorCode, readonly status = 503) {
@@ -42,6 +43,7 @@ export const AUTHOR_PROVIDER_MESSAGES: Record<AuthorProviderErrorCode, string> =
   AUTHOR_NOT_FOUND: '没有找到这个知乎主页，请确认链接是否指向公开的个人主页。',
   AUTHOR_CONTENT_UNSUPPORTED: '当前数据源不支持读取这位答主的公开回答，请换一位答主或稍后再试。',
   AUTHOR_EVIDENCE_INVALID: '在线返回的资料没有通过作者与来源校验，已丢弃。',
+  AUTHOR_SOURCE_UNCONFIGURED: '当前部署还没有配置知乎内容来源，暂时无法邀请新答主；内置答主不受影响。',
 };
 
 export function authorProviderErrorMessage(code: AuthorProviderErrorCode): string {
@@ -70,7 +72,7 @@ export type AuthorProfile = {
   answerCount?: number;
   gender: Gender | 'unknown';
   fetchedAt: string;
-  source: 'official' | 'zhurl' | 'cache';
+  source: 'official' | 'web' | 'cache';
   stale?: boolean;
 };
 
@@ -136,7 +138,7 @@ const profileSchema = z.object({
   answerCount: z.number().int().min(0).max(10_000_000).optional(),
   gender: z.enum(['男', '女', 'unknown']),
   fetchedAt: z.string().min(1).max(40),
-  source: z.enum(['official', 'zhurl', 'cache']),
+  source: z.enum(['official', 'web', 'cache', 'zhurl']),
   stale: z.boolean().optional(),
 }).strict();
 

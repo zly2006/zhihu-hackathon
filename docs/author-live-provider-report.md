@@ -18,7 +18,7 @@
 | 林泠默认推荐 | 完成，默认「林泠 + 顾言川 / 沈屿 / 陶晚晴」 |
 | 任意答主邀请（主页 URL / url_token） | 完成，`POST /api/authors/invite` + 选人页邀请表单 |
 | 预设 NPC 走本地角色卡 | 完成，预设不经过任何知乎 Provider |
-| 知乎答主走在线 Provider | 完成，`ZhihuOfficialProvider` + `ZhurlProvider` + 缓存/在线混合 |
+| 知乎答主走在线 Provider | 完成，`ZhihuOfficialProvider` + `ZhihuWebProvider` + 缓存/在线混合 |
 | 本地缓存/语料保留为缓存、RAG、评估与降级来源 | 完成，`.data/author-avatars/<token>/` 与 `runtime-cache/` 双层 |
 | 统一剧情角色、聊天、好感度、存档、来源卡链路 | 完成，全部答主共用 `CastMember → chat → authorChatGains` |
 | 林泠可 romance，新答主默认不可 | 完成，`canEnterRomance` 默认 false，路由锁定强制 friendship |
@@ -35,7 +35,7 @@
 | Provider | 职责 | 边界 |
 | --- | --- | --- |
 | `ZhihuOfficialProvider` | 官方用户数据 API（`/api/v1/user/contents`、`Authorization: Bearer <Access Secret>`、`X-OAuth-Token`、`X-Request-Timestamp`、`Paging.NextOffset`） | 只能读授权用户自己；读别人或读详情明确返回 `AUTHOR_AUTH_REQUIRED` / `AUTHOR_CONTENT_UNSUPPORTED`，不静默改读登录账号数据 |
-| `ZhurlProvider` | 公开作者主页、会员主页内搜索、回答详情 | 仅本地开发/受控采料；`ZHURL_BIN` 是唯一变量名；含 `child_process`，只由生产守卫的动态 import 加载 |
+| `ZhihuWebProvider` | 公开作者主页、会员主页内搜索、回答详情（纯 TypeScript + `fetch`，无子进程、无本地二进制） | 服务端公开内容来源：凭证来自 `ZHIHU_WEB_COOKIE`（线上）或知乎++ `account.json`（本地开发）；无凭证时只尝试公开主页解析昵称/头像/简介，回答检索明确返回 `AUTHOR_SOURCE_UNCONFIGURED`；所有请求走进程内限速（默认 40 次/分钟、单作者串行），错误按 `AUTH_REQUIRED`/`RATE_LIMITED`/`NOT_FOUND`/`UNAVAILABLE` 分类 |
 | `CachedAuthorProvider`（`FileAuthorCache`） | 作者隔离缓存：`profile.json`、`list-<sort>.json`、`search-<hash>.json`、`answer-<id>.json` | 读取时重新过作者绑定校验；TTL：profile 7 天、最新 6 小时、热门 24 小时、搜索 6 小时、详情 7 天、无命中 10 分钟 |
 | `HybridAuthorProvider` | Live 唯一入口：缓存命中即用；缺失/过期/无命中才最多一次在线调用；在线失败退回旧缓存并标记 `stale`；无缓存时报 `AUTHOR_PROVIDER_UNAVAILABLE` | 在线结果必须通过 author token、answerId、sourceUrl、正文与完整性校验才可使用与写缓存 |
 
@@ -129,18 +129,17 @@
 - 除林泠外全部默认关闭恋爱线；化名的性别与人生身份是虚构设定，卡片上以「性别与人生身份为虚构设定」标注。
 
 ```text
-第 2 步 · 选择会改变故事的人
+第 2 步 · 选择会改变故事的人（整页不滚动，底部「继续」始终可见）
 ├─ 状态条：已选 N / 4（左右板块共享同一个名额）
-├─ 双板块（默认视图）
-│   ├─ 左（主板块）：你可以邀请 AI 答主参与
-│   │    · 答主卡：林泠 + 已邀请答主（最多 4 张）
-│   │    · 不足 3 张时补虚线占位卡“待邀请答主”
-│   │    · 底部「＋ 邀请其他答主」→ 答主选择页（含邀请输入框）
-│   └─ 右：选择默认 NPC 参与（8 人预览）→「进入选择」→ 预设 NPC 选择页
-└─ 焦点视图顶部提供「← 返回双板块」
+├─ 左（主板块）：你可以邀请 AI 答主参与
+│    · 只陈列 3 张答主卡（林泠 + 其次两位），不足 3 张补虚线占位卡“待邀请答主”
+│    · 底部「＋ 邀请其他答主」→ 邀请视图（全部 8 位答主 + 邀请输入框，可返回）
+└─ 右：选择默认 NPC 参与
+     · 8 位预设全部在这一页直接勾选，列表自身可滚轮浏览（面板内部滚动，不带动整页）
 ```
 
-- 两板块共享一个 4 人选择：左侧答主、右侧预设都直接勾选，计数实时更新，切换焦点不丢选择（原 tab 状态改为 `setupFocus`）。
+- 两板块共享一个 4 人选择：点左边答主、点右边预设都直接勾选，计数实时更新，进出邀请视图不丢选择。
+- 滚动只发生在面板内部：`panel-setup` 的弹窗卡片改为纵向 flex（`overflow:hidden`），左右面板各自 `overflow-y:auto`，页脚固定；答主卡在板块内压缩成单行摘要，保证 3 张卡 + 邀请按钮完整可见。手机横屏媒体查询回退为单列 + 整卡滚动。
 - 第 2 步不再出现「人物背景（可选）」这一行（连同输入框一起移除，`profiles` 状态与相关 CSS 一并删除）；角色背景如需自定义，后续用别的方式承载。
 - 答主卡显示：**真实主页昵称（剧情化身昵称）**、主页头像、「新邀请」角标、领域、`资料 N 条`、`风格已自动归纳` / `风格校准中`、虚构声明；不开放恋爱线时显式标注。
 - **头像来源**：内置答主与邀请答主都使用其知乎主页头像。公开头像 URL 只保存在服务端（内置答主写在 `lib/author-avatars.ts`，邀请答主冻结在注册表），前端统一请求 `GET /api/authors/avatar/<castId>`；服务端首次请求时抓取并缓存到 `.data/author-avatars/<token>/avatar/avatar.<ext>`（校验 Content-Type 为图片、≤512KB、仅 https），之后离线也能显示，加载失败则回退预设立绘或首字母。舞台立绘仍复用现有 8 套预设立绘，不把方头像拉成全身。
@@ -277,6 +276,7 @@ https://evil.test/… → 400 AUTHOR_INPUT_UNSUPPORTED_URL
 
 ## 8. 已知限制与风险
 
+0. **线上邀请依赖服务端内容来源凭证**：`ZhihuWebProvider` 需要一份知乎登录态 cookie（`ZHIHU_WEB_COOKIE`，建议专用小号）。没有凭证时线上邀请会退化为「公开主页解析 + 明确提示」——服务器 IP 常被风控拦截，届时邀请只会返回「当前部署还没有配置知乎内容来源」。cookie 会过期，过期后按 `AUTHOR_AUTH_REQUIRED` 提示轮换；自动请求也仍可能触发风控，因此保持低请求量（每轮最多 1 次检索 + 1 次详情，全局 40 次/分钟）。这不是官方 OAuth 路径，属于团队自担风险的工程取舍。
 1. **生产环境的任意答主内容来源仍未落地**：官方 API 只能读授权用户自己，zhurl 仅限本地/受控环境；生产要支持任意答主需要合规的公开内容来源，本轮未新增。
 2. **性别未知**：zhurl 返回的性别字段为数字，本实现不猜测（不做数字→性别映射），未知时角色 ID 用 `zhihu-u-*`。立绘按虚构角色的默认性别复用女性预设立绘，卡片与文档注明“性别未公开”，不声称这是真实作者性别。
 3. **无本地语料的邀请答主**：在线不可用时只能诚实返回“资料不足”，不会编造。

@@ -13,18 +13,23 @@ import {
 import {HybridAuthorProvider} from './author-provider';
 import {FileAuthorCache} from './author-cache';
 import {ZhihuOfficialProvider, type OfficialViewer} from './author-provider-official';
+import {createZhihuWebProvider} from './author-provider-zhihu-web';
+import {resolveWebCredentials, type WebCredentials} from './author-web-credentials';
 
 /**
  * Live 模式的 Provider 组装点。
  *
  * 用户只看到“知乎答主”，看不到 online/offline/hybrid。内部按顺序尝试：
- * 1. ZhihuOfficialProvider：只在代表当前授权用户自己时可用；
- * 2. ZhurlProvider：仅本地开发/受控采料，生产构建不加载。
- * 两者都不可用时返回明确的 AUTHOR_AUTH_REQUIRED / AUTHOR_PROVIDER_UNAVAILABLE。
+ * 1. ZhihuOfficialProvider：只在代表当前授权用户自己时可用（OAuth + Access Secret）；
+ * 2. ZhihuWebProvider：服务端公开内容来源（纯 TS），凭证来自环境变量 ZHIHU_WEB_COOKIE，
+ *    本地自动回退到知乎++ account.json；未配置时明确返回 AUTHOR_SOURCE_UNCONFIGURED。
+ *
+ * 同一套实现同时用于本地与线上，功能不再按环境分叉。
  */
 
 const ERROR_RANK: Record<string, number> = {
   AUTHOR_AUTH_REQUIRED: 4,
+  AUTHOR_SOURCE_UNCONFIGURED: 4,
   AUTHOR_RATE_LIMITED: 3,
   AUTHOR_CONTENT_UNSUPPORTED: 2,
   AUTHOR_NOT_FOUND: 2,
@@ -86,14 +91,6 @@ class UnavailableAuthorProvider implements AuthorProvider {
   async readAnswer(ref: AuthorRef): Promise<AuthorAnswer> { throw this.error(ref); }
 }
 
-export type ZhurlLoader = (bin: string) => Promise<AuthorProvider>;
-
-/** 开发环境才允许加载 zhurl；生产构建不会执行这条分支。 */
-const defaultZhurlLoader: ZhurlLoader = async (bin: string) => {
-  const module = await import('./author-provider-zhurl');
-  return new module.ZhurlProvider({run: module.createSpawnZhurlRunner(bin)});
-};
-
 export type LiveProviderOptions = {
   root: string;
   viewer?: OfficialViewer | null;
@@ -101,8 +98,10 @@ export type LiveProviderOptions = {
   accessSecret?: string;
   online?: OnlineProviderResolver;
   cacheRoot?: string;
-  loadZhurl?: ZhurlLoader;
+  credentials?: WebCredentials | null;
   env?: NodeJS.ProcessEnv;
+  /** 测试注入：跳过凭证解析与真实网络。 */
+  webProvider?: AuthorProvider;
 };
 
 export function createLiveAuthorProvider(options: LiveProviderOptions): HybridAuthorProvider {
@@ -114,13 +113,11 @@ export function createLiveAuthorProvider(options: LiveProviderOptions): HybridAu
     if (options.accessSecret && options.oauthToken && options.viewer) {
       providers.push(new ZhihuOfficialProvider({accessSecret: options.accessSecret, oauthToken: options.oauthToken, viewer: options.viewer}));
     }
-    const bin = env.ZHURL_BIN?.trim();
-    if (bin && env.NODE_ENV !== 'production') {
-      try {
-        providers.push(await (options.loadZhurl ?? defaultZhurlLoader)(bin));
-      } catch {
-        // 开发环境加载失败时退化为剩余来源，不静默伪造数据。
-      }
+    if (options.webProvider) {
+      providers.push(options.webProvider);
+    } else {
+      const credentials = options.credentials !== undefined ? options.credentials : resolveWebCredentials(env);
+      providers.push(createZhihuWebProvider({credentials}));
     }
     if (!providers.length) return new UnavailableAuthorProvider(options.viewer?.urlToken);
     return providers.length === 1 ? providers[0] : new CompositeAuthorProvider(providers);
