@@ -139,3 +139,12 @@
 .title-copy h1{width:52cqw;height:17.3cqw;margin:.2cqw 0;background:url('/assets/home-title-logo.webp') left center/contain no-repeat;font-size:0;text-shadow:none}
 .title-copy h1 span{display:none}
 @media(max-width:1000px) and (orientation:landscape){.title-group-cast{right:-3%;bottom:17%;width:66%;max-height:74%}}
+
+/* Some embedded WebViews report every viewport-height unit as 0px. */
+.game-shell{min-height:var(--app-height)}
+.game-stage{width:min(100vw,calc(var(--app-height) * 1.777778))}
+.game-shell.viewport-portrait .game-stage{visibility:hidden}
+.game-shell.viewport-portrait .portrait-notice{position:fixed;z-index:99;inset:0;display:flex;align-items:center;justify-content:center;flex-direction:column;gap:24px;padding:30px;text-align:center;color:#f4e6f7;background:radial-gradient(ellipse at top,#75607d,#231d32)}
+.game-shell.viewport-portrait .portrait-notice span{font-size:60px}
+.game-shell.viewport-portrait .portrait-notice h2{font-size:21px;line-height:1.8}
+.game-shell.viewport-portrait .portrait-notice p{font-size:12px;letter-spacing:3px;color:#bfa9c9}

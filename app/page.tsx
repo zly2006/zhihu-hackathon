@@ -117,6 +117,7 @@ export default function Home(){
   const [bgmTrack,setBgmTrack]=useState<BgmId|null>(null);
   const [playMode,setPlayMode]=useState<'manual'|'auto'|'fast'>('manual'),[hidden,setHidden]=useState(false),[toast,setToast]=useState(''),[affinity,setAffinity]=useState('');
   const [overwrite,setOverwrite]=useState<number|null>(null),[pageVisible,setPageVisible]=useState(true);
+  const [viewport,setViewport]=useState({height:1,portrait:false});
   const [liveCatalog,setLiveCatalog]=useState<LiveCatalog>({pool:[],authors:[],backgrounds:[],requiredCastCount:4,maxStages:7,defaultBackgroundId:'university'});
   const [catalogReady,setCatalogReady]=useState(false);
   const [setupStep,setSetupStep]=useState(0),[setupFocus,setSetupFocus]=useState<'board'|'author'>('board'),[selectedIds,setSelectedIds]=useState<string[]>([]);
@@ -178,6 +179,7 @@ export default function Home(){
   useEffect(()=>{if(ready&&chats['author:zhao-ling'])persist('lamplight_author_trial',chats['author:zhao-ling']);},[ready,chats]);
   useEffect(()=>{if(ready&&started&&state&&!waiting&&!busy)persist('lamplight_resume',{version:1,mode,storyId:storyId.current,state,line,chats,time:new Date().toISOString(),partner:partner.id,bgm:bgmTrack||undefined} satisfies SaveSlot);},[state,line,chats,mode,ready,started,waiting,busy,partner.id,bgmTrack]);
   useEffect(()=>{const listener=()=>setPageVisible(!document.hidden);document.addEventListener('visibilitychange',listener);return()=>document.removeEventListener('visibilitychange',listener);},[]);
+  useEffect(()=>{const update=()=>setViewport({height:Math.max(1,window.innerHeight),portrait:window.innerWidth<window.innerHeight});update();window.addEventListener('resize',update);return()=>window.removeEventListener('resize',update);},[]);
   useEffect(()=>{if(!toast)return;const timer=setTimeout(()=>setToast(''),3300);return()=>clearTimeout(timer);},[toast]);
   useEffect(()=>{if(!affinity)return;const timer=setTimeout(()=>setAffinity(''),2800);return()=>clearTimeout(timer);},[affinity]);
   useEffect(()=>{setShown(preferences.motion&&preferences.speed?0:text.length);},[text,line]);
@@ -263,7 +265,7 @@ export default function Home(){
   const historyNodes=[...(state?.nodes||[]),...(partial?[partial]:[])];
   const css={'--panel-opacity':preferences.opacity/100,'--dialogue-size':`${preferences.fontSize/16}cqw`,'--character-accent':partner.color} as CSSProperties;
   const sceneAsset=state?.world.background.sceneAsset||'/art/cafe-rain.webp';
-  return <main className={`game-shell ${preferences.motion?'':'reduce-motion'}`}>
+  return <main className={`game-shell ${viewport.portrait?'viewport-portrait':''} ${preferences.motion?'':'reduce-motion'}`} style={{'--app-height':`${viewport.height}px`} as CSSProperties}>
     <div className="portrait-notice"><span>↻</span><h2>把屏幕横过来，故事就开始了。</h2><p>横屏体验 · 假如我们的人生</p></div>
     <section className="game-stage" style={css} aria-label="假如我们的人生，视觉小说舞台" onPointerDown={()=>{if(!showChoices&&!state?.complete)playBgm();}} onContextMenu={e=>{if(!(e.target instanceof HTMLElement&&e.target.closest('input,textarea'))){e.preventDefault();if(!chatOpen)setPanel(panel?null:'menu');}}}>
       <img className="background" src={sceneAsset} alt={state?.world.background.label||"雨夜场景"}/><audio className="bgm-audio" ref={audioRef} preload="auto" aria-label="背景音乐"/><div className="scene-vignette"/><div className="rain-light" aria-hidden="true"/>
