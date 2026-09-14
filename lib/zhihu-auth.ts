@@ -2,6 +2,7 @@ import 'server-only';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import type {NextRequest,NextResponse} from 'next/server';
 import {PLAYTEST_PROFILE,PLAYTEST_SESSION_ID,playtestEnabled} from './playtest';
+import {canonicalLoginUrlFor} from './oauth-origin';
 
 const COOKIE_NAME='lamplight_zhihu_session';
 const SESSION_MAX_AGE_SECONDS=8*60*60;
@@ -15,7 +16,17 @@ const globalStore=globalThis as typeof globalThis&{lamplightZhihuSessions?:Sessi
 const sessions=globalStore.lamplightZhihuSessions??=new Map();
 
 function env(name:string){return process.env[name]?.trim()||'';}
-function configuration(){return {appId:env('ZHIHU_OAUTH_APP_ID'),appKey:env('ZHIHU_OAUTH_APP_KEY'),redirectUri:env('ZHIHU_OAUTH_REDIRECT_URI'),accessSecret:env('ZHIHU_OAUTH_ACCESS_SECRET'),userInfoUrl:env('ZHIHU_OAUTH_USERINFO_URL')||USERINFO_DEFAULT_URL};}
+function configuration(){
+  // The guide calls this credential “Access Secret”. Older project templates
+  // used ZHIHU_ACCESS_SECRET, so accept it as a backwards-compatible alias.
+  return {
+    appId:env('ZHIHU_OAUTH_APP_ID'),
+    appKey:env('ZHIHU_OAUTH_APP_KEY'),
+    redirectUri:env('ZHIHU_OAUTH_REDIRECT_URI'),
+    accessSecret:env('ZHIHU_OAUTH_ACCESS_SECRET')||env('ZHIHU_ACCESS_SECRET'),
+    userInfoUrl:env('ZHIHU_OAUTH_USERINFO_URL')||USERINFO_DEFAULT_URL
+  };
+}
 function fail(code:string,message:string){return Object.assign(new Error(message),{code});}
 function errorPayload(error:unknown):AuthError{const source=error as {code?:unknown;message?:unknown};return {code:String(source?.code||'OAUTH_FAILED').slice(0,80),message:String(source?.message||'知乎登录失败').slice(0,200)};}
 function safe(value:string,label:string){if(!value||/[\r\n]/.test(value))throw fail('CONFIG_INVALID',`${label} 未配置或格式无效`);return value;}
@@ -32,6 +43,7 @@ export function applicationUrl(pathname:string,request:NextRequest){const config
   const protocol=request.headers.get('x-forwarded-proto')==='https'?'https':request.nextUrl.protocol.replace(':','');
   return new URL(pathname,`${protocol}://${host}`);
 }
+export function canonicalLoginUrl(request:NextRequest){const config=configuration();const host=request.headers.get('x-forwarded-host')||request.headers.get('host')||request.nextUrl.host;const protocol=request.headers.get('x-forwarded-proto')==='https'?'https':request.nextUrl.protocol.replace(':','');return canonicalLoginUrlFor(config.redirectUri,`${protocol}://${host}`);}
 export function currentSession(request:NextRequest){return activeSession(request);}
 export function requireSession(request:NextRequest){const session=activeSession(request);return session?.accessToken?session:null;}
 export function status(request:NextRequest){const {session,created}=getOrCreate(request);const config=configuration();const missingConfiguration=[!config.appId&&'ZHIHU_OAUTH_APP_ID',!config.appKey&&'ZHIHU_OAUTH_APP_KEY',!config.redirectUri&&'ZHIHU_OAUTH_REDIRECT_URI'].filter((value):value is string=>Boolean(value));return {session,created,payload:{configured:missingConfiguration.length===0,missingConfiguration,authorized:Boolean(session.accessToken),profile:session.profile,expiresAt:session.tokenExpiresAt?new Date(session.tokenExpiresAt).toISOString():null,error:session.error,playtest:session.id===PLAYTEST_SESSION_ID}};}

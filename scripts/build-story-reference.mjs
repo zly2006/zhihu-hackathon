@@ -9,8 +9,9 @@ const checkOnly = process.argv.includes('--check');
 
 const count = (text) => [...text].filter((char) => /[\p{L}\p{N}]/u.test(char)).length;
 const countRecords = (records) => count(records.map((record) => {
-  if (record.startsWith('[旁白] ')) return record.slice(4);
-  return record.match(/「(.+)」$/u)?.[1] || '';
+  const narration = record.match(/^\[旁白\]（(happy|normal|playful|surprised|thinking)）\s+(.+)$/u);
+  if (narration) return narration[2];
+  return record.match(/^\[[^\]]+\]（(happy|normal|playful|surprised|thinking)）\s+「(.+)」$/u)?.[2] || '';
 }).join(''));
 const source = await fs.readFile(sourcePath, 'utf8');
 const config = JSON.parse(await fs.readFile(configPath, 'utf8'));
@@ -31,7 +32,7 @@ for (let index = 0; index < lines.length; index += 1) {
     const line = lines[cursor].trim();
     if (/^0[1-9]\s+/.test(line) || line === '全剧终') break;
     if (!line.startsWith('[')) continue;
-    if (!/^\[旁白\]\s+.+$/u.test(line) && !/^\[[^\]]+\]\s+「.+」$/u.test(line)) {
+    if (!/^\[旁白\]（(happy|normal|playful|surprised|thinking)）\s+.+$/u.test(line) && !/^\[[^\]]+\]（(happy|normal|playful|surprised|thinking)）\s+「.+」$/u.test(line)) {
       throw new Error(`${heading[0]} 存在不符合范本格式的正文行：${line}`);
     }
     body.push(line);
@@ -50,6 +51,11 @@ for (let index = 0; index < lines.length; index += 1) {
 }
 
 if (segments.length !== beats.length) throw new Error(`范本需要 ${beats.length} 段，实际为 ${segments.length} 段。`);
+const allowedExpressions = ['happy', 'normal', 'playful', 'surprised', 'thinking'];
+const expressions = [...source.matchAll(/\[[^\]]+\]（(happy|normal|playful|surprised|thinking)）/gu)].map((match) => match[1]);
+if (new Set(expressions).size !== allowedExpressions.length || allowedExpressions.some((expression) => !expressions.includes(expression))) {
+  throw new Error(`范本必须覆盖全部表情：${allowedExpressions.join(', ')}`);
+}
 
 const output = {
   version: 1,

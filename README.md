@@ -98,6 +98,16 @@ ssh off 'install -d -m 755 /home/dom/services/zhihu-hackathon && install -m 600 
 bash scripts/deploy-off.sh
 ```
 
+Windows PowerShell 没有内置 `bash` 命令时，请使用 Git Bash 的完整路径，或运行仓库提供的 PowerShell 包装器：
+
+```powershell
+& 'C:\Program Files\Git\bin\bash.exe' scripts/deploy-off.sh
+# 或
+pwsh -File scripts/deploy-off.ps1
+```
+
+部署脚本仍需要本机 SSH 配置中的 `off` 主机别名、登录密钥，以及远端 `/home/dom/services/zhihu-hackathon/runtime.env`（权限 600）。
+
 部署前会自动执行 `npm run db:migrate` 对应的数据库迁移；服务进程每 15 分钟尝试清理一次过期数据，数据库函数也提供了独立的 `npm run db:cleanup` 清理入口。这个 demo 默认把交互、聊天、剧情和存档记录保留 30 天，过期后自动删除。
 
 默认使用 `off:15181`、FRP `25182` 和代理名 `zhihu-hackathon`，不会占用旧版 `zhihu-restart-life` 的端口。需要检查已经配置好的 HTTPS 域名时可追加：

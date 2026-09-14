@@ -1,10 +1,8 @@
-import 'server-only';
-import {resolveModelCredentials} from './model-credentials';
+/** @deprecated Use modelCredentials from ./model-config. Kept for legacy callers. */
+import { modelCredentials } from './model-config';
 
-const resolved = resolveModelCredentials();
-export const deepseekModel = resolved?.model || 'deepseek-chat';
+export const deepseekModel = process.env.DEEPSEEK_MODEL || 'deepseek-chat';
 export function deepseekCredentials() {
-  const credentials = resolveModelCredentials();
-  if (!credentials) throw new Error('服务端尚未配置 DEEPSEEK_API_KEY 或 OPENCODE_API_KEY');
-  return {key: credentials.key, endpoint: credentials.endpoint};
+  const config = modelCredentials();
+  return { key: config.key, endpoint: config.endpoint, model: config.model, provider: config.provider };
 }

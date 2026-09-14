@@ -37,3 +37,12 @@
 .cast-status{margin-left:auto;display:flex;flex-direction:column;align-items:flex-end;gap:.25cqw}
 .cast-status em{font-style:normal;font-size:.62cqw;color:#846493;background:#f0e5f5;border-radius:999px;padding:.15cqw .55cqw;white-space:nowrap}
 .affinity-note{display:block;margin-top:.25em;color:#8c7996;font-size:.75em}
+/* Visual hierarchy: reserve the warm gold only for the title and key metadata. */
+:root{--gold:#d7b56d;--gold-light:#f1d99a}
+.title-copy h1{color:var(--gold-light)}
+.title-copy h1 span{color:var(--gold)}
+.title-copy .zhihu-mark,.title-overline{color:var(--gold-light)}
+.title-en{color:#f2dfb0}
+.title-poem{color:#f6edf5}
+.setup-selection-status{margin:.8cqw 0;color:#9a82a2;font-size:.8cqw}
+.setup-selection-status strong{color:#8d6a9a;font-size:1.1em}

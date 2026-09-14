@@ -28,7 +28,7 @@ async function authorCatalog(){
 }
 export async function GET(req:NextRequest) {
  const id=req.nextUrl.searchParams.get('storyId')||'';
- if(id&&!requireSession(req))return NextResponse.json({error:'请先登录知乎。'},{status:401,headers:{'Cache-Control':'no-store'}});
+ if(id&&!requireSession(req))return NextResponse.json({error:'知乎登录已失效，请重新登录后继续。'},{status:401,headers:{'Cache-Control':'no-store'}});
  const state=id?await readState(id):null;
  return NextResponse.json({
   storyId:id||null,
@@ -44,7 +44,7 @@ export async function GET(req:NextRequest) {
 const schema=z.object({storyId:z.string().uuid().optional(),action:z.enum(['start','choose','retry','restart']),choice:z.number().int().min(0).max(limits.totalChoiceMax-1).optional(),expected:z.number().int().optional(),profiles:z.array(z.object({id:z.string(),name:z.string(),gender:z.enum(['男','女']),background:z.string().max(300).optional(),zhihuHandle:z.string().max(80).optional(),authorAvatarId:z.literal('zhao-ling').optional()}).strict()).optional(),backgroundId:z.string().optional(),player:z.object({name:z.string().min(1).max(16),gender:z.enum(['男','女'])}).strict().optional()}).strict();
 export async function POST(req:NextRequest) {
  if(req.headers.get('origin') && new URL(req.headers.get('origin')!).host!==req.headers.get('host'))return NextResponse.json({error:'请求来源不匹配。'},{status:403});
- if(!requireSession(req))return NextResponse.json({error:'请先登录知乎。'},{status:401});
+ if(!requireSession(req))return NextResponse.json({error:'知乎登录已失效，请重新登录后继续。'},{status:401});
  const parsed=schema.safeParse(await req.json().catch(()=>null));if(!parsed.success)return NextResponse.json({error:'请求格式不正确。'},{status:400});
  const {action,choice,expected,profiles,backgroundId,player}=parsed.data;
  let id=parsed.data.storyId;let state=id?await readState(id):null;

@@ -5,7 +5,7 @@ import {StateStorageError} from '../../../lib/state-lock';
 import {selectedCast} from '../../../lib/story';
 import {authorChatGate,chatRequestSchema,isDuplicateExchange} from '../../../lib/chat-request';
 import {resolveAuthorAvatar} from '../../../lib/author-avatars';
-import {deepseekCredentials,deepseekModel} from '../../../lib/deepseek';
+import {modelCredentials} from '../../../lib/model-config';
 import {requireSession} from '../../../lib/zhihu-auth';
 import {recordChat,recordInteraction} from '../../../lib/database';
 import {replyAsAuthor,AuthorChatError,effectiveInteractionReward,settleInteractionGain} from '../../../lib/author-chat';
@@ -15,7 +15,7 @@ const people:Record<string,{name:string;identity:string}>={lin:{name:'林见夏'
 
 export async function POST(req:NextRequest){
   if(req.headers.get('origin')&&new URL(req.headers.get('origin')!).host!==req.headers.get('host'))return NextResponse.json({error:'请求来源不匹配。'},{status:403});
-  if(!requireSession(req))return NextResponse.json({error:'请先登录知乎。'},{status:401});
+  if(!requireSession(req))return NextResponse.json({error:'知乎登录已失效，请重新登录后继续。'},{status:401});
   const parsed=chatRequestSchema.safeParse(await req.json().catch(()=>null));
   if(!parsed.success)return NextResponse.json({error:'聊天内容格式不正确。'},{status:400});
   const {character,messages,storyId,exchangeId}=parsed.data;
@@ -46,7 +46,10 @@ export async function POST(req:NextRequest){
   void recordChat(req,{storyId,character,messages});
   try{
     if(avatarId){
-      const result=await replyAsAuthor({avatarId,story,messages},()=>({...deepseekCredentials(),model:deepseekModel}));
+      const result=await replyAsAuthor({avatarId,story,messages},()=>{
+        const config=modelCredentials();
+        return {key:config.key,endpoint:config.endpoint,model:config.model,provider:config.provider};
+      });
       void recordInteraction(req,{type:'chat_reply',storyId,payload:{character,text:result.text,avatarId,toolCalls:result.toolCalls,evidenceStatus:result.evidenceStatus}});
       let affinity:{id:string;delta:number;total:number}|null=null;let affinityError:string|undefined;
       if(storyId&&member?.kind==='zhihu-author'){
@@ -73,9 +76,10 @@ export async function POST(req:NextRequest){
       return NextResponse.json({...result,...(affinity?{affinity}:{}),...(affinityError?{affinityError}:{})},{headers:{'Cache-Control':'no-store'}});
     }
     if(!person)return NextResponse.json({error:'聊天对象不属于当前故事。'},{status:400});
-    const {key,endpoint}=deepseekCredentials();
-    const session=randomUUID();
-    const response=await fetch(endpoint,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json','x-opencode-session':session},body:JSON.stringify({model:deepseekModel,temperature:.8,max_tokens:180,messages:[{role:'system',content:`你扮演中文视觉小说角色${person.name}，${person.identity}。${story} 这是剧情暂停时的自由聊天，不能替玩家做选择，不要承诺尚未发生的事，不要提及系统、模型或提示词。用自然中文回复，1—3句，最多120字。`},...messages.map(m=>({role:m.role,content:m.text}))]}),signal:AbortSignal.timeout(30_000)});
+    const {key,endpoint,model,provider}=modelCredentials();
+    const headers:Record<string,string>={Authorization:`Bearer ${key}`,'Content-Type':'application/json'};
+    if(provider==='opencode')headers['x-opencode-session']=randomUUID();
+    const response=await fetch(endpoint,{method:'POST',headers,body:JSON.stringify({model,temperature:.8,max_tokens:180,messages:[{role:'system',content:`你扮演中文视觉小说角色${person.name}，${person.identity}。${story} 这是剧情暂停时的自由聊天，不能替玩家做选择，不要承诺尚未发生的事，不要提及系统、模型或提示词。用自然中文回复，1—3句，最多120字。`},...messages.map(m=>({role:m.role,content:m.text}))]}),signal:AbortSignal.timeout(30_000)});
     if(!response.ok)throw new Error(`模型服务 HTTP ${response.status}`);
     const body=await response.json() as {choices?:{message?:{content?:string}}[]};
     const text=body.choices?.[0]?.message?.content?.trim();if(!text)throw new Error('模型没有返回可显示的回复。');

@@ -5,9 +5,7 @@ import {randomUUID,randomInt} from 'node:crypto';
 import {buildModelMessages,count,limits,requiredEvidenceIds,type State,type GameEvent,type StoryNode} from './story';
 import {acceptRecord,finishPartial} from './protocol';
 import {TaggedDecoder,parseTagged} from './tagged-protocol';
-const DEFAULT_ENDPOINT='https://opencode.ai/zen/go/v1/chat/completions';
-const DEFAULT_MODEL='deepseek-flash';
-const DEFAULT_REASONING_EFFORT='none';
+import {modelCredentials} from './model-config';
 const MAX_ATTEMPTS=5;
 async function finishDeterministicTail(state:State,emit:(event:GameEvent)=>void,persist:()=>Promise<void>) {
  const partial=state.partial;const written=(partial?.lines||[]).reduce((sum,line)=>sum+count(line.text),0);
@@ -20,27 +18,17 @@ async function finishDeterministicTail(state:State,emit:(event:GameEvent)=>void,
  for(const record of records){const result=acceptRecord(JSON.stringify(record),state);await persist();if(result.event)emit(result.event);}
  return finishPartial(state);
 }
-async function credentials() {
- const provider=process.env.MODEL_PROVIDER?.trim()||'opencode';
- if(provider!=='opencode')throw new Error('MODEL_PROVIDER必须是opencode');
- const key=(process.env.OPENCODE_API_KEY||process.env.CPA_API_KEY)?.trim();
- if(!key)throw new Error('服务端尚未配置OPENCODE_API_KEY');
- return {
-  key,
-  endpoint:process.env.OPENCODE_ENDPOINT||DEFAULT_ENDPOINT,
-  model:process.env.OPENCODE_MODEL||DEFAULT_MODEL,
-  effort:process.env.OPENCODE_REASONING_EFFORT||DEFAULT_REASONING_EFFORT,
- };
-}
 export async function generate(state:State,emit:(e:GameEvent)=>void,persist:()=>Promise<void>):Promise<StoryNode> {
- const {key,endpoint,model,effort}=await credentials();const opencodeSession=randomUUID();let issue='';
+ const {key,endpoint,model,effort,provider}=modelCredentials();const opencodeSession=randomUUID();let issue='';
  for(let attempt=0;attempt<MAX_ATTEMPTS;attempt++) {
  emit({type:'status',phase:attempt?'repairing':'generating',message:attempt?'正在接着写这一段…':'故事正在继续…'});
   const msg=buildModelMessages(state,issue);
   const payload={model,reasoning_effort:effort,temperature:0.9,seed:randomInt(1_000_000_000),messages:msg,max_tokens:2800,stream:true,stream_options:{include_usage:true}};
   const started=Date.now();let raw='',finish='',done=false,ended=false,usage:Record<string,unknown>|null=null;let failure:string|undefined;
   try {
-   const response=await fetch(endpoint,{method:'POST',headers:{Authorization:`Bearer ${key}`,'Content-Type':'application/json','x-opencode-session':opencodeSession},body:JSON.stringify(payload),signal:AbortSignal.timeout(180_000)});
+   const headers:Record<string,string>={Authorization:`Bearer ${key}`,'Content-Type':'application/json'};
+   if(provider==='opencode')headers['x-opencode-session']=opencodeSession;
+   const response=await fetch(endpoint,{method:'POST',headers,body:JSON.stringify(payload),signal:AbortSignal.timeout(180_000)});
    if(!response.ok||!response.body)throw new Error(`模型服务HTTP ${response.status}`);
    const reader=response.body.getReader(),decoder=new TextDecoder(),tagged=new TaggedDecoder();let buffer='';
    const processLines=async(lines:string[])=>{for(const text of lines){const records=[text];for(const record of records){if(ended)throw new Error('end后不能再有记录');const taggedRecord=parseTagged(record);if(taggedRecord.type==='scene'&&state.partial?.title)continue;if(taggedRecord.type==='line'&&state.partial?.lines?.some(line=>line.speaker===taggedRecord.speaker&&line.text===taggedRecord.text))continue;const result=acceptRecord(JSON.stringify(taggedRecord.type==='line'?{type:'line',speaker:taggedRecord.speaker,text:taggedRecord.text}:taggedRecord.type==='scene'?{type:'scene',title:taggedRecord.title}:taggedRecord.type==='choices'?{type:'choices',items:taggedRecord.items}:taggedRecord.type==='evidence'?{type:'evidence',ids:taggedRecord.ids}:taggedRecord.type==='memory'?{type:'memory',summary:taggedRecord.summary,facts:taggedRecord.facts}:{type:'end'}),state);await persist();if(result.event)emit(result.event);if(result.ended)ended=true;}}};
