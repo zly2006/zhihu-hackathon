@@ -1,6 +1,7 @@
 import 'server-only';
 import {randomBytes,timingSafeEqual} from 'node:crypto';
 import type {NextRequest,NextResponse} from 'next/server';
+import {canonicalLoginUrlFor} from './oauth-origin';
 
 const COOKIE_NAME='lamplight_zhihu_session';
 const SESSION_MAX_AGE_SECONDS=8*60*60;
@@ -39,6 +40,7 @@ export function applicationUrl(pathname:string,request:NextRequest){const config
   const protocol=request.headers.get('x-forwarded-proto')==='https'?'https':request.nextUrl.protocol.replace(':','');
   return new URL(pathname,`${protocol}://${host}`);
 }
+export function canonicalLoginUrl(request:NextRequest){const config=configuration();const host=request.headers.get('x-forwarded-host')||request.headers.get('host')||request.nextUrl.host;const protocol=request.headers.get('x-forwarded-proto')==='https'?'https':request.nextUrl.protocol.replace(':','');return canonicalLoginUrlFor(config.redirectUri,`${protocol}://${host}`);}
 export function currentSession(request:NextRequest){return activeSession(request);}
 export function requireSession(request:NextRequest){const session=activeSession(request);return session?.accessToken?session:null;}
 export function status(request:NextRequest){const {session,created}=getOrCreate(request);const config=configuration();const missingConfiguration=[!config.appId&&'ZHIHU_OAUTH_APP_ID',!config.appKey&&'ZHIHU_OAUTH_APP_KEY',!config.redirectUri&&'ZHIHU_OAUTH_REDIRECT_URI'].filter((value):value is string=>Boolean(value));return {session,created,payload:{configured:missingConfiguration.length===0,missingConfiguration,authorized:Boolean(session.accessToken),profile:session.profile,expiresAt:session.tokenExpiresAt?new Date(session.tokenExpiresAt).toISOString():null,error:session.error}};}

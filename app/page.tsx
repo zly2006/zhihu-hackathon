@@ -8,6 +8,7 @@ type PoolMember={id:string;name:string;gender:Gender;age:number;identity:string}
 type ProfileEdit={background:string;zhihuHandle:string};
 type LiveCatalog={pool:PoolMember[];backgrounds:StoryBackground[];requiredCastCount:number;maxStages:number;defaultBackgroundId:string};
 type AuthStatus={configured:boolean;authorized:boolean;profile:{name:string|null;avatarUrl:string|null;headline:string|null;url:string|null}|null;error:{code:string;message:string}|null};
+const LOGIN_REQUIRED='知乎登录已失效，请重新登录后继续。';
 const assetFor=(id:string,pose:CharacterPose='happy')=>`/art/${({lin:'f1',tao:'f2',shen:'f3'} as Record<string,string>)[id]||id}_${pose}.webp`;
 type CharacterPose='normal'|'happy'|'playful'|'surprised'|'thinking';
 const explicitPose=(text:string):CharacterPose|undefined=>text.match(/^\s*[（(](happy|normal|playful|surprised|thinking)[）)]\s*/i)?.[1].toLowerCase() as CharacterPose|undefined;
@@ -91,6 +92,7 @@ export default function Home(){
   const playerSpeaking=isPlayerSpeaker(currentLine?.speaker||'',activePlayerName);
   const segment=(state?.nodes.length||0)+(partial?1:0);
   function notify(message:string){setToast(message);}
+  function requireLogin(){setAuth((current)=>current?{...current,authorized:false,profile:null}:current);setChatOpen(false);setStarted(false);setPanel(null);setError('');notify(LOGIN_REQUIRED);}
   function persist(key:string,value:unknown){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{notify('浏览器存储空间不足，进度暂未保存。');return false;}}
   useEffect(()=>{
     const p=readLocal('lamplight_preferences');if(p)setPreferences({speed:Math.min(80,Math.max(0,Number(p.speed)||0)),delay:Math.min(8,Math.max(1,Number(p.delay)||3)),opacity:Math.min(100,Math.max(55,Number(p.opacity)||86)),fontSize:Math.min(31,Math.max(21,Number(p.fontSize)||25)),motion:p.motion!==false});
@@ -99,8 +101,8 @@ export default function Home(){
     if(isSaveSlot(auto)){setState(auto.state);setLine(Math.min(auto.line,Math.max(0,(auto.state.nodes.at(-1)?.lines.length||1)-1)));setMode(auto.mode);setChats(auto.chats);storyId.current=auto.storyId;setSelectedIds(auto.state.world.cast.map((member)=>member.id));setSelectedBackgroundId(auto.state.world.background.id);setPlayerName(auto.state.world.player.name);setPlayerGender(auto.state.world.player.gender);}
     else{const oldId=localStorage.getItem('lamplight_story_id');if(oldId){storyId.current=oldId;void fetch(`/api/story?storyId=${encodeURIComponent(oldId)}`).then(r=>r.json()).then(d=>{if(d.state){setState(d.state);setPartial(d.state.partial);setMode('live');}}).catch(()=>setError('旧存档读取失败，请稍后重试。'));}}
     void fetch('/api/story').then(r=>r.json()).then(d=>{const catalog={pool:d.pool||[],backgrounds:d.backgrounds||[],requiredCastCount:d.requiredCastCount||4,maxStages:d.maxStages||7,defaultBackgroundId:d.defaultBackgroundId||'university'};const available=new Set(catalog.pool.map((member:PoolMember)=>member.id));setLiveCatalog(catalog);setSelectedBackgroundId(catalog.defaultBackgroundId);setSelectedIds((current)=>{const valid=current.filter((id)=>available.has(id));return valid.length===current.length?valid:[];});setCatalogReady(catalog.pool.length>=catalog.requiredCastCount);}).catch(()=>setCatalogReady(false));
-    void fetch('/api/auth/me',{cache:'no-store'}).then(r=>r.json()).then((payload)=>setAuth(payload)).catch(()=>setAuth({configured:false,authorized:false,profile:null,error:{code:'AUTH_UNAVAILABLE',message:'知乎登录状态暂时无法读取。'}}));
-    const oauth=new URLSearchParams(window.location.search).get('oauth');if(oauth==='success')notify('知乎登录成功，可以开始故事了。');if(oauth==='error')notify('知乎登录没有完成，请重试。');
+    const oauth=new URLSearchParams(window.location.search).get('oauth');
+    void fetch('/api/auth/me',{cache:'no-store'}).then(r=>r.json()).then((payload:AuthStatus)=>{setAuth(payload);if(oauth==='success')notify('知乎登录成功，可以开始故事了。');if(oauth==='error')notify(payload.error?.message||'知乎登录没有完成，请重新登录。');}).catch(()=>setAuth({configured:false,authorized:false,profile:null,error:{code:'AUTH_UNAVAILABLE',message:'知乎登录状态暂时无法读取。'}}));
     setReady(true);
   },[]);
   useEffect(()=>{if(ready)persist('lamplight_preferences',preferences);},[preferences,ready]);
@@ -132,6 +134,7 @@ export default function Home(){
       }
       const response=await fetch('/api/story',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:action==='start'||action==='restart'?undefined:storyId.current,action,...(choice!==undefined?{choice,expected:state?.nodes.length}:{}),...(['start','restart'].includes(action)?{profiles:selectedProfiles,backgroundId:selectedBackgroundId,player:{name:playerName.trim(),gender:playerGender}}:{})})});
       const id=response.headers.get('X-Story-Id');if(id){storyId.current=id;localStorage.setItem('lamplight_story_id',id);}
+      if(response.status===401){requireLogin();return;}
       if(!response.ok){const d=await response.json();throw new Error(d.error||'故事暂时无法继续。');}
       if(!response.headers.get('content-type')?.includes('text/event-stream')){const d=await response.json();setState(d.state);setPartial(d.state?.partial||null);return;}
       const reader=response.body!.getReader(),decoder=new TextDecoder();let buffer='',finished=false;
@@ -148,7 +151,7 @@ export default function Home(){
     }catch(e){setError(e instanceof Error?e.message:'故事暂时无法继续。');if(storyId.current)try{const r=await fetch(`/api/story?storyId=${storyId.current}`),d=await r.json();if(d.state){setState(d.state);setPartial(d.state.partial||null);}}catch{}}
     finally{busyRef.current=false;setBusy(false);setStatus('');}
   }
-  function startLogin(){track('ui_login_clicked');window.location.assign('/api/auth/login');}
+  function startLogin(){track('ui_login_clicked');setAuthBusy(true);window.location.assign('/api/auth/login');}
   async function logout(){setAuthBusy(true);try{await fetch('/api/auth/logout',{method:'POST'});track('ui_logout_clicked');setAuth({configured:true,authorized:false,profile:null,error:null});setStarted(false);setState(null);setPartial(null);setPanel(null);notify('已退出知乎登录。');}finally{setAuthBusy(false);}}
   function startDemo(){if(!auth?.authorized){notify('请先登录知乎。');return;}track('ui_demo_started');setState(structuredClone(demoOpening));setMode('demo');setPartial(null);setLine(0);setShown(0);setChats({});setError('');setStarted(true);setPanel(null);storyId.current=undefined;}
   function openSetup(){if(!auth?.authorized){notify('请先登录知乎。');return;}setSelectedIds([]);setProfiles({});setError('');setSetupStep(0);setPanel('setup');}
@@ -173,7 +176,7 @@ export default function Home(){
     const message=input.trim();if(!message||chatLock.current)return;track('ui_chat_sent',{character:chatPerson,message});chatLock.current=true;setChatBusy(true);setChatError('');setInput('');const person=chatPerson;
     const conversation=[...(chats[person]||[]),{role:'user' as const,text:message}];setChats(v=>({...v,[person]:conversation}));
     try{let reply:string;if(mode==='demo'){reply=/画|工作|摄影|杯/.test(message)?`${person==='lin'?'画画有时候像聊天，不必急着找到标准答案。':person==='tao'?'每一只杯子都有自己的样子，歪一点也没关系。':'照片能留住一个瞬间，陪伴却需要慢慢来。'}你呢，今天有什么想留住的小事吗？`:/雨|回家/.test(message)?'雨看起来小了一点。等你准备好了，我们再一起看看窗外吧。':'谢谢你愿意跟我说这些。不用急着把话说得很漂亮，我会认真听。';await new Promise(resolve=>setTimeout(resolve,550));}
-      else{const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:storyId.current,character:person,line,messages:conversation.slice(-12)})}),d=await r.json();if(!r.ok)throw new Error(d.error||'暂时无法连接，请稍后再试。');reply=d.text;}
+      else{const r=await fetch('/api/chat',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:storyId.current,character:person,line,messages:conversation.slice(-12)})}),d=await r.json();if(r.status===401){requireLogin();throw new Error(LOGIN_REQUIRED);}if(!r.ok)throw new Error(d.error||'暂时无法连接，请稍后再试。');reply=d.text;}
       setChats(v=>({...v,[person]:[...(v[person]||[]),{role:'assistant',text:reply}]}));
     }catch(e){setChats(v=>({...v,[person]:(v[person]||[]).slice(0,-1)}));setInput(message);setChatError(e instanceof Error?e.message:'发送失败，消息已保留。');}finally{chatLock.current=false;setChatBusy(false);}
   }

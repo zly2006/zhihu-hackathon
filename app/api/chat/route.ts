@@ -12,7 +12,7 @@ const schema=z.object({storyId:z.string().uuid().optional(),character:z.string()
 const people:Record<string,{name:string;identity:string}>={lin:{name:'林见夏',identity:'插画师，说话短而直接，常用行动照顾人，不冷嘲热讽'},tao:{name:'陶晚晴',identity:'陶艺师，会拿小失误开玩笑，认真时不再绕弯'},shen:{name:'沈知遥',identity:'兼职摄影师，善于观察具体细节，问问题温和但不替别人作答'}};
 export async function POST(req:NextRequest){
  if(req.headers.get('origin')&&new URL(req.headers.get('origin')!).host!==req.headers.get('host'))return NextResponse.json({error:'请求来源不匹配。'},{status:403});
- if(!requireSession(req))return NextResponse.json({error:'请先登录知乎。'},{status:401});
+ if(!requireSession(req))return NextResponse.json({error:'知乎登录已失效，请重新登录后继续。'},{status:401});
  const parsed=schema.safeParse(await req.json().catch(()=>null));if(!parsed.success)return NextResponse.json({error:'聊天内容格式不正确。'},{status:400});
  const {character,messages,storyId}=parsed.data;let story='玩家正在体验独立对话。';let person=people[character];
  void recordChat(req,{storyId,character,messages});
