@@ -134,10 +134,12 @@
 .cast-panel-action{padding:.5cqw 1cqw;font-size:.72cqw}
 .title-group-cast{position:absolute;z-index:5;right:2%;bottom:15%;width:62%;height:auto;max-height:78%;object-fit:contain;object-position:center bottom;filter:drop-shadow(0 16px 18px #20152d66);pointer-events:none;animation:character .6s ease-out}
 .title-cast .character{display:none}
-.title-screen{z-index:4}
+.title-screen{z-index:auto;background:none}
+.title-screen::before{content:"";position:absolute;z-index:4;inset:0;background:linear-gradient(90deg,#2e223bbf,#38274979 42%,transparent 72%);pointer-events:none}
 .title-screen .title-copy{position:absolute;z-index:6}
 .title-copy h1{width:52cqw;height:17.3cqw;margin:.2cqw 0;background:url('/assets/home-title-logo.webp') left center/contain no-repeat;font-size:0;text-shadow:none}
 .title-copy h1 span{display:none}
+.title-version{z-index:6}
 @media(max-width:1000px) and (orientation:landscape){.title-group-cast{right:-3%;bottom:17%;width:66%;max-height:74%}}
 
 /* Some embedded WebViews report every viewport-height unit as 0px. */
