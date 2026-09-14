@@ -62,6 +62,14 @@ const paths:Record<string,ReactNode>={menu:<path d="M4 6h16M4 12h16M4 18h16"/>,s
 function Icon({name}:{name:string}){return <svg className="icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">{paths[name]||paths.menu}</svg>;}
 function Control({icon,children,...props}:{icon:string;children?:ReactNode}&React.ButtonHTMLAttributes<HTMLButtonElement>){return <button {...props}><Icon name={icon}/>{children}</button>;}
 function readLocal(key:string){try{return JSON.parse(localStorage.getItem(key)||'null');}catch{return null;}}
+async function readResponseJson(response:Response):Promise<Record<string,any>>{
+  const raw=await response.text();
+  if(!raw.trim())return {};
+  try{return JSON.parse(raw) as Record<string,any>;}catch{
+    const detail=raw.trimStart().startsWith('<')?'服务器返回了网页而不是接口数据，请确认线上服务已更新并重启。':'接口返回格式错误，请稍后重试。';
+    throw new Error(`${detail}（HTTP ${response.status}）`);
+  }
+}
 function track(type:string,payload:Record<string,unknown>={},storyId?:string){void fetch('/api/interaction-events',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({type,payload,...(storyId?{storyId}: {})})}).catch(()=>{});}
 type ZhihuChoiceEvidence={contentId:string;title:string;author:string;url:string;authorAvatarUrl?:string;authorProfileUrl?:string};
 function ZhihuAuthorAvatar({evidence}:{evidence:ZhihuChoiceEvidence}){
@@ -133,7 +141,8 @@ export default function Home(){
   const playerSpeaking=isPlayerSpeaker(currentLine?.speaker||'',activePlayerName);
   const segment=(state?.nodes.length||0)+(partial?1:0);
   function notify(message:string){setToast(message);}
-  function pickBgm(){const preferred=preferences.bgm;if(preferred==='random'){const choices=bgmTracks.filter(track=>track.id!==bgmTrack);const pool=choices.length?choices:bgmTracks;setBgmTrack(pool[Math.floor(Math.random()*pool.length)].id);}else setBgmTrack(preferred);}
+  function playBgm(trackId?:BgmId){const id=trackId||bgmTrack;if(!id)return;const audio=audioRef.current;const track=bgmTracks.find(item=>item.id===id);if(!audio||!track)return;const source=new URL(track.src,window.location.href).href;if(audio.src!==source){audio.src=source;audio.load();}audio.loop=true;audio.volume=1;audio.muted=false;void audio.play().catch(()=>setToast('浏览器阻止了自动播放，请点击对白区域开启背景音乐。'));}
+  function pickBgm(){const preferred=preferences.bgm;const selected=preferred==='random'?(()=>{const choices=bgmTracks.filter(track=>track.id!==bgmTrack);const pool=choices.length?choices:bgmTracks;return pool[Math.floor(Math.random()*pool.length)].id;})():preferred;setBgmTrack(selected);return selected;}
   function requireLogin(){setAuth((current)=>current?{...current,authorized:false,profile:null}:current);setChatOpen(false);setStarted(false);setPanel(null);setError('');notify(LOGIN_REQUIRED);}
   function persist(key:string,value:unknown){try{localStorage.setItem(key,JSON.stringify(value));return true;}catch{notify('浏览器存储空间不足，进度暂未保存。');return false;}}
   useEffect(()=>{
@@ -148,7 +157,7 @@ export default function Home(){
     void fetch('/api/auth/me',{cache:'no-store'}).then(r=>r.json()).then((payload:AuthStatus)=>{setAuth(payload);if(oauth==='success')notify('知乎登录成功，可以开始故事了。');if(oauth==='error')notify(payload.error?.message||'知乎登录没有完成，请重新登录。');}).catch(()=>setAuth({configured:false,authorized:false,profile:null,error:{code:'AUTH_UNAVAILABLE',message:'知乎登录状态暂时无法读取。'}}));
     setReady(true);
   },[]);
-  useEffect(()=>{const audio=audioRef.current;if(!audio||!bgmTrack)return;const track=bgmTracks.find(item=>item.id===bgmTrack);if(!track)return;const source=new URL(track.src,window.location.href).href;if(audio.src!==source){audio.src=source;audio.load();}audio.loop=true;const shouldPlay=started&&!state?.complete&&!showChoices;if(shouldPlay){void audio.play().catch(()=>setToast('浏览器阻止了自动播放，请点击对白区域开启背景音乐。'));}else{audio.pause();if(state?.complete)audio.currentTime=0;}},[bgmTrack,started,state?.complete,showChoices]);
+  useEffect(()=>{const audio=audioRef.current;if(!audio||!bgmTrack)return;const track=bgmTracks.find(item=>item.id===bgmTrack);if(!track)return;const source=new URL(track.src,window.location.href).href;if(audio.src!==source){audio.src=source;audio.load();}audio.loop=true;audio.volume=1;audio.muted=false;const shouldPlay=started&&!state?.complete&&!showChoices;if(shouldPlay){void audio.play().catch(()=>setToast('请点击对白区域开启背景音乐。'));}else{audio.pause();if(state?.complete)audio.currentTime=0;}},[bgmTrack,started,state?.complete,showChoices]);
   useEffect(()=>{if(ready)persist('lamplight_preferences',preferences);},[preferences,ready]);
   useEffect(()=>{if(ready&&chats['author:zhao-ling'])persist('lamplight_author_trial',chats['author:zhao-ling']);},[ready,chats]);
   useEffect(()=>{if(ready&&started&&state&&!waiting&&!busy)persist('lamplight_resume',{version:1,mode,storyId:storyId.current,state,line,chats,time:new Date().toISOString(),partner:partner.id,bgm:bgmTrack||undefined} satisfies SaveSlot);},[state,line,chats,mode,ready,started,waiting,busy,partner.id,bgmTrack]);
@@ -180,8 +189,8 @@ export default function Home(){
       const response=await fetch('/api/story',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({storyId:action==='start'||action==='restart'?undefined:storyId.current,action,...(choice!==undefined?{choice,expected:state?.nodes.length}:{}),...(['start','restart'].includes(action)?{profiles:selectedProfiles,backgroundId:selectedBackgroundId,player:{name:playerName.trim(),gender:playerGender}}:{})})});
       const id=response.headers.get('X-Story-Id');if(id){storyId.current=id;localStorage.setItem('lamplight_story_id',id);}
       if(response.status===401){requireLogin();return;}
-      if(!response.ok){const d=await response.json();throw new Error(d.error||'故事暂时无法继续。');}
-      if(!response.headers.get('content-type')?.includes('text/event-stream')){const d=await response.json();setState(d.state);setPartial(d.state?.partial||null);return;}
+      if(!response.ok){const d=await readResponseJson(response);throw new Error(d.error||d.message||`故事接口返回 HTTP ${response.status}。`);}
+      if(!response.headers.get('content-type')?.includes('text/event-stream')){const d=await readResponseJson(response);setState(d.state);setPartial(d.state?.partial||null);return;}
       const reader=response.body!.getReader(),decoder=new TextDecoder();let buffer='',finished=false;
       const receive=(event:GameEvent)=>{
         if(event.type==='status')setStatus(event.message);
@@ -198,7 +207,7 @@ export default function Home(){
   }
   function startLogin(){track('ui_login_clicked');setAuthBusy(true);window.location.assign('/api/auth/login');}
   async function logout(){setAuthBusy(true);try{await fetch('/api/auth/logout',{method:'POST'});track('ui_logout_clicked');setAuth({configured:true,authorized:false,profile:null,error:null});setStarted(false);setState(null);setPartial(null);setPanel(null);notify('已退出知乎登录。');}finally{setAuthBusy(false);}}
-  function startDemo(){if(!auth?.authorized){notify('请先登录知乎。');return;}track('ui_demo_started');pickBgm();setState(structuredClone(demoOpening));setMode('demo');setPartial(null);setLine(0);setShown(0);setChats({});setError('');setStarted(true);setPanel(null);storyId.current=undefined;}
+  function startDemo(){if(!auth?.authorized){notify('请先登录知乎。');return;}track('ui_demo_started');const selected=pickBgm();playBgm(selected);setState(structuredClone(demoOpening));setMode('demo');setPartial(null);setLine(0);setShown(0);setChats({});setError('');setStarted(true);setPanel(null);storyId.current=undefined;}
   function openSetup(){if(!auth?.authorized){notify('请先登录知乎。');return;}setSelectedIds((current)=>{const valid=current.filter((id)=>Boolean(findSetupMember(id)));return valid.length===liveCatalog.requiredCastCount?valid:defaultCastSelection();});setError('');setSetupStep(0);setSetupFocus('board');setInviteOpen(false);setPanel('setup');}
   function toggleMember(id:string){setSelectedIds((current)=>{if(current.includes(id))return current.filter((item)=>item!==id);if(current.length>=liveCatalog.requiredCastCount){notify(`已经选满${liveCatalog.requiredCastCount}位，请先取消一位再更换。`);return current;}return [...current,id];});}
   async function inviteAuthor(){const value=inviteInput.trim();if(!value||inviteBusy)return;track('ui_author_invite',{length:value.length});setInviteBusy(true);setInviteError('');
@@ -212,7 +221,7 @@ export default function Home(){
     finally{setInviteBusy(false);}}
   function setupMemberAvailable(id:string){return Boolean(findSetupMember(id));}
   function canAdvanceSetup(){if(setupStep===0)return Boolean(selectedBackgroundId);if(setupStep===1)return catalogReady&&selectedIds.length===liveCatalog.requiredCastCount&&selectedIds.every((id)=>setupMemberAvailable(id));return catalogReady&&selectedIds.length===liveCatalog.requiredCastCount&&selectedIds.every((id)=>setupMemberAvailable(id))&&playerName.trim().length>0;}
-  function nextSetup(){if(!auth?.authorized){notify('请先登录知乎。');return;}if(!canAdvanceSetup())return;track('ui_setup_step',{step:setupStep});if(setupStep<2){setSetupStep((step)=>step+1);return;}if(selectedIds.length!==liveCatalog.requiredCastCount||selectedIds.some((id)=>!setupMemberAvailable(id))){setSetupStep(1);setPanel('setup');notify('角色列表刚刚更新，请重新确认四位同行者。');return;}const authorIds=selectedIds.filter((id)=>liveCatalog.authors.some((author)=>author.id===id));if(authorIds.length)void fetch('/api/authors/style',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({castIds:authorIds})}).catch(()=>{});pickBgm();setPanel(null);setMode('live');setState(null);setPartial(null);setLine(0);setChats({});setStarted(true);storyId.current=undefined;void act('start');}
+  function nextSetup(){if(!auth?.authorized){notify('请先登录知乎。');return;}if(!canAdvanceSetup())return;track('ui_setup_step',{step:setupStep});if(setupStep<2){setSetupStep((step)=>step+1);return;}if(selectedIds.length!==liveCatalog.requiredCastCount||selectedIds.some((id)=>!setupMemberAvailable(id))){setSetupStep(1);setPanel('setup');notify('角色列表刚刚更新，请重新确认四位同行者。');return;}const authorIds=selectedIds.filter((id)=>liveCatalog.authors.some((author)=>author.id===id));if(authorIds.length)void fetch('/api/authors/style',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({castIds:authorIds})}).catch(()=>{});const selected=pickBgm();playBgm(selected);setPanel(null);setMode('live');setState(null);setPartial(null);setLine(0);setChats({});setStarted(true);storyId.current=undefined;void act('start');}
   function choose(index:number){if(!auth?.authorized){notify('请先登录知乎。');return;}if(busy||waiting||!state)return;track('ui_choice_clicked',{choice:index},storyId.current);if(mode==='live'){void act('choose',index);return;}const next=chooseDemo(state,index);for(const c of cast){const delta=next.worldState.relationships[c.id]-state.worldState.relationships[c.id];if(delta>0)setAffinity(`${c.name}  ♥ +${delta}`);}setState(next);setLine(0);setShown(0);setPlayMode('manual');}
   async function saveSlot(index:number){
     if(!auth?.authorized){notify('请先登录知乎。');return;}if(!state||waiting||busyRef.current)return;track('ui_save_clicked',{slot:index},storyId.current);if(slots[index]&&overwrite!==index){setOverwrite(index);return;}busyRef.current=true;setBusy(true);
@@ -240,7 +249,7 @@ export default function Home(){
   const sceneAsset=state?.world.background.sceneAsset||'/art/cafe-rain.webp';
   return <main className={`game-shell ${preferences.motion?'':'reduce-motion'}`}>
     <div className="portrait-notice"><span>↻</span><h2>把屏幕横过来，故事就开始了。</h2><p>横屏体验 · 假如我们的人生</p></div>
-    <section className="game-stage" style={css} aria-label="假如我们的人生，视觉小说舞台" onContextMenu={e=>{if(!(e.target instanceof HTMLElement&&e.target.closest('input,textarea'))){e.preventDefault();if(!chatOpen)setPanel(panel?null:'menu');}}}>
+    <section className="game-stage" style={css} aria-label="假如我们的人生，视觉小说舞台" onPointerDown={()=>{if(started&&!showChoices&&!state?.complete)playBgm();}} onContextMenu={e=>{if(!(e.target instanceof HTMLElement&&e.target.closest('input,textarea'))){e.preventDefault();if(!chatOpen)setPanel(panel?null:'menu');}}}>
       <img className="background" src={sceneAsset} alt={state?.world.background.label||"雨夜场景"}/><audio className="bgm-audio" ref={audioRef} preload="auto" aria-label="背景音乐"/><div className="scene-vignette"/><div className="rain-light" aria-hidden="true"/>
       <div className={`cast-stage ${started?'':'title-cast'}`} aria-hidden={!started}><CharacterPortrait key={`player-${playerPose}`} id={playerArtId} name={activePlayerName} pose={playerPose} className={`character player pose-${playerPose} ${playerSpeaking?'speaking':''}`} alt={`主角${activePlayerName}的立绘`}/><CharacterPortrait key={`${partner.id}-${partnerPose}`} id={partner.id} name={partner.name} pose={partnerPose} className={`character partner pose-${partnerPose} ${currentLine?.speaker===partner.name?'speaking':''}`} alt={`${partner.name}的立绘`}/></div>
       {started&&!hidden&&<>
