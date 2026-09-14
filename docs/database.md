@@ -1,4 +1,4 @@
-# 留一盏灯 demo 数据库
+# 假如我们的人生 demo 数据库
 
 数据库名为 `svc_lamplight`，运行时使用 `svc_lamplight_app`，迁移使用 `svc_lamplight_owner`。旧项目 `svc_restart_life` 继续保持只读边界。
 
