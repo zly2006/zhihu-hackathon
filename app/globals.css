@@ -6,3 +6,13 @@
 
 .choice-option{width:100%;margin:.7cqw 0}.choice-option .choice-sources{margin:.45cqw .9cqw 0}.choice-option>button{margin:0}.choice-sources{display:flex;align-items:center;flex-wrap:wrap;gap:.45cqw;color:#f7eaf7;font-size:.67cqw;text-align:left}.choice-sources-label{margin-right:.15cqw;opacity:.82}.choice-source{display:inline-flex;align-items:center;gap:.28cqw;min-height:1.8cqw;padding:.18cqw .42cqw .18cqw .2cqw;border:1px solid #fff5;border-radius:2em;background:#25182e66;color:#fff;text-decoration:none;transition:background .2s,transform .2s}.choice-source:hover{background:#8d6a9dcc;transform:translateY(-1px)}.choice-source-avatar{width:1.45cqw;height:1.45cqw;display:grid;place-items:center;overflow:hidden;border:1px solid #fff9;border-radius:50%;background:#d5b7d8;color:#76527d;font-size:.68cqw;font-weight:600}.choice-source-avatar img{width:100%;height:100%;object-fit:cover}.choice-source-fallback{display:grid;place-items:center;width:100%;height:100%}.choice-source-name{max-width:6.5cqw;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;font-size:.67cqw}
 @media(max-width:1000px) and (orientation:landscape){.choice-option{margin:.75cqw 0}.choice-option .choice-sources{margin-top:.4cqw}.choice-sources{font-size:.9cqw;gap:.35cqw}.choice-source{min-height:2.4cqw;padding:.2cqw .5cqw .2cqw .25cqw}.choice-source-avatar{width:2cqw;height:2cqw;font-size:.9cqw}.choice-source-name{max-width:8cqw;font-size:.9cqw}}
+
+/* Visual hierarchy: reserve the warm gold only for the title and key metadata. */
+:root{--gold:#d7b56d;--gold-light:#f1d99a}
+.title-copy h1{color:var(--gold-light)}
+.title-copy h1 span{color:var(--gold)}
+.title-copy .zhihu-mark,.title-overline{color:var(--gold-light)}
+.title-en{color:#f2dfb0}
+.title-poem{color:#f6edf5}
+.setup-selection-status{margin:.8cqw 0;color:#9a82a2;font-size:.8cqw}
+.setup-selection-status strong{color:#8d6a9a;font-size:1.1em}

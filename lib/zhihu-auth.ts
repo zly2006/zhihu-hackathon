@@ -14,7 +14,17 @@ const globalStore=globalThis as typeof globalThis&{lamplightZhihuSessions?:Sessi
 const sessions=globalStore.lamplightZhihuSessions??=new Map();
 
 function env(name:string){return process.env[name]?.trim()||'';}
-function configuration(){return {appId:env('ZHIHU_OAUTH_APP_ID'),appKey:env('ZHIHU_OAUTH_APP_KEY'),redirectUri:env('ZHIHU_OAUTH_REDIRECT_URI'),accessSecret:env('ZHIHU_OAUTH_ACCESS_SECRET'),userInfoUrl:env('ZHIHU_OAUTH_USERINFO_URL')||USERINFO_DEFAULT_URL};}
+function configuration(){
+  // The guide calls this credential “Access Secret”. Older project templates
+  // used ZHIHU_ACCESS_SECRET, so accept it as a backwards-compatible alias.
+  return {
+    appId:env('ZHIHU_OAUTH_APP_ID'),
+    appKey:env('ZHIHU_OAUTH_APP_KEY'),
+    redirectUri:env('ZHIHU_OAUTH_REDIRECT_URI'),
+    accessSecret:env('ZHIHU_OAUTH_ACCESS_SECRET')||env('ZHIHU_ACCESS_SECRET'),
+    userInfoUrl:env('ZHIHU_OAUTH_USERINFO_URL')||USERINFO_DEFAULT_URL
+  };
+}
 function fail(code:string,message:string){return Object.assign(new Error(message),{code});}
 function errorPayload(error:unknown):AuthError{const source=error as {code?:unknown;message?:unknown};return {code:String(source?.code||'OAUTH_FAILED').slice(0,80),message:String(source?.message||'知乎登录失败').slice(0,200)};}
 function safe(value:string,label:string){if(!value||/[\r\n]/.test(value))throw fail('CONFIG_INVALID',`${label} 未配置或格式无效`);return value;}

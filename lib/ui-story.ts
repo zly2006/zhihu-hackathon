@@ -47,10 +47,10 @@ export function chooseDemo(state:PublicState, index:number):PublicState {
     next.route=person.id;next.worldState.relationships[person.id]+=2;
     const action={lin:'我把靠窗的画纸一张张移到干燥的桌面上，留出右下角还没干的颜料。',tao:'我接过托盘，把杯子放在桌子中央。歪歪的杯沿，在暖光下像一个小小的微笑。',shen:'我帮她把三脚架摆稳，试了试定时快门，又把镜头朝向大家都能看见的位置。'}[person.id];
     const reply={lin:'你真的记住了。我总觉得，肯认真看一张画的人，比画画的人还难遇到。',tao:'你没有把它换成那只更漂亮的。谢谢，我其实……一直很喜欢这只。',shen:'谢谢你没有躲到镜头后面。不过如果不想入镜，告诉我就好。'}[person.id];
-    next.nodes.push({title:'一点点靠近',readingSeconds:30,lines:[{speaker:'旁白',text:action},{speaker:person.name,text:reply},{speaker:'许澄',text:'那今晚，就让我们慢慢来吧。反正雨还没有停。'},{speaker:person.name,text:'嗯。如果你愿意，下次也一起待到最后吧。'}],choices:[{text:'笑着答应下一次相见'},{text:'先一起喝完今晚的茶'}]});
+    next.nodes.push({title:'一点点靠近',readingSeconds:45,lines:[{speaker:'旁白',text:action},{speaker:person.name,text:reply},{speaker:'许澄',text:'那今晚，就让我们慢慢来吧。反正雨还没有停。'},{speaker:person.name,text:'嗯。如果你愿意，下次也一起待到最后吧。'}],choices:[{text:'笑着答应下一次相见'},{text:'先一起喝完今晚的茶'}]});
   }else{
     const selected=cast.find(c=>c.id===next.route)||cast[0];
-    next.nodes.push({title:'灯光留在这里',readingSeconds:20,lines:[{speaker:'许澄',text:index===0?'我愿意。下次记得叫我，我会早点来。':'好啊。不过今晚，先一起把茶喝完吧。'},{speaker:selected.name,text:index===0?'说好了。下次，也给你留一盏灯。':'好，不着急。今晚能这样坐在一起，就已经很好了。'},{speaker:'旁白',text:'窗外的雨渐渐小了。我们没有急着关灯，有些话，也终于可以留到下一次慢慢说。'}],choices:[]});
+    next.nodes.push({title:'灯光留在这里',readingSeconds:45,lines:[{speaker:'许澄',text:index===0?'我愿意。下次记得叫我，我会早点来。':'好啊。不过今晚，先一起把茶喝完吧。'},{speaker:selected.name,text:index===0?'说好了。下次，也给你留一盏灯。':'好，不着急。今晚能这样坐在一起，就已经很好了。'},{speaker:'旁白',text:'窗外的雨渐渐小了。我们没有急着关灯，有些话，也终于可以留到下一次慢慢说。'}],choices:[]});
     next.complete=true;
   }
   return next;
