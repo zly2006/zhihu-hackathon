@@ -1,4 +1,5 @@
 import type {PublicState} from './story';
+import {validateAnswerSource,type AuthorSource} from './author-citations';
 
 export const cast = [
   {id:'lin', name:'林见夏', job:'插画师', color:'#bd7d91', greeting:'雨还没停。你想聊些什么？我在听。'},
@@ -6,7 +7,7 @@ export const cast = [
   {id:'shen', name:'沈知遥', job:'摄影师', color:'#889ec6', greeting:'先把相机放下。现在，我想听你说。'},
 ] as const;
 export type CastId = string;
-export type ChatMessage = {role:'user'|'assistant';text:string};
+export type ChatMessage = {role:'user'|'assistant';text:string;sources?:AuthorSource[];evidenceStatus?:'matched'|'no-match'|'unverified'|'persona';avatar?:{id:string;displayName:string;styleStatus:'unreviewed'|'auto'|'reviewed'}};
 export type Chats = Partial<Record<CastId,ChatMessage[]>>;
 export type SaveSlot = {version:1;mode:'demo'|'live';storyId?:string;state:PublicState;line:number;chats:Chats;time:string;partner:CastId};
 
@@ -23,9 +24,9 @@ export const demoOpening:PublicState = {
     background:{id:'rainy-studio',label:'雨夜工作室',ordinal:'00',kicker:'雨声把世界隔在窗外',summary:'共享工作室的开放夜被一场雨留住。',sceneAsset:'/art/cafe-rain.webp',lifeChoice:{title:'留在这里',question:'你想把这一晚交给谁？',pressure:'雨还没有停。',directions:['整理画纸','摆好杯子','检查相机']},constraints:[]},
     premise:'共享工作室的周年开放夜，一场突如其来的雨，让四个人的故事悄悄开始。', locations:['工作室前厅','门口雨棚'],
     cast:[
-      {id:'lin',name:'林见夏',gender:'女',age:25,identity:'插画师',background:undefined,zhihuHandle:undefined},
-      {id:'tao',name:'陶晚晴',gender:'女',age:24,identity:'陶艺师',background:undefined,zhihuHandle:undefined},
-      {id:'shen',name:'沈知遥',gender:'女',age:26,identity:'摄影师',background:undefined,zhihuHandle:undefined},
+      {id:'lin',name:'林见夏',gender:'女',age:25,identity:'插画师',kind:'preset-npc',background:undefined,zhihuHandle:undefined},
+      {id:'tao',name:'陶晚晴',gender:'女',age:24,identity:'陶艺师',kind:'preset-npc',background:undefined,zhihuHandle:undefined},
+      {id:'shen',name:'沈知遥',gender:'女',age:26,identity:'摄影师',kind:'preset-npc',background:undefined,zhihuHandle:undefined},
     ],
   },
   partial:null, ending:null, route:null, relationshipType:null, routeLabel:null, stageId:'demo-opening', stageKind:'common', selections:[], pending:false, total:3, minTotal:3, maxTotal:3, complete:false,
@@ -56,8 +57,22 @@ export function chooseDemo(state:PublicState, index:number):PublicState {
   return next;
 }
 
+export const ACTOR_ID_PATTERN=/^[A-Za-z0-9_-]{1,80}$/;
+export const AUTHOR_URL_TOKEN_PATTERN=/^[A-Za-z0-9_-]{1,100}$/;
 export function isSaveSlot(value:unknown):value is SaveSlot {
   if(!value||typeof value!=='object')return false;
   const slot=value as SaveSlot;
-  return slot.version===1&&['demo','live'].includes(slot.mode)&&Number.isInteger(slot.line)&&slot.line>=0&&!!slot.state&&Array.isArray(slot.state.nodes)&&slot.state.nodes.every(n=>Array.isArray(n.lines)&&n.lines.every(l=>typeof l.speaker==='string'&&typeof l.text==='string')&&Array.isArray(n.choices))&&!!slot.chats&&typeof slot.partner==='string'&&slot.partner.length>0;
+  return slot.version===1&&['demo','live'].includes(slot.mode)&&Number.isInteger(slot.line)&&slot.line>=0&&!!slot.state&&Array.isArray(slot.state.nodes)&&slot.state.nodes.every(n=>Array.isArray(n.lines)&&n.lines.every(l=>typeof l.speaker==='string'&&typeof l.text==='string')&&Array.isArray(n.choices))&&!!slot.chats&&typeof slot.chats==='object'&&Object.values(slot.chats).every(messages=>Array.isArray(messages)&&messages.every(isChatMessage))&&typeof slot.partner==='string'&&slot.partner.length>0;
+}
+export function isChatMessage(value:unknown):value is ChatMessage {
+  if(!value||typeof value!=='object')return false;
+  const message=value as ChatMessage;
+  if(!['user','assistant'].includes(message.role)||typeof message.text!=='string')return false;
+  if(message.evidenceStatus!==undefined&&!['matched','no-match','unverified','persona'].includes(message.evidenceStatus))return false;
+  if(message.avatar!==undefined&&(!message.avatar||!ACTOR_ID_PATTERN.test(message.avatar.id)||typeof message.avatar.displayName!=='string'||!['unreviewed','auto','reviewed'].includes(message.avatar.styleStatus)))return false;
+  if(message.sources!==undefined){
+    if(!Array.isArray(message.sources)||message.sources.length>3)return false;
+    for(const source of message.sources){try{if(!source||typeof source.answerId!=='string'||typeof source.title!=='string'||typeof source.author!=='string'||!AUTHOR_URL_TOKEN_PATTERN.test(source.authorUrlToken)||typeof source.completeness!=='string')return false;validateAnswerSource(source.url,source.answerId);}catch{return false;}}
+  }
+  return true;
 }
