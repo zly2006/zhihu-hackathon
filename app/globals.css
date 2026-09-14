@@ -38,6 +38,7 @@
 .affinity-note{display:block;margin-top:.25em;color:#8c7996;font-size:.75em}
 /* Visual hierarchy: reserve the warm gold only for the title and key metadata. */
 :root{--gold:#d7b56d;--gold-light:#f1d99a}
+.bgm-audio{display:none}
 .title-copy h1{color:var(--gold-light)}
 .title-copy h1 span{color:var(--gold)}
 .title-copy .zhihu-mark,.title-overline{color:var(--gold-light)}
