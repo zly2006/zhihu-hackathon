@@ -3,9 +3,12 @@ import {
   CollectorStop,
   buildAnswerRecord,
   callZhurl,
+  generalSearchUrl,
   inspectAnswerDetail,
   listExistingAnswerIds,
+  memberSearchUrl,
   nextBatchIndex,
+  resolveMemberHashId,
   resolveZhurl,
   sleep,
   validateAnswerId,
@@ -43,6 +46,8 @@ const sortBy = mode === 'latest' ? 'created' : 'voteups';
 
 const zhurl = resolveZhurl(arg('zhurl'));
 const authorDirectory = path.resolve('.data', 'author-avatars', authorToken);
+const memberHashId = mode === 'search' ? resolveMemberHashId(zhurl, authorToken) : '';
+if (mode === 'search') console.log(`member-scoped-search=${memberHashId ? 'on' : 'off'}`);
 
 const existing = await listExistingAnswerIds(authorDirectory);
 
@@ -58,7 +63,7 @@ async function listAnswerPage(offset) {
 }
 
 async function listSearchPage(offset) {
-  const url = `https://www.zhihu.com/api/v4/search_v3?t=general&q=${encodeURIComponent(query)}&correction=1&offset=${offset}&limit=${perPage}&filter_fields=&lc_idx=0&show_all_topics=0`;
+  const url = memberHashId ? memberSearchUrl({query, offset, limit: perPage, memberHashId}) : generalSearchUrl(query, offset, perPage);
   const page = callZhurl(zhurl, url);
   const items = (Array.isArray(page.data) ? page.data : [])
     .map((entry) => entry?.object)

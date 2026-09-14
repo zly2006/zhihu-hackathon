@@ -4,6 +4,7 @@ import {existsSync, readdirSync, readFileSync} from 'node:fs';
 import {mkdir, readFile, rename, rm, writeFile} from 'node:fs/promises';
 import os from 'node:os';
 import path from 'node:path';
+import {prepareZhurlEnv} from './zhurl-compat.mjs';
 
 export const MAX_BATCH_RECORDS = 30;
 export const MAX_BATCH_BYTES = 480_000;
@@ -70,13 +71,18 @@ function zhurlCommand(zhurl, url, options) {
 
 export function callZhurl(zhurl, url, options = {}) {
   const {command, args} = zhurlCommand(zhurl, url, options);
+  const compat = prepareZhurlEnv();
   let raw;
   try {
-    raw = execFileSync(command, args, {encoding: 'utf8', maxBuffer: 64 * 1024 * 1024});
-  } catch (error) {
-    const detail = String(error.stderr || error.message || '').trim();
-    stopIfAuthError(detail);
-    throw new Error(`zhurl 调用失败（${url}）：${detail.slice(0, 300)}`);
+    try {
+      raw = execFileSync(command, args, {encoding: 'utf8', maxBuffer: 64 * 1024 * 1024, env: compat.env});
+    } catch (error) {
+      const detail = String(error.stderr || error.message || '').trim();
+      stopIfAuthError(detail);
+      throw new Error(`zhurl 调用失败（${url}）：${detail.slice(0, 300)}`);
+    }
+  } finally {
+    compat.cleanup();
   }
   let payload;
   try {
@@ -95,6 +101,35 @@ export function callZhurl(zhurl, url, options = {}) {
 
 export function sleep(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+export function memberSearchUrl({query, offset = 0, limit = 20, memberHashId}) {
+  const params = [
+    ['gk_version', 'gz-gaokao'],
+    ['t', 'general'],
+    ['q', query],
+    ['correction', '1'],
+    ['offset', String(offset)],
+    ['limit', String(limit)],
+    ['search_source', 'Normal'],
+    ['show_all_topics', '0'],
+    ['filter_fields', ''],
+    ['lc_idx', '0'],
+    ['restricted_scene', 'member'],
+    ['restricted_field', 'member_hash_id'],
+    ['restricted_value', memberHashId],
+  ];
+  return `https://www.zhihu.com/api/v4/search_v3?${params.map(([key, value]) => `${key}=${encodeURIComponent(value)}`).join('&')}`;
+}
+
+export function generalSearchUrl(query, offset = 0, limit = 20) {
+  return `https://www.zhihu.com/api/v4/search_v3?t=general&q=${encodeURIComponent(query)}&correction=1&offset=${offset}&limit=${limit}&filter_fields=&lc_idx=0&show_all_topics=0`;
+}
+
+export function resolveMemberHashId(zhurl, authorToken) {
+  const payload = callZhurl(zhurl, `https://www.zhihu.com/api/v4/members/${authorToken}?include=name,url_token`);
+  const id = String(payload?.id || '').trim();
+  return /^[A-Za-z0-9_-]{8,64}$/.test(id) ? id : '';
 }
 
 const NAMED_ENTITIES = {

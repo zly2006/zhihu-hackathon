@@ -5,11 +5,14 @@ import {
   buildAnswerRecord,
   callZhurl,
   filterNewCandidates,
+  generalSearchUrl,
   inspectAnswerDetail,
   listExistingAnswerIds,
   loadExistingCorpusTexts,
   loadProjectEnv,
+  memberSearchUrl,
   nextBatchIndex,
+  resolveMemberHashId,
   resolveZhurl,
   sleep,
   writeBatchesAtomically,
@@ -85,13 +88,15 @@ console.log(`planner=${planning.planner}${planning.plannerError ? ` (${planning.
 for (const query of planning.queries) console.log(`plan\t${query.topic}\t${query.query}\t${query.source}`);
 
 const zhurl = resolveZhurl(arg('zhurl'));
+const memberHashId = resolveMemberHashId(zhurl, authorToken);
+console.log(`member-scoped-search=${memberHashId ? 'on' : 'off'}`);
 const seen = new Set();
 const records = [];
 const skipped = [];
 const queryStats = [];
 
 function searchUrl(query, offset) {
-  return `https://www.zhihu.com/api/v4/search_v3?t=general&q=${encodeURIComponent(query)}&correction=1&offset=${offset}&limit=${perPage}&filter_fields=&lc_idx=0&show_all_topics=0`;
+  return memberHashId ? memberSearchUrl({query, offset, limit: perPage, memberHashId}) : generalSearchUrl(query, offset, perPage);
 }
 
 for (const planned of planning.queries) {
@@ -105,6 +110,7 @@ for (const planned of planning.queries) {
       .filter((object) => object && object.type === 'answer');
     const candidates = filterNewCandidates(items, {existingIds, seen, authorToken});
     candidatesFound += candidates.length;
+    console.log(`searched topic=${planned.topic} offset=${page * perPage} got=${items.length} candidates=${candidates.length}`);
     if (!candidates.length) {
       if (payload.paging?.is_end) break;
       await sleep(delayMs);
@@ -159,6 +165,7 @@ await writeCollectionReport(authorDirectory, {
   authorToken,
   collectedAt,
   method: 'profile-search',
+  memberScoped: Boolean(memberHashId),
   planner: planning.planner,
   ...(planning.plannerError ? {plannerError: planning.plannerError} : {}),
   minPerTopic,

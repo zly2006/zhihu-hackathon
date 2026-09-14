@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
 import {existsSync, readdirSync} from 'node:fs';
-import {mkdtemp, readFile, rm, writeFile} from 'node:fs/promises';
+import {mkdtemp, mkdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
 import test from 'node:test';
@@ -10,14 +10,17 @@ import {
   analyzeTopicGaps,
   answerSourceUrl,
   filterNewCandidates,
+  generalSearchUrl,
   htmlToText,
   inspectAnswerDetail,
   loadProjectEnv,
+  memberSearchUrl,
   planBatchSplits,
   planQueriesDeterministic,
   validateAnswerId,
 } from '../scripts/lib/author-collect.mjs';
 import {buildPlannerMessages, createDeepseekPlanner, parsePlannerReply, planQueries, planQueriesWithModel} from '../scripts/lib/author-plan.mjs';
+import {flattenAccount, prepareZhurlEnv} from '../scripts/lib/zhurl-compat.mjs';
 import {loadAuthorCorpus} from './author-corpus';
 
 const topics = [
@@ -156,6 +159,53 @@ test('project env loading fills missing variables and never overrides existing o
   }
 });
 
+test('zhurl compatibility accepts the nested account format only when logged in', () => {
+  assert.equal(flattenAccount(null), null);
+  assert.equal(flattenAccount({login: true, cookies: {z_c0: 'x'}}), null);
+  assert.equal(flattenAccount({activeAccountId: 'a', accounts: [{id: 'a', session: {login: false, cookies: {z_c0: 'x'}}}]}), null);
+  assert.equal(flattenAccount({activeAccountId: 'a', accounts: [{id: 'a', session: {login: true}}]}), null);
+  assert.equal(flattenAccount('not-an-object'), null);
+  const flat = flattenAccount({activeAccountId: 'a', accounts: [{id: 'a', session: {login: true, userAgent: 'UA', cookies: {z_c0: 'x', d_c0: 'y'}}}]});
+  assert.deepEqual(flat, {login: true, userAgent: 'UA', cookies: {z_c0: 'x', d_c0: 'y'}});
+});
+
+test('zhurl compatibility writes a temp HOME and removes it afterwards', async () => {
+  const home = await mkdtemp(path.join(tmpdir(), 'zhurl-src-home-'));
+  const originalHome = process.env.HOME;
+  try {
+    await mkdir(path.join(home, '.zhihu-plus-plus'), {recursive: true});
+    await writeFile(path.join(home, '.zhihu-plus-plus', 'account.json'), JSON.stringify({
+      activeAccountId: 'a',
+      accounts: [{id: 'a', session: {login: true, userAgent: 'UA', cookies: {z_c0: 'x', d_c0: 'y'}}}],
+    }));
+    process.env.HOME = home;
+    const {env, cleanup} = prepareZhurlEnv();
+    const tempHome = env.HOME as string;
+    assert.notEqual(tempHome, home);
+    const written = JSON.parse(await readFile(path.join(tempHome, '.zhihu-plus-plus', 'account.json'), 'utf8'));
+    assert.equal(written.login, true);
+    assert.equal(written.cookies.z_c0, 'x');
+    assert.equal(written.userAgent, 'UA');
+    cleanup();
+    assert.ok(!existsSync(tempHome));
+  } finally {
+    if (originalHome === undefined) delete process.env.HOME;
+    else process.env.HOME = originalHome;
+    await rm(home, {recursive: true, force: true});
+  }
+});
+
+test('member-scoped search URLs carry the restricted member parameters', () => {
+  const url = memberSearchUrl({query: '研究生 导师', offset: 20, limit: 20, memberHashId: 'abc123def456'});
+  assert.ok(url.startsWith('https://www.zhihu.com/api/v4/search_v3?'));
+  assert.ok(url.includes('restricted_scene=member'));
+  assert.ok(url.includes('restricted_field=member_hash_id'));
+  assert.ok(url.includes('restricted_value=abc123def456'));
+  assert.ok(url.includes('offset=20'));
+  assert.ok(url.includes(encodeURIComponent('研究生 导师')));
+  assert.ok(generalSearchUrl('远程工作', 0, 20).includes('t=general'));
+});
+
 const mockZhurl = `import process from 'node:process';
 const url = process.argv[process.argv.length - 1];
 if (url.includes('fail-auth')) {
@@ -163,7 +213,9 @@ if (url.includes('fail-auth')) {
   process.exit(1);
 }
 let payload;
-if (url.includes('/members/') && url.includes('/answers')) {
+if (url.includes('/members/') && !url.includes('/answers') && !url.includes('/search')) {
+  payload = {id: 'abcdef0123456789abcdef0123456789', name: '合成作者', url_token: 'MarryMea'};
+} else if (url.includes('/members/') && url.includes('/answers')) {
   payload = {data: [{id: '9002', question: {title: '合成问题二'}, voteup_count: 3}], paging: {is_end: true}};
 } else if (url.includes('/search_v3')) {
   payload = {data: [{object: {type: 'answer', id: '9001', author: {url_token: 'MarryMea'}, question: {title: '合成问题一'}, voteup_count: 5}}], paging: {is_end: true}};
