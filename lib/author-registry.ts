@@ -37,7 +37,7 @@ const sourceSchema = z.object({
   avatarUrl: z.string().max(500).optional(),
   profileUrl: z.string().max(200),
   fetchedAt: z.string().min(1).max(40),
-  kind: z.enum(['official', 'zhurl']),
+  kind: z.enum(['official', 'web', 'zhurl']).transform((value) => (value === 'zhurl' ? 'web' : value)),
 }).strict();
 
 export const invitedAuthorSchema = z.object({

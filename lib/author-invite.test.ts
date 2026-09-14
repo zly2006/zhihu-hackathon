@@ -13,7 +13,7 @@ const token = 'synthetic-invited-author';
 const ref: AuthorRef = {provider: 'zhihu', urlToken: token, profileUrl: `https://www.zhihu.com/people/${token}`};
 const profile: AuthorProfile = {
   urlToken: token, profileUrl: ref.profileUrl, displayName: '公开昵称', headline: '专注转专业与职业规划的回答者',
-  gender: '女', fetchedAt: '2026-03-01T00:00:00.000Z', source: 'zhurl',
+  gender: '女', fetchedAt: '2026-03-01T00:00:00.000Z', source: 'web',
 };
 const provider = (overrides: Partial<AuthorProvider> = {}): AuthorProvider => ({
   resolveProfile: async (target) => validateAuthorProfile(profile, target),

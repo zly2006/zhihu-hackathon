@@ -10,7 +10,7 @@ import {ZhihuOfficialProvider, officialViewerFromProfile} from './author-provide
 
 const token = 'synthetic-author';
 const ref: AuthorRef = {provider: 'zhihu', urlToken: token, profileUrl: `https://www.zhihu.com/people/${token}`};
-const profile: AuthorProfile = {urlToken: token, profileUrl: ref.profileUrl, displayName: '合成答主', gender: '女', fetchedAt: '2026-03-01T00:00:00.000Z', source: 'zhurl'};
+const profile: AuthorProfile = {urlToken: token, profileUrl: ref.profileUrl, displayName: '合成答主', gender: '女', fetchedAt: '2026-03-01T00:00:00.000Z', source: 'web'};
 const summary: AnswerSummary = {answerId: '1001', authorUrlToken: token, questionTitle: '合成问题', sourceUrl: 'https://www.zhihu.com/answer/1001', collectionMethod: 'profile-search'};
 const answer: AuthorAnswer = {answerId: '1001', authorUrlToken: token, questionTitle: '合成问题', sourceUrl: 'https://www.zhihu.com/answer/1001', body: '合成正文。', completeness: 'fetched_api_content_unverified'};
 
@@ -46,7 +46,7 @@ test('hybrid uses the local cache first and never calls the online provider on a
     const online = countingProvider({counter: calls});
     const hybrid = new HybridAuthorProvider({cache, online: () => online});
     const first = await hybrid.resolveProfile(ref);
-    assert.equal(first.source, 'zhurl');
+    assert.equal(first.source, 'web');
     assert.equal(calls.calls, 1);
     const second = await hybrid.resolveProfile(ref);
     assert.equal(second.source, 'cache');
@@ -64,7 +64,7 @@ test('hybrid falls back to a single online call and writes the verified result t
     const cache = new FileAuthorCache(root);
     const hybrid = new HybridAuthorProvider({cache, online: () => countingProvider({counter})});
     const resolved = await hybrid.resolveProfile(ref);
-    assert.equal(resolved.source, 'zhurl');
+    assert.equal(resolved.source, 'web');
     assert.equal(counter.calls, 1);
     assert.ok(await cache.readProfile(ref, 60_000));
     const again = await hybrid.resolveProfile(ref);
@@ -226,17 +226,18 @@ test('the official provider maps paging payloads to summaries and surfaces api e
 test('the live provider stays unavailable without credentials instead of inventing content', async () => {
   const root = await mkdtemp(path.join(tmpdir(), 'author-provider-empty-'));
   try {
-    const provider = createLiveAuthorProvider({root, env: {NODE_ENV: 'test'}, viewer: null});
+    const provider = createLiveAuthorProvider({root, credentials: null, viewer: null});
     await assert.rejects(provider.resolveProfile(ref), (error: unknown) => {
       assert.ok(error instanceof AuthorProviderError);
-      assert.equal(error.code, 'AUTHOR_PROVIDER_UNAVAILABLE');
+      assert.equal(error.code, 'AUTHOR_SOURCE_UNCONFIGURED');
       return true;
     });
     const ownToken = {provider: 'zhihu' as const, urlToken: 'the-viewer', profileUrl: 'https://www.zhihu.com/people/the-viewer'};
-    const viewerProvider = createLiveAuthorProvider({root, env: {NODE_ENV: 'test'}, viewer: {urlToken: 'the-viewer', displayName: '登录用户'}});
+    const viewerProvider = createLiveAuthorProvider({root, credentials: null, viewer: {urlToken: 'the-viewer', displayName: '登录用户'}});
     await assert.rejects(viewerProvider.resolveProfile(ownToken), (error: unknown) => {
       assert.ok(error instanceof AuthorProviderError);
-      assert.equal(error.code, 'AUTHOR_AUTH_REQUIRED');
+      assert.equal(error.code, 'AUTHOR_SOURCE_UNCONFIGURED');
+      assert.ok(error.message.includes('内容来源'), '未配置内容来源时必须给出可执行的提示');
       return true;
     });
   } finally {

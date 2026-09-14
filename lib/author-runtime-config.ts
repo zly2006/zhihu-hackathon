@@ -19,6 +19,10 @@ export function sessionViewer(session: SessionLike): OfficialViewer | null {
 /**
  * 运行时 Provider：OAuth 会话只用来判断“是否代表当前授权用户自己”，
  * 与目标答主的公开内容来源严格分开。
+ *
+ * 公开内容来源由 ZHIHU_WEB_COOKIE（服务端环境变量）驱动；本地开发未配置时自动
+ * 回退到知乎++ 的 account.json。两者都没有时，邀请仍会尝试公开主页兜底，
+ * 回答检索则明确返回 AUTHOR_SOURCE_UNCONFIGURED。
  */
 export function createSessionAuthorProvider(session: SessionLike, env: NodeJS.ProcessEnv = process.env) {
   return createLiveAuthorProvider({
