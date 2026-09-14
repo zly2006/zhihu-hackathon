@@ -391,6 +391,46 @@ test('route life choices expose three linked Zhihu answers for each option', () 
   }
 });
 
+test('public completed selections retain every option and its grounded answer excerpts', () => {
+  const state = lockedState('m1');
+  advanceRoute(state, 0);
+  const view = publicState(state);
+  const selection = view.selections.at(-1);
+  assert.ok(selection);
+  assert.equal(selection?.options.length, 3);
+  assert.equal(selection?.options.filter((option) => option.selected).length, 1);
+  assert.equal(selection?.evidence.length, 3);
+  assert.ok(selection?.evidence.every((item) => item.excerpt.length > 0));
+  assert.ok(selection?.options.every((option) => option.evidence.length === 3));
+  assert.ok(selection.options.every((option) => option.evidenceBasis === 'option'));
+  assert.equal(selection.target, 'm1');
+});
+
+test('common relationship choices retain event context without claiming option-specific evidence', () => {
+  const state = initial(profiles, startOptions);
+  const event = selectedLifeEvent(state, beatForState(state))!;
+  chooseTarget(state, 'm1');
+  const selection = publicState(state).selections[0];
+  assert.equal(selection.evidenceBasis, 'event');
+  assert.equal(selection.options.length, 4);
+  for (const option of selection.options) {
+    assert.equal(option.evidenceBasis, 'event');
+    assert.deepEqual(option.evidence.map((item) => item.contentId), event.zhihuEvidence.map((item) => item.contentId));
+  }
+});
+
+test('legacy choices recover recorded text and event only from saved identifiers', () => {
+  const state = lockedState('m1');
+  const original = publicState(state).selections[0];
+  state.selections[0] = {node: 0, index: 0, text: '', target: null};
+  assert.equal(publicState(state).selections[0].text, original.text);
+  delete state.nodes[0].lifeEventId;
+  state.plannedLifeEventIds = {};
+  const missing = publicState(state).selections[0];
+  assert.equal(missing.evidenceBasis, 'none');
+  assert.deepEqual(missing.evidence, []);
+});
+
 test('event planning is persisted per beat and does not drift after used-event changes', () => {
   const state = initial(profiles, startOptions);
   const firstBeat = beatForState(state);

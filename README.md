@@ -15,7 +15,11 @@ npm run dev
 
 服务端使用 `MODEL_PROVIDER=opencode`，通过 `OPENCODE_API_KEY`、`OPENCODE_ENDPOINT` 和 `OPENCODE_MODEL` 调用 OpenCode Go。OpenCode 模式不会读取 CPA 凭证，避免把另一套密钥发往错误上游。密钥不进入前端bundle、浏览器响应或请求日志；部署时配置服务端环境变量即可。
 
-正式故事和体验预览都要求先完成知乎 OAuth 登录。登录入口是 `/api/auth/login`，回调地址必须与知乎应用后台登记的 `ZHIHU_OAUTH_REDIRECT_URI` 完全一致，通常为 `https://你的域名/auth/callback`。授权码、App Key、Access Token 和可选的 Access Secret 只在服务端处理；浏览器只保存 HttpOnly 会话 Cookie。服务端会把授权状态保存在当前 Node 进程内存中，因此单实例重启后需要重新登录。
+使用 `npm run dev` 启动后，通过 `http://127.0.0.1:3000` 或 `http://localhost:3000` 打开首页，可以点击单独的「本地模式」按钮。它会以固定的「本地开发」模拟身份建立会话，无需配置知乎 OAuth、PostgreSQL 或执行数据库迁移。即使环境中保留了数据库连接配置，本地会话也不会连接数据库或写入交互、聊天和剧情副本。故事仍保存在 `.data/sessions/`，存档槽位与阅读位置保存在当前浏览器中。
+
+本地模式可以进入正常的开局、剧情、聊天和存读档流程；AI 生成仍需要上面列出的模型配置，读取知乎公开资料仍需要相应的内容来源配置。浏览器刷新后会保留本地身份，服务重启或点击「退出本地模式」后需要重新进入，已保存的故事文件不会被删除。原来的 `LAMPLIGHT_DEV_MODE` / `LAMPLIGHT_PLAYTEST` 自动免登录开关已由这个按钮取代。
+
+本地入口只在 `NODE_ENV=development` 且通过回环地址访问时开放。生产构建不显示该按钮，`POST /api/auth/local` 返回 404，并拒绝本地会话。正式环境要求先完成知乎 OAuth 登录。登录入口是 `/api/auth/login`，回调地址必须与知乎应用后台登记的 `ZHIHU_OAUTH_REDIRECT_URI` 完全一致，通常为 `https://你的域名/auth/callback`。授权码、App Key、Access Token 和可选的 Access Secret 只在服务端处理；浏览器只保存 HttpOnly 会话 Cookie。服务端会把授权状态保存在当前 Node 进程内存中，因此单实例重启后需要重新登录。
 
 模型为 `deepseek-flash`，请求携带 `x-opencode-session` 路由头，`reasoning_effort` 默认 `none`。上游返回的推理token数只写后台日志，不影响正文流。
 

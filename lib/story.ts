@@ -1014,7 +1014,41 @@ export function publicState(state: State) {
   const event = getNodeLifeEvent(visibleNode) || selectedLifeEvent(state, currentBeat);
   const latestSelection = state.selections.at(-1);
   const ending = state.route ? resolveEnding(state) : null;
-  const publicEvidence = (items: ZhihuEvidence[]) => items.map(({ contentId, title, author, url, authorAvatarUrl, authorProfileUrl }) => ({ contentId, title, author, url, authorAvatarUrl, authorProfileUrl }));
+  const publicEvidence = (items: ZhihuEvidence[]) => items.map(({ contentId, title, author, url, excerpt, voteUpCount, authorityLevel, authorAvatarUrl, authorProfileUrl }) => ({ contentId, title, author, url, excerpt, voteUpCount, authorityLevel, authorAvatarUrl, authorProfileUrl }));
+  const publicSelection = (selection: Selection) => {
+    const selectedNode = state.nodes[selection.node];
+    const selectedBeat = selectedNode ? beatAtNode(state, selection.node) : null;
+    const savedEventId = selection.eventId || (selectedBeat && state.plannedLifeEventIds?.[selectedBeat.id]);
+    const selectedEvent = getNodeLifeEvent(selectedNode) || LIFE_EVENT_LIBRARY.events.find((event) => event.id === savedEventId) || null;
+    const evidenceForOption = (index: number) => {
+      const option = selectedBeat?.kind === 'route' ? selectedEvent?.options[index] : undefined;
+      return {
+        basis: option ? 'option' as const : selectedEvent ? 'event' as const : 'none' as const,
+        items: option?.zhihuEvidence || selectedEvent?.zhihuEvidence || [],
+      };
+    };
+    const options = selectedNode?.choices.map((choice, index) => {
+      const optionEvidence = evidenceForOption(index);
+      return { index, text: choice.text, target: choice.target, selected: index === selection.index, evidenceBasis: optionEvidence.basis, evidence: publicEvidence(index === selection.index && selection.evidence ? selection.evidence : optionEvidence.items) };
+    }) || [];
+    const selectedOptionEvidence = evidenceForOption(selection.index);
+    return {
+      node: selection.node,
+      index: selection.index,
+      text: selection.text || selectedNode?.choices[selection.index]?.text || '',
+      target: selection.target || selectedNode?.choices[selection.index]?.target || (selectedBeat?.kind === 'route' ? state.route || undefined : undefined),
+      optionId: selection.optionId,
+      eventId: selection.eventId || selectedEvent?.id,
+      outcome: selection.outcome,
+      disclosure: selection.disclosure,
+      evidenceBasis: selectedOptionEvidence.basis,
+      evidence: publicEvidence(selection.evidence || selectedOptionEvidence.items),
+      options,
+      nodeTitle: selectedNode?.title || `第 ${selection.node + 1} 段`,
+      eventTitle: selectedEvent?.title,
+      eventDomain: selectedEvent?.domain,
+    };
+  };
   return {
     storyTitle: state.storyTitle,
     storyTone: state.storyTone,
@@ -1060,7 +1094,7 @@ export function publicState(state: State) {
     routeLabel: route?.label || null,
     stageId: currentBeat.id,
     stageKind: currentBeat.kind,
-    selections: state.selections.map((selection) => ({ node: selection.node, index: selection.index })),
+    selections: state.selections.map(publicSelection),
     pending: state.pending,
     total: totalForState(state),
     minTotal: minStages,

@@ -43,7 +43,7 @@ export const demoOpening:PublicState = {
 export function chooseDemo(state:PublicState, index:number):PublicState {
   const next=structuredClone(state), person=cast[index]||cast[0];
   if(next.complete || !next.nodes.at(-1)?.choices[index]) return next;
-  next.selections.push({node:next.nodes.length-1,index});
+  next.selections.push({node:next.nodes.length-1,index} as (typeof next.selections)[number]);
   if(next.nodes.length===1){
     next.route=person.id;next.worldState.relationships[person.id]+=2;
     const action={lin:'我把靠窗的画纸一张张移到干燥的桌面上，留出右下角还没干的颜料。',tao:'我接过托盘，把杯子放在桌子中央。歪歪的杯沿，在暖光下像一个小小的微笑。',shen:'我帮她把三脚架摆稳，试了试定时快门，又把镜头朝向大家都能看见的位置。'}[person.id];

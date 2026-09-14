@@ -3,6 +3,7 @@ import {createLiveAuthorProvider} from './author-live-provider';
 import {officialViewerFromProfile, type OfficialViewer} from './author-provider-official';
 
 export type SessionLike = {
+  localMode?: boolean;
   accessToken?: string | null;
   profile?: {id: string | null; name: string | null; avatarUrl: string | null; headline: string | null} | null;
 } | null;
@@ -13,6 +14,7 @@ export function officialAccessSecret(env: NodeJS.ProcessEnv = process.env): stri
 }
 
 export function sessionViewer(session: SessionLike): OfficialViewer | null {
+  if (session?.localMode) return null;
   return officialViewerFromProfile(session?.profile ?? null);
 }
 
@@ -28,8 +30,8 @@ export function createSessionAuthorProvider(session: SessionLike, env: NodeJS.Pr
   return createLiveAuthorProvider({
     root: defaultAuthorDataRoot(),
     viewer: sessionViewer(session),
-    oauthToken: session?.accessToken ?? undefined,
-    accessSecret: officialAccessSecret(env),
+    oauthToken: session?.localMode ? undefined : session?.accessToken ?? undefined,
+    accessSecret: session?.localMode ? undefined : officialAccessSecret(env),
     env,
   });
 }

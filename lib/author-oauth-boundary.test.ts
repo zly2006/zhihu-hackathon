@@ -45,8 +45,9 @@ test('oauth token header construction stays in the official provider only', () =
   assert.ok(official.includes("headers['X-OAuth-Token']"));
   const auth = source('zhihu-auth.ts');
   assert.ok(auth.includes('accessToken'), 'auth session keeps the token server-side');
-  const payloadKeys = auth.slice(auth.indexOf('payload:{'), auth.indexOf('payload:{') + 400);
-  assert.ok(!/accessToken\s*[:,]/.test(payloadKeys), 'the auth status payload must not return the token');
+  const publicStatus = auth.slice(auth.indexOf('export function sessionStatus('), auth.indexOf('export function status('));
+  assert.ok(publicStatus.includes('return {'), 'inspect the actual auth status payload');
+  assert.ok(!/accessToken\s*[:,]/.test(publicStatus), 'the auth status payload must not return the token');
 });
 
 test('author prompts only carry the fictional identity', () => {

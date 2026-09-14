@@ -1,5 +1,7 @@
 # 知乎答主 Live Provider Framework 开发报告
 
+> 本文保留当时的实现和验收记录。文中的自动免登录开关现已由首页「本地模式」按钮取代，当前用法见 [README 的启动说明](../README.md#启动)。
+
 - 分支：`codex/zhihu-author-avatar-rag`
 - 起始基线：`e46b1ed feat: 开发模式免登录能力完善`（工作树干净，只有既有未跟踪目录）
 - 本轮提交：未创建 commit（见第 9 节）

@@ -26,7 +26,7 @@ export async function cleanupExpiredData() {
 }
 type EventInput = {type: string; payload?: Record<string, unknown>; storyId?: string};
 export async function recordInteraction(request: NextRequest, event: EventInput) {
-  const session = currentSession(request); if (!session) return;
+  const session = currentSession(request); if (!session || session.localMode) return;
   await cleanupExpiredData();
   const profile = session.profile; const providerId = profile?.id || `session:${session.id}`;
   try {
@@ -39,7 +39,7 @@ export async function recordInteraction(request: NextRequest, event: EventInput)
 }
 export async function recordChat(request: NextRequest, input: {storyId?: string; character: string; messages: {role: string; text: string}[]}) {
   await recordInteraction(request, {type: 'chat_exchange', storyId: input.storyId, payload: {character: input.character, messageCount: input.messages.length, messages: input.messages}});
-  const session = currentSession(request); if (!session || !input.storyId) return;
+  const session = currentSession(request); if (!session || session.localMode || !input.storyId) return;
   const providerId = session.profile?.id || `session:${session.id}`;
   try { await withTransaction(async client => {
     const account = await client.query<{id:string}>('SELECT id FROM zhihu_accounts WHERE provider_user_id=$1', [providerId]);
@@ -49,7 +49,7 @@ export async function recordChat(request: NextRequest, input: {storyId?: string;
   }); } catch (error) { console.error('[db chat]', error instanceof Error ? error.message : 'failed'); }
 }
 export async function recordStorySnapshot(request: NextRequest, storyId: string, state: State, mode: 'live' | 'demo' = 'live') {
-  const session = currentSession(request); if (!session) return;
+  const session = currentSession(request); if (!session || session.localMode) return;
   await cleanupExpiredData();
   const profile = session.profile; const providerId = profile?.id || `session:${session.id}`;
   try {
