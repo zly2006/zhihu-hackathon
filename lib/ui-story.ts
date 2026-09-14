@@ -8,7 +8,7 @@ export const cast = [
 export type CastId = string;
 export type ChatMessage = {role:'user'|'assistant';text:string};
 export type Chats = Partial<Record<CastId,ChatMessage[]>>;
-export type SaveSlot = {version:1;mode:'demo'|'live';storyId?:string;state:PublicState;line:number;chats:Chats;time:string;partner:CastId};
+export type SaveSlot = {version:1;mode:'demo'|'live';storyId?:string;state:PublicState;line:number;chats:Chats;time:string;partner:CastId;bgm?:string};
 
 export const demoOpening:PublicState = {
   storyTitle:'留一盏灯', storyTone:'雨夜、未说出口的话，和刚刚好的相遇',
