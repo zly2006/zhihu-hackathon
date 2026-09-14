@@ -526,7 +526,9 @@ export function beatForState(state: Pick<State, 'nodes' | 'route' | 'relationshi
   // story. The next beat is determined by the number of completed choices.
   const commonIndex = state.commonRounds;
   if (commonIndex < commonBeats.length) return commonBeats[commonIndex];
-  throw new Error('共同篇无法继续。');
+  // A full State is repaired before generation/public projection. Keep this
+  // readonly helper total as well so a legacy snapshot can never crash the UI.
+  return commonBeats[commonBeats.length - 1]!;
 }
 
 export function beatAtNode(state: Pick<State, 'route' | 'relationshipType' | 'commonRounds'>, nodeIndex: number): Beat {
@@ -556,6 +558,18 @@ function lockRoute(state: State, target: Route) {
   const romanceAllowed = member.kind !== 'zhihu-author' || member.capabilities?.canEnterRomance === true;
   state.relationshipType = romanceAllowed && state.player.gender !== member.gender ? 'romance' : 'friendship';
   state.worldState.timeline.push(`锁定${member.name}，进入${routeTemplates[state.relationshipType].label}`);
+}
+
+export function recoverStoryProgress(state: State) {
+  if (state.route || state.commonRounds < commonBeats.length) return false;
+  const routeIds = selectedIds(state);
+  const scores = Object.fromEntries(routeIds.map((id) => [id, state.selections.filter((selection) => selection.target === id).length]));
+  const max = Math.max(0, ...Object.values(scores));
+  const leaders = routeIds.filter((id) => scores[id] === max);
+  const latest = [...state.selections].reverse().find((selection) => selection.target && leaders.includes(selection.target));
+  lockRoute(state, latest?.target || leaders[0] || routeIds[0]);
+  state.pending = true;
+  return true;
 }
 
 export function choose(state: State, index: number, expected: number) {
@@ -991,6 +1005,7 @@ export function messages(state: State) {
 }
 
 export function publicState(state: State) {
+  recoverStoryProgress(state);
   ensureWorldState(state);
   const background = backgroundFor(state.backgroundId);
   const route = state.relationshipType ? routeTemplates[state.relationshipType] : null;
