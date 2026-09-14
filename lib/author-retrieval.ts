@@ -11,6 +11,10 @@ function terms(text:string):Set<string>{
   }
   return result;
 }
+function requiredTermMatches(termCount:number){
+  if(termCount<=1)return 1;
+  return termCount<=8?2:3;
+}
 export function retrieveAuthorEvidence(answers:readonly AuthorAnswer[],options:Options):Result{
   if(typeof options.measureInput!=='function')throw new Error('Evidence input size counter is required');
   if(!Number.isSafeInteger(options.sizeBudget)||options.sizeBudget<2||options.sizeBudget>100_000)throw new Error('Invalid evidence budget');
@@ -18,14 +22,15 @@ export function retrieveAuthorEvidence(answers:readonly AuthorAnswer[],options:O
   const emptySize=count([]);const queryTerms=terms(options.query);
   const empty=(status:Result['status']):Result=>({status,items:[],inputSize:emptySize,budgetUnit:options.budgetUnit});
   if(!queryTerms.size)return empty('no-match');
+  const requiredMatches=requiredTermMatches(queryTerms.size);
   const seen=new Set<string>();const ranked:{item:AuthorEvidence;score:number}[]=[];
   for(const answer of answers){
     if(answer.authorUrlToken!==options.authorUrlToken||seen.has(answer.answerId))continue;seen.add(answer.answerId);
     const paragraphs=answer.body.split(/\r?\n+/).map(p=>p.trim()).filter(Boolean);
     for(let i=0;i<paragraphs.length;i++){
       const text=paragraphs[i];const bodyTerms=terms(text);const titleTerms=terms(answer.questionTitle);
-      let score=0;for(const term of queryTerms)score+=(bodyTerms.has(term)?2:0)+(titleTerms.has(term)?1:0);
-      if(!score)continue;
+      let score=0;let matches=0;for(const term of queryTerms){const inBody=bodyTerms.has(term);const inTitle=titleTerms.has(term);if(inBody||inTitle)matches+=1;score+=(inBody?2:0)+(inTitle?1:0);}
+      if(matches<requiredMatches)continue;
       ranked.push({score,item:{id:`${answer.answerId}:p${i+1}`,answerId:answer.answerId,authorName:answer.authorName,authorUrlToken:answer.authorUrlToken,title:answer.questionTitle,sourceUrl:answer.sourceUrl,text,completeness:answer.completeness}});
     }
   }

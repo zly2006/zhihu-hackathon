@@ -113,6 +113,15 @@ test('unrelated and empty queries do not silently return arbitrary evidence',()=
   }
 });
 
+test('a single shared bigram is too weak to count as evidence',()=>{
+  const noise={...answer,answerId:'3003',questionTitle:'合成问题',body:'这里只提到进展两个字。'};
+  const weak=retrieveAuthorEvidence([noise],{...options,query:'量子引力与弦论的最新进展'});
+  assert.equal(weak.status,'no-match');
+  const strong=retrieveAuthorEvidence([answer],{...options,query:'远程工作需要明确休息安排'});
+  assert.equal(strong.status,'matched');
+  assert.ok(strong.items.every(item=>item.answerId==='1001'));
+});
+
 test('retrieval counts final serialized evidence and respects the budget',()=>{
   const first=retrieveAuthorEvidence([answer],options);
   assert.equal(first.inputSize,Buffer.byteLength(JSON.stringify(first.items),'utf8'));
