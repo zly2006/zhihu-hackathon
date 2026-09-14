@@ -1,4 +1,6 @@
-# 此间 · Next.js 人生阶段互动故事
+# 假如我们的人生 · Next.js 知乎互动叙事游戏
+
+> 你甚至可以在知乎玩galgame！
 
 前后端统一为Next.js 16 App Router + TypeScript。服务端直接请求OpenCode Go，运行时不调用Python；原Python样板保留在 `/Users/zhaoliyan/魔女的夜宴_xp3解包/galgame_llm/` 供对照。
 

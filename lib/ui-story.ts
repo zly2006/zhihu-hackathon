@@ -11,7 +11,7 @@ export type Chats = Partial<Record<CastId,ChatMessage[]>>;
 export type SaveSlot = {version:1;mode:'demo'|'live';storyId?:string;state:PublicState;line:number;chats:Chats;time:string;partner:CastId};
 
 export const demoOpening:PublicState = {
-  storyTitle:'留一盏灯', storyTone:'雨夜、未说出口的话，和刚刚好的相遇',
+  storyTitle:'假如我们的人生', storyTone:'雨夜、未说出口的话，和刚刚好的相遇',
   worldState:{relationships:{lin:0,tao:0,shen:0},flags:[],timeline:[],endingId:undefined},
   lifeEvent:null, relationshipProgress:[
     {id:'lin',name:'林见夏',affinity:0,disclosure:'尚未分享'},
