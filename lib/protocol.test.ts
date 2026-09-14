@@ -131,6 +131,19 @@ test('a two-round tie adds a third common choice and same-gender lock enters the
   assert.equal(totalForState(state), 7);
 });
 
+test('the final common node remains renderable before its tie-break choice', () => {
+  const state = initial(profiles, startOptions);
+  chooseTarget(state, 'm1');
+  chooseTarget(state, 'f2');
+  const finalCommon = validate(makeNode(state, commonChoices(state), '第三段'), state);
+  appendNode(state, finalCommon);
+  assert.equal(state.route, null);
+  assert.doesNotThrow(() => publicState(state));
+  assert.equal(publicState(state).stageKind, 'common');
+  assert.equal(publicState(state).stageId, 'common-3');
+  assert.doesNotThrow(() => buildModelMessages(state));
+});
+
 test('later route choices cannot change the locked character or relationship type', () => {
   const state = lockedState('m1');
   advanceRoute(state, 0);

@@ -519,7 +519,12 @@ export function beatForState(state: Pick<State, 'nodes' | 'route' | 'relationshi
     if (routeIndex < template.stages.length) return template.stages[routeIndex];
     return { ...endingBeat!, task: template.endingTask };
   }
-  const commonIndex = state.nodes.length;
+  // `commonRounds` counts submitted common choices, while `nodes.length`
+  // also includes the final common node that is waiting for its tie-break
+  // choice. Using nodes.length here made a valid tie-break state (three
+  // common nodes, two submitted choices, no route yet) throw and strand the
+  // story. The next beat is determined by the number of completed choices.
+  const commonIndex = state.commonRounds;
   if (commonIndex < commonBeats.length) return commonBeats[commonIndex];
   throw new Error('共同篇无法继续。');
 }
