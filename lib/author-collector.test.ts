@@ -12,6 +12,7 @@ import {
   filterNewCandidates,
   htmlToText,
   inspectAnswerDetail,
+  loadProjectEnv,
   planBatchSplits,
   planQueriesDeterministic,
   validateAnswerId,
@@ -133,6 +134,26 @@ test('planner messages stay string-encoded and the model path falls back safely'
   assert.equal(offline.planner, 'deterministic');
   assert.ok(offline.plannerError);
   assert.equal(createDeepseekPlanner(), undefined);
+});
+
+test('project env loading fills missing variables and never overrides existing ones', async () => {
+  const directory = await mkdtemp(path.join(tmpdir(), 'zhihu-env-'));
+  const key = 'ZHURL_TEST_PROJECT_ENV';
+  try {
+    const file = path.join(directory, 'env-test');
+    delete process.env[key];
+    await writeFile(file, `# comment\n${key}=from-file\n`);
+    const applied = loadProjectEnv(file);
+    assert.ok(applied.includes(key));
+    assert.equal(process.env[key], 'from-file');
+    process.env[key] = 'existing';
+    const again = loadProjectEnv(file);
+    assert.ok(!again.includes(key));
+    assert.equal(process.env[key], 'existing');
+  } finally {
+    delete process.env[key];
+    await rm(directory, {recursive: true, force: true});
+  }
 });
 
 const mockZhurl = `import process from 'node:process';

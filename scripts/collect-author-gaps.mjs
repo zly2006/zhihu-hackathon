@@ -8,6 +8,7 @@ import {
   inspectAnswerDetail,
   listExistingAnswerIds,
   loadExistingCorpusTexts,
+  loadProjectEnv,
   nextBatchIndex,
   resolveZhurl,
   sleep,
@@ -75,6 +76,8 @@ if (dryRun) {
   process.exit(0);
 }
 
+const envApplied = loadProjectEnv();
+if (envApplied.length) console.log(`env-loaded=${envApplied.join(',')} (values hidden)`);
 const plannerKey = process.env.DEEPSEEK_API_KEY?.trim();
 const callModel = plannerMode === 'model' ? createDeepseekPlanner({key: plannerKey, endpoint: process.env.DEEPSEEK_ENDPOINT, model: process.env.DEEPSEEK_MODEL}) : undefined;
 const planning = await planQueries({gaps, topics: selectedTopics, corpusTitles: corpusTexts.map((entry) => entry.title), maxQueries, planner: plannerMode, callModel});
