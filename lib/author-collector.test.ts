@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict';
 import {spawnSync} from 'node:child_process';
-import {existsSync, readdirSync} from 'node:fs';
+import {existsSync, readdirSync, readFileSync} from 'node:fs';
 import {mkdtemp, mkdir, readFile, rm, writeFile} from 'node:fs/promises';
 import {tmpdir} from 'node:os';
 import path from 'node:path';
@@ -17,6 +17,7 @@ import {
   memberSearchUrl,
   planBatchSplits,
   planQueriesDeterministic,
+  resolveZhurl,
   validateAnswerId,
 } from '../scripts/lib/author-collect.mjs';
 import {buildPlannerMessages, createDeepseekPlanner, createPlannerFromEnv, parsePlannerReply, planQueries, planQueriesWithModel, resolvePlannerCredentials} from '../scripts/lib/author-plan.mjs';
@@ -316,4 +317,48 @@ test('gap collector dry-run performs no network and writes nothing', async () =>
     assert.ok(!(result.stderr || '').includes('401'));
     assert.ok(CollectorStop.name === 'CollectorStop');
   });
+});
+
+test('collector environment convention is ZHURL_BIN only', () => {
+  const files = ['scripts/collect-author-answers.mjs', 'scripts/collect-author-gaps.mjs', 'scripts/lib/author-collect.mjs'];
+  for (const file of files) {
+    const source = readFileSync(path.join(process.cwd(), file), 'utf8');
+    assert.ok(!source.includes('ZHURL_PATH'), file);
+    assert.ok(!source.includes('ZHURL_HOME'), file);
+  }
+  const original = process.env.ZHURL_BIN;
+  try {
+    assert.equal(resolveZhurl('C:/explicit/zhurl.exe'), 'C:/explicit/zhurl.exe');
+    process.env.ZHURL_BIN = 'C:/env/zhurl.exe';
+    assert.equal(resolveZhurl(), 'C:/env/zhurl.exe');
+    delete process.env.ZHURL_BIN;
+    const fallback = resolveZhurl();
+    assert.ok(fallback === 'zhurl' || /zhurl(\.exe)?$/i.test(fallback), fallback);
+  } finally {
+    if (original === undefined) delete process.env.ZHURL_BIN;
+    else process.env.ZHURL_BIN = original;
+  }
+});
+
+test('collector sources never log credentials and the model only plans queries', () => {
+  const files = [
+    'scripts/collect-author-answers.mjs',
+    'scripts/collect-author-gaps.mjs',
+    'scripts/lib/author-collect.mjs',
+    'scripts/lib/author-plan.mjs',
+    'scripts/lib/zhurl-compat.mjs',
+  ];
+  for (const file of files) {
+    const source = readFileSync(path.join(process.cwd(), file), 'utf8');
+    for (const line of source.split(/\r?\n/)) {
+      if (!/console\.(log|info|warn|error)/.test(line)) continue;
+      assert.ok(!/cookie|secret|api[_-]?key/i.test(line), `${file}: ${line.trim()}`);
+    }
+  }
+  const planner = readFileSync(path.join(process.cwd(), 'scripts/lib/author-plan.mjs'), 'utf8');
+  assert.ok(planner.includes('query'));
+  assert.ok(!planner.includes('read_answer'));
+  assert.ok(!planner.includes('search_corpus'));
+  assert.ok(!planner.includes('AuthorAnswer'));
+  assert.ok(!planner.includes('.body'));
 });
