@@ -143,8 +143,9 @@
 @media(max-width:1000px) and (orientation:landscape){.title-group-cast{right:-3%;bottom:17%;width:66%;max-height:74%}}
 
 /* 通关结算：沿用对白框的奶白、淡紫和细线层次，把结局做成可回看的编辑式档案。 */
-.panel-ending .modal-card{width:min(86cqw,1380px);max-height:94%;padding:2.4cqw 3cqw;background:linear-gradient(135deg,#fffafffc,#eee5f5fc);}
-.ending-panel-content{color:#55465d}
+.panel-ending .modal-card{display:flex;width:min(86cqw,1380px);height:94%;max-height:94%;overflow:hidden;padding:2.4cqw 3cqw 1.5cqw;background:linear-gradient(135deg,#fffafffc,#eee5f5fc);}
+.ending-panel-content{display:flex;min-height:0;flex:1;flex-direction:column;color:#55465d}
+.ending-scroll-region{min-height:0;flex:1;overflow:auto;padding-right:.5cqw;overscroll-behavior:contain;scrollbar-gutter:stable}
 .ending-hero{display:flex;justify-content:space-between;align-items:flex-start;gap:2cqw;padding-bottom:1.8cqw;border-bottom:1px solid #d9c9df}
 .ending-hero h2{margin:.45cqw 0 .6cqw;font-size:2.6cqw;letter-spacing:.1em;color:#57445f}
 .ending-hero p{max-width:62cqw;color:#8f7c96;font-size:.95cqw;line-height:1.85}
@@ -160,6 +161,22 @@
 .ending-choice-context{display:block;margin-top:.12cqw;color:#a18ca8;font-size:.62cqw;line-height:1.45}.ending-evidence-basis{display:block;margin:-.2cqw 0 .45cqw;color:#a18ca8;font-size:.56cqw;letter-spacing:.04em}.ending-evidence-details{margin-top:.35cqw;color:#92749b;font-size:.58cqw}.ending-evidence-details summary{cursor:pointer;display:inline-block}.ending-evidence-details p{margin:.35cqw 0 0;color:#76657c;font-family:"Noto Serif SC","SimSun",serif;font-size:.66cqw;line-height:1.65;white-space:pre-wrap}
 .ending-support{position:relative;display:grid;grid-template-columns:minmax(0,1fr) minmax(22cqw,30cqw);gap:2cqw;align-items:center;overflow:hidden;margin-top:2.4cqw;padding:1.35cqw 1.5cqw;border:1px solid #cab0d2;border-radius:.7cqw;background:linear-gradient(112deg,#fbf4fc 0%,#f5e9f7 55%,#ead8ef 100%);box-shadow:0 10px 28px #6948761c}.ending-support:after{content:'赞';position:absolute;right:1cqw;top:-2.4cqw;color:#fff8;font:8cqw "Noto Serif SC","SimSun",serif;pointer-events:none}.ending-support h3{position:relative;margin:.3cqw 0 .35cqw;color:#604868;font:500 1.35cqw "Noto Serif SC","SimSun",serif;letter-spacing:.08em}.ending-support p{position:relative;max-width:46cqw;color:#8d7893;font-size:.72cqw;line-height:1.7}.ending-support>a{position:relative;z-index:1;display:flex;align-items:center;justify-content:space-between;gap:1cqw;min-height:4.6cqw;padding:.85cqw 1.15cqw;border:1px solid #9e78aa;border-radius:.5cqw;background:#9c77aa;color:#fff;text-decoration:none;box-shadow:0 8px 20px #704c7e38;transition:transform .2s ease,background .2s ease,box-shadow .2s ease}.ending-support>a:hover{transform:translateY(-2px);background:#896596;box-shadow:0 12px 26px #704c7e4a}.ending-support>a:focus-visible{outline:2px solid #775181;outline-offset:3px}.ending-support>a span{display:flex;flex-direction:column;gap:.18cqw}.ending-support>a small{color:#f0e2f3;font-size:.58cqw;letter-spacing:.1em}.ending-support>a strong{font-size:.85cqw;font-weight:500;line-height:1.5}.ending-support>a .icon{width:1.5cqw;height:1.5cqw;flex:none}
 @media(max-width:1000px) and (orientation:landscape){.ending-support{grid-template-columns:1fr minmax(28cqw,36cqw);padding:1.6cqw}.ending-support h3{font-size:1.7cqw}.ending-support p{font-size:.9cqw}.ending-support>a{min-height:6cqw;padding:1cqw 1.3cqw}.ending-support>a small{font-size:.75cqw}.ending-support>a strong{font-size:1.05cqw}.ending-support>a .icon{width:2cqw;height:2cqw}}
+
+/* 结算正文单独滚动；操作栏是弹窗底部的固定区域。 */
+.ending-source-note{margin-top:2cqw;padding:1.2cqw 0 .5cqw;border-top:1px solid #d9c9df;color:#9d8ca3;font-size:.68cqw}
+.ending-support{grid-template-columns:minmax(0,1fr) auto;flex:none;margin-top:1.2cqw;padding:1cqw 1.25cqw}
+.ending-support h3{margin:.22cqw 0 .25cqw;font-size:1.15cqw}
+.ending-support p{max-width:42cqw;font-size:.66cqw;line-height:1.55}
+.ending-support-actions{position:relative;z-index:1;display:flex;align-items:center;gap:.8cqw}
+.ending-support-actions>button{padding:.75cqw 1.1cqw;border:1px solid #c5afd0;border-radius:2em;background:#fff9;color:#8d6d98;font-size:.68cqw;white-space:nowrap}
+.ending-support-actions>a{display:flex;align-items:center;justify-content:space-between;gap:1cqw;width:25cqw;min-height:4cqw;padding:.7cqw 1.05cqw;border:1px solid #9e78aa;border-radius:.5cqw;background:#9c77aa;color:#fff;text-decoration:none;box-shadow:0 8px 20px #704c7e38;transition:transform .2s ease,background .2s ease,box-shadow .2s ease}
+.ending-support-actions>a:hover{transform:translateY(-2px);background:#896596;box-shadow:0 12px 26px #704c7e4a}
+.ending-support-actions>a:focus-visible,.ending-support-actions>button:focus-visible{outline:2px solid #775181;outline-offset:3px}
+.ending-support-actions>a span{display:flex;flex-direction:column;gap:.18cqw}
+.ending-support-actions>a small{color:#f0e2f3;font-size:.58cqw;letter-spacing:.1em}
+.ending-support-actions>a strong{font-size:.82cqw;font-weight:500;line-height:1.45}
+.ending-support-actions>a .icon{width:1.5cqw;height:1.5cqw;flex:none}
+@media(max-width:1000px) and (orientation:landscape){.panel-ending .modal-card{padding-bottom:1.7cqw}.ending-source-note{font-size:.82cqw}.ending-support{grid-template-columns:1fr auto;gap:1.2cqw;padding:1.2cqw}.ending-support h3{font-size:1.45cqw}.ending-support p{font-size:.82cqw}.ending-support-actions>button{font-size:.82cqw}.ending-support-actions>a{width:31cqw;min-height:5.2cqw;padding:.8cqw 1.2cqw}.ending-support-actions>a small{font-size:.72cqw}.ending-support-actions>a strong{font-size:1cqw}.ending-support-actions>a .icon{width:2cqw;height:2cqw}}
 
 /* Some embedded WebViews report every viewport-height unit as 0px. */
 .game-shell{min-height:var(--app-height)}
